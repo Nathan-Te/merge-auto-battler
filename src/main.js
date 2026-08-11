@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import GameScene from './scenes/GameScene.js';
+import GameOverScene from './scenes/GameOverScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -15,13 +16,14 @@ const config = {
     width: '100%',
     height: '100%',
   },
-  // Pas de moteur physique : la grille de merge se joue entièrement aux tweens.
-  // Le Lot 2 réintroduira `physics` s'il en a besoin pour la bande de combat.
+  // Pas de moteur physique : la grille se joue aux tweens, et la bande de combat est
+  // simulée par `BattleModel` à tick fixe — aucun besoin d'un moteur de collisions.
   render: {
     antialias: true,
     roundPixels: true,
   },
-  scene: [GameScene],
+  // `GameOverScene` est lancée par-dessus `GameScene` mise en pause, pas à sa place.
+  scene: [GameScene, GameOverScene],
 };
 
 const game = new Phaser.Game(config);
