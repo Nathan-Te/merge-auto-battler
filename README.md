@@ -76,3 +76,72 @@ de 2 Mo du squelette.
 
 À vérifier sur téléphone une fois Pages activé : les cercles s'attrapent bien au doigt, le
 FPS tient, et la rotation portrait ↔ paysage ne casse rien.
+
+## Lot 1 — ce qui est livré
+
+La moitié gauche du jeu : la grille de merge, jouable de bout en bout, en greybox. La scène
+de validation du Lot 0 a rempli son rôle et cède la place à `GameScene`.
+
+### Ce qui est testable
+
+- **Grille 5×5** avec la place de la bande de combat déjà réservée (placeholder à droite en
+  paysage, en bas en portrait) : le Lot 2 s'y installe sans rebouger l'écran.
+- **Items de tier 1 à 11** en greybox : une forme *et* une couleur par tier, plus le numéro.
+- **Apparition automatique** pilotée par `balance.json` (`itemSpawner`) : 3 items au
+  démarrage, puis un item toutes les 2,4 s, cadence qui accélère jusqu'à un plancher de
+  900 ms. Seuls les tiers 1 et 2 apparaissent naturellement ; le reste s'obtient par fusion.
+- **Drag souris et tactile** : sur un item identique → fusion (tier+1 sur la case cible),
+  sur une case vide → déplacement, ailleurs → retour animé à la case d'origine. L'item tenu
+  passe au-dessus de tout et grossit pour rester visible sous le doigt.
+- **Grille pleine** : le spawn se met en pause, la bordure de la grille pulse, et tout
+  repart dès qu'une fusion libère une case.
+- **Compteur de debug** en haut à droite : `Merges: N (dernier tier: T)`, alimenté par
+  l'événement `merge` — le contrat que consommera la bande de combat au Lot 2.
+
+### Décisions prises
+
+- **`GridModel` pur, sans Phaser.** Toutes les règles (fusion, déplacement, spawn sur case
+  libre, tier maximum, grille pleine) vivent dans `src/systems/` et sont testées sans
+  canvas. La scène ne décide de rien : elle appelle `applyDrop(from, to)` et affiche ce que
+  le modèle émet sur un petit bus d'événements. Détail dans `CLAUDE.md`, section
+  Architecture.
+- **`merge` porte le tier fusionné, pas le tier résultant.** Fusionner deux tiers 3 émet
+  `{ tier: 3, resultTier: 4 }` : le seed doc veut qu'une fusion de tier N fasse apparaître
+  une unité de tier N. Le Lot 2 lit `tier` directement.
+- **Tolérance de drop pensée pour le doigt** : la cible est la case dont le centre est le
+  plus proche du centre de l'item lâché (distance de Tchebychev, donc pas de coin mort
+  entre quatre cases), avec une marge de 0,9 case autour de la grille. Un lâcher approximatif
+  fonctionne ; un lâcher sur la bande de combat ne fait rien.
+- **Zone de saisie = la case entière**, pas la forme : viser les pointes d'une étoile au
+  doigt serait injouable. Attention, une zone de saisie de conteneur Phaser se décrit
+  **depuis son coin haut-gauche** (Phaser ajoute `displayOrigin` avant le test) — une zone
+  centrée sur (0, 0) ne couvre que le quart haut-gauche de l'item.
+- **Layout calculé par une fonction pure** (`src/systems/layout.js`), rejouée à chaque
+  `resize`, donc testable : grille carrée, zones qui ne se chevauchent jamais, bande de
+  combat non vide, du 320×568 au desktop.
+- **Un seul drag à la fois.** Un second doigt qui attrape un autre item est neutralisé et
+  son item revient à sa case, plutôt que de gérer deux gestes concurrents. Un `dragend`
+  perdu (doigt sorti de la page, onglet masqué) est rattrapé dans `update()` : l'item
+  revient chez lui au lieu de rester collé au vide.
+- **Plus de moteur physique** dans la config Phaser : la grille se joue entièrement aux
+  tweens. Le Lot 2 le réintroduira s'il en a besoin.
+
+### Vérifications
+
+- `npm test` : **83 tests** verts (grille, modèle, spawner, bus, layout).
+- Passe navigateur automatisée (Chromium, viewport téléphone, événements tactiles réels) :
+  fusion au doigt et à la souris, déplacement, lâcher invalide, rotation d'écran **pendant**
+  un drag, relâcher hors grille, grille pleine puis dégagée, spawn continu — aucune erreur
+  console.
+- Poids de `dist/` : **1,2 Mo** (~325 Ko gzip), inchangé par rapport au Lot 0 — le code du
+  jeu est négligeable devant Phaser. Sous le budget de 2 Mo.
+
+### Ce qui reste ouvert
+
+- Le feel se valide au doigt sur l'URL publique : cadence d'apparition, taille des items,
+  tolérance de drop. Tout se règle dans `balance.json` (sauf la tolérance, qui est du feel
+  de rendu) — retours à traiter au Lot 3.
+- Aucun juice au-delà d'un tween de scale : squash, particules et vol vers la bande sont
+  explicitement au Lot 3.
+- Les couleurs des tiers 4/5 (deux verts) se ressemblent de loin ; les formes les
+  distinguent, mais c'est un candidat au réglage quand les assets arriveront au Lot 4.

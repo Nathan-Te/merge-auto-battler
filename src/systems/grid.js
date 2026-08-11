@@ -36,8 +36,11 @@ export function gridCoords(index, cols = GRID_COLS) {
 }
 
 /**
- * Vrai si deux cases sont adjacentes orthogonalement (pas en diagonale) :
- * c'est la relation qu'utilisera le merge du Lot 1.
+ * Vrai si deux cases sont adjacentes orthogonalement (pas en diagonale).
+ *
+ * Le merge de la grille n'impose **pas** l'adjacence (on traîne un item sur
+ * n'importe quel autre item identique) ; ce prédicat sert au voisinage — la fusion
+ * de deux unités adjacentes sur la bande de combat au Lot 2.
  *
  * @returns {boolean}
  */
