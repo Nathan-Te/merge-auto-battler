@@ -1,7 +1,19 @@
 {
-  "version": 0,
+  "version": 1,
   "units": {},
   "enemies": {},
   "waves": {},
-  "itemSpawner": {}
+  "itemSpawner": {
+    "maxTier": 11,
+    "startingItems": 3,
+    "firstSpawnDelayMs": 500,
+    "intervalMs": 2400,
+    "minIntervalMs": 900,
+    "intervalDecay": 0.985,
+    "gridFullRetryMs": 400,
+    "spawnTierWeights": {
+      "1": 85,
+      "2": 15
+    }
+  }
 }

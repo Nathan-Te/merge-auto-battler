@@ -5,8 +5,8 @@ gameplay ne doit être écrite en dur dans le code (cf. `docs/seed.md`, section
 « Contraintes techniques »). JSON ne supportant pas les commentaires, ce fichier tient
 lieu de documentation du format.
 
-Au Lot 0 les quatre sections sont **vides** : la scène de validation ne contient aucun
-gameplay, donc aucune stat à équilibrer. Elles se remplissent au fil des lots.
+Les sections se remplissent au fil des lots : `itemSpawner` est renseignée depuis le Lot 1
+(grille de merge), `units` / `enemies` / `waves` le seront au Lot 2 (bande de combat).
 
 ## Règles générales
 
@@ -74,15 +74,30 @@ Le scaling est numérique (PV / vitesse / nombre), pas de nouveaux types par vag
 
 ## `itemSpawner` — apparition des items sur la grille (Lot 1)
 
+Section **active** : lue et validée par `parseSpawnerConfig()` (`src/systems/itemSpawner.js`),
+qui lève une erreur explicite sur toute clé manquante ou hors bornes.
+
 ```jsonc
 "itemSpawner": {
-  "intervalMs": 1500,         // cadence d'apparition sur une case libre
-  "startingItems": 3,         // items présents au démarrage
-  "maxTier": 11,              // cf. seed doc : 11 tiers max
-  "spawnTierWeights": {       // probabilités relatives du tier à l'apparition
-    "1": 85,
-    "2": 15
-  },
-  "gridFullGraceMs": 2000     // délai avant game over / blocage si la grille sature
+  "maxTier": 11,              // tier maximum atteignable (cf. seed doc : 11 tiers)
+  "startingItems": 3,         // items posés sur la grille au démarrage
+  "firstSpawnDelayMs": 500,   // délai avant la première apparition automatique
+  "intervalMs": 2400,         // intervalle d'apparition initial
+  "minIntervalMs": 900,       // plancher : l'accélération ne descend jamais en dessous
+  "intervalDecay": 0.985,     // facteur appliqué à l'intervalle après chaque apparition
+  "gridFullRetryMs": 400,     // grille pleine : fréquence de re-vérification (spawn en pause)
+  "spawnTierWeights": {       // poids relatifs du tier tiré à l'apparition
+    "1": 85,                  // seuls les tiers listés apparaissent naturellement ;
+    "2": 15                   // les tiers supérieurs ne s'obtiennent que par fusion
+  }
 }
 ```
+
+**Courbe d'accélération** : le délai avant la n-ième apparition vaut
+`max(minIntervalMs, intervalMs × intervalDecay^n)`. Avec les valeurs ci-dessus, le rythme
+passe de 2,4 s à 900 ms en une soixantaine d'items — soit environ deux minutes de jeu.
+Baisser `intervalDecay` accélère la montée en pression ; le régler à `1` la supprime.
+
+**Grille pleine** : ce n'est pas un game over au Lot 1 — le spawn se met simplement en
+pause (feedback : bordure de grille qui pulse) et reprend dès qu'une case se libère.
+`gridFullRetryMs` n'est donc qu'une cadence de re-vérification, pas un délai de grâce.

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import ValidationScene from './scenes/ValidationScene.js';
+import GameScene from './scenes/GameScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -15,20 +15,13 @@ const config = {
     width: '100%',
     height: '100%',
   },
-  physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { y: 900 },
-      debug: false,
-    },
-  },
-  // Le device pixel ratio est plafonné : au-delà de 2 on paie du fillrate pour rien
-  // sur mobile.
+  // Pas de moteur physique : la grille de merge se joue entièrement aux tweens.
+  // Le Lot 2 réintroduira `physics` s'il en a besoin pour la bande de combat.
   render: {
     antialias: true,
     roundPixels: true,
   },
-  scene: [ValidationScene],
+  scene: [GameScene],
 };
 
 const game = new Phaser.Game(config);
