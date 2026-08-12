@@ -40,6 +40,10 @@ export const MULTIPLIER_KEYS = [
   'spawnInterval',
   /** Cooldown du bouton « passer » de la file de types. */
   'skipCooldown',
+  /** Puissance des pouvoirs actifs : soin rendu et dégâts de zone (Lot 4). */
+  'powerAmount',
+  /** Probabilité qu'un item qui apparaît soit un pouvoir plutôt qu'une unité. */
+  'powerChance',
 ];
 
 /** Champs additifs, neutres à 0. */

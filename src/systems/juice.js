@@ -59,6 +59,23 @@ const REQUIRED_NUMBERS = [
   'combat.deathBurst.speedPx',
   'combat.deathBurst.lifeMs',
   'combat.deathBurst.sizePx',
+  'power.castMs',
+  'power.ringWidthPx',
+  'power.ringPulseMs',
+  'power.impactRingMs',
+  'power.impactRingScale',
+  'power.castBurst.count',
+  'power.castBurst.speedPx',
+  'power.castBurst.lifeMs',
+  'power.castBurst.sizePx',
+  'power.blastBurst.count',
+  'power.blastBurst.speedPx',
+  'power.blastBurst.lifeMs',
+  'power.blastBurst.sizePx',
+  'power.healBurst.count',
+  'power.healBurst.speedPx',
+  'power.healBurst.lifeMs',
+  'power.healBurst.sizePx',
   'base.flashMs',
   'base.vignetteAlpha',
   'base.vignetteFadeMs',
@@ -98,6 +115,13 @@ export const SFX_NAMES = [
   'baseHit',
   'wave',
   'gameOver',
+  /**
+   * Pouvoirs actifs (Lot 4). Trois sons distincts, et surtout **distincts de `tap`** : c'est
+   * la moitié sonore de « les deux taps ne se confondent pas ».
+   */
+  'powerCast',
+  'powerBlast',
+  'powerHeal',
 ];
 
 /** Formes d'onde reconnues par le synthétiseur (`src/systems/sfx.js`). */

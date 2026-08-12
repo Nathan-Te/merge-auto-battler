@@ -22,11 +22,14 @@ import { parseBattleConfig, unitStats, supportBonus, enemyStats } from '../syste
 import { parseSpawnerConfig } from '../systems/itemSpawner.js';
 import { parseInputConfig } from '../systems/tapGesture.js';
 import { parseDraftConfig } from '../systems/DraftSystem.js';
+import { parsePowersConfig, powerStats } from '../systems/PowerSystem.js';
 import { waveComposition, waveSpawnGapMs, waveLabel } from '../systems/waves.js';
 import { MULTIPLIER_KEYS, ADDITIVE_KEYS } from '../systems/modifiers.js';
 
 /** Tiers détaillés dans les tableaux d'unités. Au-delà, la courbe se déduit du facteur. */
 const SHOWN_TIERS = [1, 2, 3, 4, 5, 6, 8, 11];
+/** Tiers détaillés pour les pouvoirs — ils plafonnent plus bas, la table est plus courte. */
+const SHOWN_POWER_TIERS = [1, 2, 3, 4, 5, 6];
 /** Vagues générées détaillées après les vagues scriptées. */
 const SHOWN_GENERATED = 4;
 
@@ -147,6 +150,60 @@ function unitsSection(config) {
     '```',
     config.unitTypePattern.join(' → ') + ' → …',
     '```',
+    ''
+  );
+  return lines.join('\n');
+}
+
+function powersSection(powers) {
+  const lines = ['## Pouvoirs actifs', ''];
+  lines.push(
+    'La grille produit **deux familles d’items**. Un item d’unité part en file de déploiement',
+    'quand on le tape ; un item de **pouvoir** est consommé sur-le-champ, sans file ni',
+    'cooldown. Les deux se fusionnent de la même façon, mais **jamais entre eux** : deux items',
+    'ne fusionnent que s’ils ont le même tier **et** la même sorte (même famille, et même type',
+    'de pouvoir).',
+    '',
+    `Un item qui apparaît est un pouvoir avec une probabilité de **${Math.round(powers.spawnChance * 100)} %**,`,
+    `réparti selon les poids ci-dessous. Les pouvoirs plafonnent au **tier ${powers.maxTier}**, plus bas que`,
+    'les items d’unité : au-delà, le dernier tier serait hors d’atteinte et deux pouvoirs',
+    'plafonnés resteraient collés sur la grille sans pouvoir fusionner.',
+    ''
+  );
+
+  for (const [id, def] of Object.entries(powers.types)) {
+    const total = Object.values(powers.types).reduce((sum, entry) => sum + entry.weight, 0);
+    lines.push(`### ${def.label} — \`${id}\``, '');
+    lines.push(def.blurb, '');
+    lines.push(
+      `Effet \`${def.kind}\` · poids d’apparition ${def.weight} sur ${total} · ` +
+        (def.telegraphMs > 0
+          ? `télégraphie **${round(def.telegraphMs / 1000, 2)} s** avant l’impact`
+          : 'effet **immédiat**'),
+      ''
+    );
+
+    const blast = def.kind === 'blast';
+    const header = ['tier', blast ? 'dégâts' : 'PV rendus par unité'];
+    if (blast) header.push('rayon');
+
+    const rows = SHOWN_POWER_TIERS.filter((tier) => tier <= powers.maxTier).map((tier) => {
+      const stats = powerStats(powers, id, tier);
+      const cells = [String(tier), round(stats.amount, 0)];
+      if (blast) cells.push(round(stats.radius, 0));
+      return cells;
+    });
+    lines.push(table(header, rows), '');
+  }
+
+  lines.push(
+    'Le **ciblage est automatique** — pas de visée manuelle en V1, le glisser reste réservé à',
+    'la fusion. La zone se pose sur le groupe qui compte le plus d’ennemis dans le rayon du',
+    'pouvoir, et à nombre égal sur le plus avancé, donc le plus près de la base.',
+    '',
+    'Un pouvoir sans la moindre cible (une météorite sans un ennemi sur le couloir, un soin',
+    'sans une unité sur le champ) est **refusé** : l’item reste sur la grille. Soigner une',
+    'armée intacte, en revanche, reste permis — c’est un jugement du joueur.',
     ''
   );
   return lines.join('\n');
@@ -328,6 +385,7 @@ export function generateReference(balance) {
   const spawner = parseSpawnerConfig(balance);
   const input = parseInputConfig(balance);
   const draft = parseDraftConfig(balance);
+  const powers = parsePowersConfig(balance);
 
   return [
     '# Référence — Merge Battler',
@@ -343,15 +401,18 @@ export function generateReference(balance) {
     '',
     '## En deux gestes',
     '',
-    '- **Taper** un item le consomme et met une unité de son tier en file de déploiement. Le',
-    '  type vient de la file des types, et il est fixé **au moment du tap**.',
-    '- **Glisser** un item sur un autre du même tier les fusionne en un tier supérieur ; sur une',
-    '  case vide, il se déplace. Un merge ne déclenche **rien** côté combat.',
+    '- **Taper** un item d’unité (silhouette anguleuse) le consomme et met une unité de son tier',
+    '  en file de déploiement. Le type vient de la file des types, fixé **au moment du tap**.',
+    '- **Taper** un item de pouvoir (silhouette **ronde**) le dépense tout de suite : ni file, ni',
+    '  cooldown.',
+    '- **Glisser** un item sur un autre de la même sorte et du même tier les fusionne en un tier',
+    '  supérieur ; sur une case vide, il se déplace. Un merge ne déclenche **rien** côté combat.',
     '',
     'La file se vide toute seule au rythme du cooldown de sortie : c’est le métronome du jeu, et',
     'c’est ce qui rend le spam de petites unités perdant.',
     '',
     unitsSection(config),
+    powersSection(powers),
     enemiesSection(config),
     wavesSection(config),
     draftSection(draft),

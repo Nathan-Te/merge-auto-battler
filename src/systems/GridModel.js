@@ -17,10 +17,31 @@
  * tier de l'unité à faire apparaître sur la bande de combat (seed doc : « fusionner
  * deux items de tier N fait apparaître une unité de tier N »). L'item qui reste sur
  * la grille est de tier `resultTier === tier + 1`.
+ *
+ * ## Deux familles d'items (Lot 4)
+ *
+ * Un item porte, en plus de son tier, une **famille** : `unit` (l'item historique, qu'un tap
+ * envoie en file de déploiement) ou `power` (un pouvoir actif, qu'un tap consomme pour un
+ * effet immédiat sur la bataille). Un item de pouvoir porte en plus son **type** (`heal`,
+ * `meteor`…).
+ *
+ * La règle de fusion est la même pour tout le monde, avec une identité élargie : deux items
+ * fusionnent s'ils ont **le même tier, la même famille et le même type de pouvoir**. Il n'y
+ * a donc **aucun merge croisé** — ni entre familles, ni entre deux pouvoirs différents — et
+ * le refus emprunte le retour animé qui existe déjà. Le modèle ne connaît rien du contenu de
+ * ces chaînes : c'est `balance.json` qui les définit, la grille ne fait que les comparer.
  */
 
 import { GRID_COLS, GRID_ROWS, gridIndex, gridCoords } from './grid.js';
 import { EventBus } from './eventBus.js';
+
+/** Familles d'items présentes sur la grille. */
+export const ITEM_FAMILY = {
+  /** Item d'unité : un tap le met en file de déploiement. */
+  UNIT: 'unit',
+  /** Item de pouvoir : un tap le consomme pour un effet immédiat. */
+  POWER: 'power',
+};
 
 /** Résultats possibles d'un lâcher d'item (`applyDrop`). */
 export const DROP = {
@@ -31,25 +52,40 @@ export const DROP = {
   INVALID: 'invalid',
 };
 
+/**
+ * Vrai si deux items sont de la **même sorte** — même famille, et même type de pouvoir le
+ * cas échéant. C'est la moitié « identité » de la règle de fusion ; l'autre est le tier.
+ */
+export function sameKind(a, b) {
+  return a.family === b.family && a.power === b.power;
+}
+
 export class GridModel {
   /**
    * @param {object} [options]
    * @param {number} [options.cols] Colonnes (5 par défaut, cf. seed doc)
    * @param {number} [options.rows] Lignes
    * @param {number} [options.maxTier] Tier maximum atteignable (vient de `balance.json`)
+   * @param {number} [options.powerMaxTier] Plafond propre aux pouvoirs — ils montent moins
+   *   haut que les items d'unité, faute de quoi le dernier tier serait hors d'atteinte et
+   *   deux pouvoirs plafonnés resteraient collés sur la grille sans pouvoir fusionner
    * @param {EventBus} [options.bus] Bus partagé ; sinon le modèle en crée un
    */
-  constructor({ cols = GRID_COLS, rows = GRID_ROWS, maxTier = 11, bus } = {}) {
+  constructor({ cols = GRID_COLS, rows = GRID_ROWS, maxTier = 11, powerMaxTier = maxTier, bus } = {}) {
     if (!Number.isInteger(cols) || cols <= 0) throw new RangeError('cols invalide');
     if (!Number.isInteger(rows) || rows <= 0) throw new RangeError('rows invalide');
     if (!Number.isInteger(maxTier) || maxTier < 2) throw new RangeError('maxTier invalide');
+    if (!Number.isInteger(powerMaxTier) || powerMaxTier < 2 || powerMaxTier > maxTier) {
+      throw new RangeError('powerMaxTier invalide');
+    }
 
     this.cols = cols;
     this.rows = rows;
     this.maxTier = maxTier;
+    this.powerMaxTier = powerMaxTier;
     this.events = bus ?? new EventBus();
 
-    /** @type {(null|{id: number, tier: number})[]} Cases à plat, row-major. */
+    /** @type {(null|{id: number, tier: number, family: string, power: ?string})[]} Cases à plat, row-major. */
     this.cells = new Array(cols * rows).fill(null);
     this.nextItemId = 1;
     /** Mémorisé pour n'émettre `full` / `unfull` que sur transition. */
@@ -110,25 +146,41 @@ export class GridModel {
    * Place un item sur une case libre, sans passer par le spawner (tests, setup).
    *
    * @param {number} index Case cible
-   * @param {number} tier Tier de l'item (1 -> maxTier)
+   * @param {number} tier Tier de l'item (1 -> maxTier de sa famille)
    * @param {object} [options]
    * @param {boolean} [options.silent] N'émet pas `spawn` (utile pour un état initial)
-   * @returns {{id: number, tier: number}|null} L'item créé, ou null si le placement est refusé
+   * @param {string} [options.family] Famille (`ITEM_FAMILY`), `unit` par défaut
+   * @param {?string} [options.power] Type de pouvoir, pour la famille `power`
+   * @returns {{id: number, tier: number, family: string, power: ?string}|null} L'item créé,
+   *   ou null si le placement est refusé
    */
-  placeItem(index, tier, { silent = false } = {}) {
+  placeItem(index, tier, { silent = false, family = ITEM_FAMILY.UNIT, power = null } = {}) {
     if (!this.isEmpty(index)) return null;
-    if (!this.isValidTier(tier)) return null;
+    if (!this.isValidTier(tier, family)) return null;
+    // Un pouvoir sans type ne pourrait fusionner avec rien : c'est un item mort sur la
+    // grille, donc un refus plutôt qu'un placement.
+    if (family === ITEM_FAMILY.POWER && typeof power !== 'string') return null;
 
-    const item = { id: this.nextItemId++, tier };
+    const item = {
+      id: this.nextItemId++,
+      tier,
+      family,
+      power: family === ITEM_FAMILY.POWER ? power : null,
+    };
     this.cells[index] = item;
     if (!silent) this.events.emit('spawn', { index, item });
     this.syncFullState();
     return item;
   }
 
-  /** Vrai si `tier` est un tier d'item légal pour cette grille. */
-  isValidTier(tier) {
-    return Number.isInteger(tier) && tier >= 1 && tier <= this.maxTier;
+  /** Tier maximum atteignable par une famille d'items. */
+  maxTierOf(family) {
+    return family === ITEM_FAMILY.POWER ? this.powerMaxTier : this.maxTier;
+  }
+
+  /** Vrai si `tier` est un tier légal pour cette famille sur cette grille. */
+  isValidTier(tier, family = ITEM_FAMILY.UNIT) {
+    return Number.isInteger(tier) && tier >= 1 && tier <= this.maxTierOf(family);
   }
 
   /**
@@ -136,14 +188,15 @@ export class GridModel {
    *
    * @param {number} tier
    * @param {() => number} [rng] Générateur [0, 1), injectable pour les tests
+   * @param {{family?: string, power?: ?string}} [kind] Famille et type de l'item
    * @returns {{index: number, item: object}|null} null si la grille est pleine
    */
-  spawn(tier, rng = Math.random) {
+  spawn(tier, rng = Math.random, kind = {}) {
     const free = this.emptyIndices();
     if (free.length === 0) return null;
 
     const index = free[Math.min(free.length - 1, Math.floor(rng() * free.length))];
-    const item = this.placeItem(index, tier);
+    const item = this.placeItem(index, tier, kind);
     return item === null ? null : { index, item };
   }
 
@@ -169,8 +222,11 @@ export class GridModel {
     const source = this.itemAt(from);
     const target = this.itemAt(to);
     if (source === null || target === null) return false;
-    // Deux items identiques, et le résultat doit rester dans la plage de tiers.
-    return source.tier === target.tier && source.tier < this.maxTier;
+    // Deux items de la même sorte et du même tier, et le résultat doit rester dans la plage
+    // de tiers de cette famille. Un item d'unité et un pouvoir de même tier ne fusionnent
+    // donc jamais, pas plus que deux pouvoirs de types différents.
+    if (!sameKind(source, target)) return false;
+    return source.tier === target.tier && source.tier < this.maxTierOf(source.family);
   }
 
   /**
@@ -188,7 +244,14 @@ export class GridModel {
     const tier = source.tier;
     const resultTier = tier + 1;
 
-    const item = { id: this.nextItemId++, tier: resultTier };
+    const item = {
+      id: this.nextItemId++,
+      tier: resultTier,
+      // La sorte se conserve : fusionner deux météorites donne une météorite, jamais autre
+      // chose. `canMerge` a déjà garanti que les deux items sont de la même sorte.
+      family: source.family,
+      power: source.power,
+    };
     this.cells[from] = null;
     this.cells[to] = item;
 
@@ -196,6 +259,8 @@ export class GridModel {
       tier,
       resultTier,
       index: to,
+      family: item.family,
+      power: item.power,
       from,
       to,
       item,
@@ -229,11 +294,20 @@ export class GridModel {
       this.moveItem(from, to);
       return { type: DROP.MOVE, from, to };
     }
-    // Case occupée par un item différent (ou déjà au tier max) : rien ne bouge.
-    return {
-      type: DROP.INVALID,
-      reason: this.itemAt(to).tier === this.itemAt(from).tier ? 'tierMax' : 'tierDifferent',
-    };
+    // Case occupée par un item qui ne fusionne pas : rien ne bouge. La raison n'est là que
+    // pour les tests et le diagnostic — le rendu, lui, ramène l'item chez lui dans tous les
+    // cas, sans avoir à savoir pourquoi.
+    return { type: DROP.INVALID, reason: this.refusalReason(from, to) };
+  }
+
+  /** Pourquoi `from` ne peut pas se poser sur `to`, alors que les deux cases sont occupées. */
+  refusalReason(from, to) {
+    const source = this.itemAt(from);
+    const target = this.itemAt(to);
+    if (source.family !== target.family) return 'familleDifferente';
+    if (source.power !== target.power) return 'pouvoirDifferent';
+    if (source.tier !== target.tier) return 'tierDifferent';
+    return 'tierMax';
   }
 
   /** Retire l'item d'une case. @returns {object|null} l'item retiré */

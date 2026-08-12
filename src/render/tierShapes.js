@@ -2,10 +2,19 @@
  * Greybox des items : une forme et une couleur par tier (1 -> 11).
  *
  * Rien ici n'influence les règles — c'est de la lisibilité pure, donc ça vit dans
- * le code et non dans `balance.json`. Les vrais sprites arrivent au Lot 4 ; d'ici
+ * le code et non dans `balance.json`. Les vrais sprites arrivent au Lot 5 ; d'ici
  * là, deux items de même tier doivent se reconnaître **d'un coup d'œil**, sans
  * lire le numéro : la forme change à chaque tier, la teinte tourne sur la roue.
+ *
+ * **Les items d'unité sont tous anguleux** depuis le Lot 4 : le cercle appartient désormais
+ * aux items de **pouvoir** (`powerShapes.js`), et lui seul. C'est ce qui rend les deux
+ * familles — donc les deux taps — impossibles à confondre au doigt. Le tier 1 est donc un
+ * triangle et non plus un disque, et la règle « plus de côtés = plus haut tier » n'a fait
+ * que se décaler d'un cran.
  */
+
+import { drawPowerShape, powerColor } from './powerShapes.js';
+import { ITEM_FAMILY } from '../systems/GridModel.js';
 
 /** 11 teintes distinctes, toutes assez claires pour un numéro écrit en sombre. */
 const TIER_COLORS = [
@@ -22,18 +31,18 @@ const TIER_COLORS = [
   0xeef1f8, // 11 blanc
 ];
 
-/** Forme associée à chaque tier : nombre de côtés croissant, puis étoiles. */
+/** Forme associée à chaque tier : nombre de côtés croissant, puis étoiles. Aucun cercle. */
 const TIER_SHAPES = [
-  { kind: 'circle' }, // 1
-  { kind: 'polygon', sides: 3 }, // 2
-  { kind: 'polygon', sides: 4 }, // 3
-  { kind: 'polygon', sides: 5 }, // 4
-  { kind: 'polygon', sides: 6 }, // 5
-  { kind: 'polygon', sides: 7 }, // 6
-  { kind: 'polygon', sides: 8 }, // 7
-  { kind: 'star', points: 4 }, // 8
-  { kind: 'star', points: 5 }, // 9
-  { kind: 'star', points: 6 }, // 10
+  { kind: 'polygon', sides: 3 }, // 1
+  { kind: 'polygon', sides: 4 }, // 2
+  { kind: 'polygon', sides: 5 }, // 3
+  { kind: 'polygon', sides: 6 }, // 4
+  { kind: 'polygon', sides: 7 }, // 5
+  { kind: 'polygon', sides: 8 }, // 6
+  { kind: 'star', points: 4 }, // 7
+  { kind: 'star', points: 5 }, // 8
+  { kind: 'star', points: 6 }, // 9
+  { kind: 'star', points: 7 }, // 10
   { kind: 'star', points: 8 }, // 11
 ];
 
@@ -62,12 +71,6 @@ export function drawTierShape(graphics, tier, size) {
   // Un liseré sombre détache l'item du fond de case, quel que soit son tier.
   graphics.lineStyle(Math.max(1, size * 0.04), 0x14161f, 0.55);
 
-  if (shape.kind === 'circle') {
-    graphics.fillCircle(0, 0, radius);
-    graphics.strokeCircle(0, 0, radius);
-    return;
-  }
-
   const points =
     shape.kind === 'star'
       ? starPoints(shape.points, radius, radius * 0.55)
@@ -75,6 +78,29 @@ export function drawTierShape(graphics, tier, size) {
 
   graphics.fillPoints(points, true, true);
   graphics.strokePoints(points, true, true);
+}
+
+/**
+ * Dessine **n'importe quel item de la grille**, quelle que soit sa famille.
+ *
+ * C'est le seul point d'entrée dont le rendu a besoin : il n'a pas à savoir qu'il existe
+ * deux jeux de formes, il passe l'item et obtient la bonne silhouette.
+ *
+ * @param {Phaser.GameObjects.Graphics} graphics
+ * @param {{tier: number, family?: string, power?: ?string}} item
+ * @param {number} size Diamètre visuel visé
+ */
+export function drawItemShape(graphics, item, size) {
+  if (item?.family === ITEM_FAMILY.POWER) {
+    drawPowerShape(graphics, item.power, item.tier, size);
+    return;
+  }
+  drawTierShape(graphics, item.tier, size);
+}
+
+/** Couleur d'un item, quelle que soit sa famille — teinte de tier, ou teinte de pouvoir. */
+export function itemColor(item) {
+  return item?.family === ITEM_FAMILY.POWER ? powerColor(item.power) : tierColor(item.tier);
 }
 
 /** Polygone régulier à `sides` côtés, pointe en haut. */

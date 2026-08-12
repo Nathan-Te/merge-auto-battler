@@ -153,6 +153,10 @@ export default class GameOverScene extends Phaser.Scene {
    * personne ne le lit. On garde ce qui donne une idée pour la partie suivante : les
    * améliorations prises (avec leur niveau), le type d'unité qui a porté les dégâts, et le
    * tier auquel on a joué.
+   *
+   * Depuis le Lot 4, la troisième ligne compte aussi les **pouvoirs dépensés** : ils font
+   * partie du build au même titre qu'une carte de draft, et savoir qu'on n'en a lâché que
+   * deux en quatre minutes est exactement le genre de constat qui donne envie de rejouer.
    */
   formatBuild(recap) {
     const upgrades = recap.upgrades ?? [];
@@ -174,8 +178,21 @@ export default class GameOverScene extends Phaser.Scene {
       best
         ? `${recap.unitLabels?.[best[0]] ?? best[0]} a porté ${share} % des dégâts`
         : 'aucun dégât infligé',
-      `${recap.sent} envois · ${recap.merges} fusions · meilleur tier ${topTier}`,
+      `${recap.sent} envois · ${recap.merges} fusions · meilleur tier ${topTier}` +
+        this.formatPowers(recap),
     ].join('\n');
+  }
+
+  /**
+   * Les pouvoirs dépensés, en une poignée de mots — et le nom de celui qu'on a le plus
+   * utilisé, parce que « 8 pouvoirs » ne raconte rien alors que « 8 pouvoirs, surtout
+   * Météorite » décrit une façon de jouer.
+   */
+  formatPowers(recap) {
+    if (!(recap.powersUsed > 0)) return '';
+    const favourite = Object.entries(recap.powersByType ?? {}).sort((a, b) => b[1] - a[1])[0];
+    const label = favourite ? recap.powerLabels?.[favourite[0]] ?? favourite[0] : null;
+    return ` · ${recap.powersUsed} pouvoirs${label ? ` (surtout ${label})` : ''}`;
   }
 
   /** Récap de réglage — lecture d'équilibrage, `?debug=1` seulement. */
@@ -196,6 +213,11 @@ export default class GameOverScene extends Phaser.Scene {
       `envois ${recap.sent} : ${tiers || '—'}`,
       `dégâts ${damage}`,
       `unités perdues ${recap.unitsLost} · fuites ${recap.enemiesLeaked} · refus ${recap.blockedTaps}`,
+      `pouvoirs ${recap.powersUsed} : ${
+        Object.entries(recap.powersByType ?? {})
+          .map(([type, count]) => `${type}×${count}`)
+          .join(' ') || '—'
+      } · ${Math.round(recap.powerDamage ?? 0)} dégâts · ${Math.round(recap.powerHealing ?? 0)} PV rendus`,
     ].join('\n');
   }
 

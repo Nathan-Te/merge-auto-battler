@@ -7,14 +7,16 @@
 >
 > Toute livraison qui touche `balance.json` le régénère (cf. `CLAUDE.md`).
 
-Version de `balance.json` : **6**.
+Version de `balance.json` : **7**.
 
 ## En deux gestes
 
-- **Taper** un item le consomme et met une unité de son tier en file de déploiement. Le
-  type vient de la file des types, et il est fixé **au moment du tap**.
-- **Glisser** un item sur un autre du même tier les fusionne en un tier supérieur ; sur une
-  case vide, il se déplace. Un merge ne déclenche **rien** côté combat.
+- **Taper** un item d’unité (silhouette anguleuse) le consomme et met une unité de son tier
+  en file de déploiement. Le type vient de la file des types, fixé **au moment du tap**.
+- **Taper** un item de pouvoir (silhouette **ronde**) le dépense tout de suite : ni file, ni
+  cooldown.
+- **Glisser** un item sur un autre de la même sorte et du même tier les fusionne en un tier
+  supérieur ; sur une case vide, il se déplace. Un merge ne déclenche **rien** côté combat.
 
 La file se vide toute seule au rythme du cooldown de sortie : c’est le métronome du jeu, et
 c’est ce qui rend le spam de petites unités perdant.
@@ -106,6 +108,57 @@ Le type de la prochaine unité suit un motif déterministe, parcouru en boucle, 
 single → aoe → single → slow → single → support → aoe → single → slow → aoe → …
 ```
 
+## Pouvoirs actifs
+
+La grille produit **deux familles d’items**. Un item d’unité part en file de déploiement
+quand on le tape ; un item de **pouvoir** est consommé sur-le-champ, sans file ni
+cooldown. Les deux se fusionnent de la même façon, mais **jamais entre eux** : deux items
+ne fusionnent que s’ils ont le même tier **et** la même sorte (même famille, et même type
+de pouvoir).
+
+Un item qui apparaît est un pouvoir avec une probabilité de **20 %**,
+réparti selon les poids ci-dessous. Les pouvoirs plafonnent au **tier 6**, plus bas que
+les items d’unité : au-delà, le dernier tier serait hors d’atteinte et deux pouvoirs
+plafonnés resteraient collés sur la grille sans pouvoir fusionner.
+
+### Potion de soin — `heal`
+
+Soigne toutes les unités vivantes. À garder pour le moment où la ligne plie.
+
+Effet `heal` · poids d’apparition 50 sur 100 · effet **immédiat**
+
+| tier | PV rendus par unité |
+| --- | --- |
+| 1 | 80 |
+| 2 | 248 |
+| 3 | 769 |
+| 4 | 2383 |
+| 5 | 7388 |
+| 6 | 22903 |
+
+### Météorite — `meteor`
+
+Frappe le groupe d'ennemis le plus menaçant. Les rushs ne passent pas.
+
+Effet `blast` · poids d’apparition 50 sur 100 · télégraphie **0.4 s** avant l’impact
+
+| tier | dégâts | rayon |
+| --- | --- | --- |
+| 1 | 260 | 120 |
+| 2 | 910 | 131 |
+| 3 | 3185 | 143 |
+| 4 | 11148 | 155 |
+| 5 | 39016 | 169 |
+| 6 | 136557 | 185 |
+
+Le **ciblage est automatique** — pas de visée manuelle en V1, le glisser reste réservé à
+la fusion. La zone se pose sur le groupe qui compte le plus d’ennemis dans le rayon du
+pouvoir, et à nombre égal sur le plus avancé, donc le plus près de la base.
+
+Un pouvoir sans la moindre cible (une météorite sans un ennemi sur le couloir, un soin
+sans une unité sur le champ) est **refusé** : l’item reste sur la grille. Soigner une
+armée intacte, en revanche, reste permis — c’est un jugement du joueur.
+
 ## Ennemis
 
 Trois types. Les stats listées sont celles de la **vague 1** ; le scaling par vague
@@ -119,19 +172,19 @@ est appliqué par-dessus (voir plus bas).
 
 ### Montée en puissance par vague
 
-PV ×**1.62**, vitesse ×**1.02**, dégâts aux unités
+PV ×**1.66**, vitesse ×**1.02**, dégâts aux unités
 ×**1.28**, le tout à la puissance (vague − 1). Les dégâts à la base,
 eux, **ne montent pas** : la pression vient des PV, de la vitesse et du nombre.
 
 | vague | PV basique | PV rapide | PV tank |
 | --- | --- | --- | --- |
 | 1 | 24 | 13 | 95 |
-| 3 | 63 | 34 | 249 |
-| 5 | 165 | 90 | 654 |
-| 8 | 703 | 381 | 2782 |
-| 10 | 1844 | 999 | 7301 |
-| 12 | 4840 | 2622 | 19160 |
-| 15 | 20579 | 11147 | 81458 |
+| 3 | 66 | 36 | 262 |
+| 5 | 182 | 99 | 721 |
+| 8 | 834 | 452 | 3300 |
+| 10 | 2297 | 1244 | 9093 |
+| 12 | 6330 | 3429 | 25056 |
+| 15 | 28955 | 15684 | 114614 |
 
 ## Vagues
 
@@ -163,7 +216,7 @@ temps de merge légitime, pas du temps mort.
 ## Améliorations (draft)
 
 Toutes les **3 vagues**, la partie se met en pause et propose
-**3 améliorations** distinctes parmi 11. Une carte
+**3 améliorations** distinctes parmi 13. Une carte
 prise vaut pour le reste de la partie et **ne modifie jamais `balance.json`** : elle
 accumule un modificateur appliqué au moment de lire une stat.
 
@@ -180,6 +233,8 @@ accumule un modificateur appliqué au moment de lire une stat.
 | **Extraction** (`extraction`) | 3 | `spawnInterval` ×0.86 (−14 %) | −14 % sur l'intervalle d'apparition des items. |
 | **Étendard** (`banner`) | 2 | `support` : effect ×1.35, range ×1.2 | Aura et bonus du soutien +35 %. |
 | **Réflexe** (`reflex`) | 2 | `skipCooldown` ×0.65 (−35 %) | −35 % sur le cooldown du bouton « passer ». |
+| **Charge arcanique** (`arcane`) | 3 | `powerAmount` ×1.3 (+30 %) | +30 % de puissance pour les pouvoirs (soin et dégâts). |
+| **Résonance** (`resonance`) | 2 | `powerChance` ×1.45 (+45 %) | +45 % de chances qu'un item soit un pouvoir. |
 
 Les facteurs se composent **par produit** à chaque niveau (deux fois « +18 % » vaut ×1,39,
 pas ×1,36) ; les quantités entières (places, PV, tiers) s’additionnent.

@@ -450,3 +450,98 @@ absence de référence) ne touchent aucune valeur de `balance.json` : ce sont de
 de rendu, d'input et d'outillage. Elles sont décrites dans le README de livraison. Seule
 `input.overlayGraceMs` (400 ms) est une valeur nouvelle, et comme `skipCooldownMs` elle est
 réglée au raisonnement — aucun harness ne mesure un doigt.
+
+---
+
+## 8. Lot 4 — pouvoirs actifs
+
+Dernière mécanique de la V1 : une **seconde famille d'items** sur la grille, qui se fusionne
+comme la première mais se dépense d'un tap pour un effet immédiat sur la bataille. Deux
+pouvoirs, pas un de plus — potion de soin et météorite.
+
+### 8.1 Ce que le lot devait prouver, et comment
+
+Deux questions, deux mesures ajoutées au harness :
+
+1. **Les pouvoirs apportent-ils quelque chose ?** Une quatrième politique, `noPowers`, est le
+   **jumeau exact** de `mixed` à un réglage près : elle fusionne les pouvoirs (c'est gratuit)
+   mais n'en dépense jamais. L'écart entre les deux ne mesure donc rien d'autre que la
+   mécanique. Seuil inscrit dans `src/sim/targets.js` : **+0,5 vague**, exprimé en vagues et
+   non en ratio — à `hpPerWave` 1,66, une vague vaut deux tiers de difficulté en plus, donc
+   un demi-cran est déjà un écart massif de puissance.
+2. **Étouffent-ils l'armée ?** La part de dégâts venue des pouvoirs est bornée des deux côtés
+   par un test : au-dessus de 10 % la mécanique existe, en dessous de 60 % le jeu reste un
+   auto-battler et non un jeu de pouvoirs.
+
+### 8.2 Le réglage, et pourquoi il a fallu deux passes
+
+La première valeur essayée suivait le prompt à la lettre — 15 % d'apparition, des montants
+de l'ordre d'une unité de même tier. Résultat : `mixed` 9,17 contre `noPowers` 9,21. Les
+pouvoirs ne se voyaient **pas du tout**, et pour une raison qui vaut d'être écrite parce
+qu'elle vaudra encore au prochain lot :
+
+> La difficulté monte de ×1,66 par vague. Le nombre de vagues survécues est donc une mesure
+> **logarithmique** de la puissance : une mécanique qui apporte 15 % de dégâts en plus ne
+> déplace pas la fenêtre de défaite de 15 %, elle la déplace de 0,3 vague — soit rien du
+> tout, noyé dans l'écart-type.
+
+Il fallait donc que les pouvoirs pèsent **de l'ordre de 40 % de la production de dégâts**
+pour se voir sur la seule mesure dont on dispose. Deux leviers ont été tournés ensemble :
+
+| réglage                        | avant (1re valeur) | retenu | pourquoi                                                      |
+| ------------------------------ | ------------------ | ------ | ------------------------------------------------------------- |
+| `powers.spawnChance`           | 0,17               | 0,20   | haut de la fourchette du prompt ; en dessous, ignorer les pouvoirs ne coûte pas une case |
+| `meteor.amount` (tier 1)       | 30                 | 260    | une météorite de tier 3 doit **nettoyer** un rush, pas l'égratigner |
+| `meteor.tierScaling.amount`    | 2,4                | 3,5    | courbe plus raide que celle des unités (×2,3) : un pouvoir brûlé au tier 1 ne vaut presque rien |
+| `heal.amount` (tier 1)         | 20                 | 80     | un soin de tier 3 doit remettre une unité de tier 3 à neuf     |
+| `heal.tierScaling.amount`      | 2,2                | 3,1    | même raison                                                    |
+| `waves.scaling.hpPerWave`      | 1,62               | 1,66   | la difficulté est relevée **en face**, la fenêtre visée ne bouge pas |
+
+La dernière ligne est la règle du Lot 3.5 réappliquée : quand une mécanique ajoute de la
+puissance, on relève la difficulté plutôt que de déplacer les objectifs chiffrés. Ils sont
+donc **inchangés depuis le Lot 3**.
+
+La courbe raide (×3,5 par tier) n'est pas cosmétique : c'est elle qui empêche le spam de
+pouvoirs de concurrencer la préparation. Un joueur qui lâche chaque pouvoir au tier 1 obtient
+260 de dégâts ; celui qui en fusionne quatre en obtient 3 185, soit **trois fois** ce que
+donnerait la somme des quatre séparément. L'invariant du jeu vaut donc pour les deux familles
+d'items, et pour la même raison.
+
+### 8.3 Résultats — 30 parties par politique, graines 1..30
+
+| politique           | vague moy. | σ    | méd. | durée moy. | pouvoirs/partie | part dégâts |
+| ------------------- | ---------- | ---- | ---- | ---------- | --------------- | ----------- |
+| Spam tier 1         | 6,23       | 0,72 | 6,0  | 3:03       | 18,3            | 55 %        |
+| **Mixte tier 3**    | **9,63**   | 1,05 | 9,0  | **4:06**   | 13,4            | 43 %        |
+| Prépare tier 4      | 9,17       | 1,24 | 9,0  | 3:42       | 13,0            | 42 %        |
+| Mixte sans pouvoirs | 8,30       | 0,78 | 8,5  | 3:40       | 0,0             | 0 %         |
+
+✔ fenêtre 8-12 (9,63) · ✔ durée 3-5 min (4:06) · ✔ **merge bat spam ×1,47** ·
+✔ **les pouvoirs se voient : +1,33 vague**
+
+Le soin rend **1 236 PV par partie** au joueur médian et 1 747 au préparateur — c'est
+cohérent : plus les unités sont chères, plus les garder en vie paie.
+
+### 8.4 Ce que le harness ne dit pas, et qu'il faut regarder au doigt
+
+- **Le ciblage automatique est-il lisible ?** Le harness mesure que la météorite tombe sur le
+  bon paquet ; il ne dit pas si le joueur *comprend* pourquoi elle est tombée là. C'est le
+  rôle de la télégraphie de 400 ms, et c'est le premier réglage à revoir au playtest.
+- **La rareté est-elle bien sentie ?** 13 pouvoirs par partie de quatre minutes, c'est un
+  toutes les 18 secondes. Le harness les dépense dès qu'ils sont mûrs et utiles ; un humain
+  en gardera plus longtemps, et le sentiment de rareté sera donc **plus fort** que ce que
+  disent ces chiffres, pas moins.
+- **La case immobilisée est-elle un vrai arbitrage ?** `noPowers` finit à 5,8 items sur la
+  grille contre 4,2 pour `mixed`, sans jamais saturer : sur 25 cases, garder deux pouvoirs de
+  côté ne coûte presque rien à une politique parfaite. Le coût réel est humain — une case de
+  plus à contourner quand on cherche une paire, et c'est au doigt que ça se juge.
+
+### 8.5 Ce qui reste ouvert
+
+- `powers.maxTier` vaut 6, soit un cran au-dessus du plafond réellement atteignable
+  (tier 5 demande 16 pouvoirs du même type). Il ne mord jamais en pratique ; le baisser à 5
+  rendrait la table de référence plus honnête encore, au risque de bloquer une partie
+  exceptionnellement longue.
+- Le poids des deux pouvoirs est à **50/50**. Rien ne dit que c'est le bon partage : la
+  météorite est plus spectaculaire, le soin plus discret mais plus régulier. À revoir si le
+  playtest montre qu'un des deux ne se garde jamais.

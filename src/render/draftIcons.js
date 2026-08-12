@@ -27,6 +27,9 @@ export const ICON_COLORS = {
   skip: 0xffa8d2,
   /** Ce qui touche la base. */
   base: 0x6bcb77,
+  /** Ce qui touche les pouvoirs actifs — accordé aux teintes de `powerShapes.js`. */
+  power: 0xff5c39,
+  orb: 0x3ddc97,
 };
 
 const FALLBACK_COLOR = 0x8f97b0;
@@ -128,6 +131,24 @@ export function drawDraftIcon(graphics, icon, size) {
         { x: -r, y: r * 0.7 },
       ]);
       graphics.fillRect(r * 0.35, -r * 0.7, r * 0.4, r * 1.4);
+      return;
+    // Puissance des pouvoirs : un éclat à quatre branches, l'impact d'une météorite.
+    case 'power':
+      fillPoints(graphics, [
+        { x: 0, y: -r },
+        { x: r * 0.26, y: -r * 0.26 },
+        { x: r, y: 0 },
+        { x: r * 0.26, y: r * 0.26 },
+        { x: 0, y: r },
+        { x: -r * 0.26, y: r * 0.26 },
+        { x: -r, y: 0 },
+        { x: -r * 0.26, y: -r * 0.26 },
+      ]);
+      return;
+    // Fréquence des pouvoirs : la silhouette même d'un item de pouvoir, disque et anneau.
+    case 'orb':
+      graphics.fillCircle(0, 0, r * 0.5);
+      graphics.strokeCircle(0, 0, r * 0.88);
       return;
     // Base : un bloc et son toit.
     case 'base':

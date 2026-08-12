@@ -26,11 +26,11 @@ const SEED = 1;
 
 const run = runPolicies({
   balance,
-  policies: [POLICIES.spam, POLICIES.mixed, POLICIES.prepare],
+  policies: [POLICIES.spam, POLICIES.mixed, POLICIES.prepare, POLICIES.noPowers],
   games: GAMES,
   seed: SEED,
 });
-const [spam, mixed, prepare] = run.policies;
+const [spam, mixed, prepare, noPowers] = run.policies;
 
 describe('invariant d’équilibrage — merger bat spammer', () => {
   it('la politique « prépare » survit nettement plus longtemps que « spam »', () => {
@@ -60,6 +60,32 @@ describe('le draft fait bien partie des parties mesurées', () => {
 
   it('le joueur qui survit plus longtemps prend plus de cartes', () => {
     expect(prepare.draftsPerGame).toBeGreaterThan(spam.draftsPerGame);
+  });
+});
+
+describe('invariant du Lot 4 — les pouvoirs se voient', () => {
+  it('le même joueur, privé de ses pouvoirs, survit nettement moins longtemps', () => {
+    // La seule question qui compte pour cette mécanique : apporte-t-elle quelque chose ?
+    // `noPowers` est `mixed` au réglage près, donc l'écart ne mesure rien d'autre.
+    expect(mixed.waves.mean - noPowers.waves.mean).toBeGreaterThanOrEqual(
+      TARGETS.powersBeatNoPowersWaves
+    );
+  });
+
+  it('les pouvoirs pèsent vraiment dans une partie, sans porter le jeu à eux seuls', () => {
+    expect(mixed.powersPerGame).toBeGreaterThan(0);
+    // Une part de dégâts nulle voudrait dire que la mécanique ne sert à rien ; une part
+    // écrasante, qu'elle a remplacé l'armée. Le jeu reste un auto-battler.
+    expect(mixed.powerDamageShare).toBeGreaterThan(0.1);
+    expect(mixed.powerDamageShare).toBeLessThan(0.6);
+    expect(mixed.powerHealingPerGame).toBeGreaterThan(0);
+  });
+
+  it('ignorer les pouvoirs encombre la grille sans la saturer', () => {
+    // Le coût d'un pouvoir qu'on ne dépense pas est une case immobilisée : c'est ce qui
+    // fait de « garder une case pour un pouvoir » un arbitrage plutôt qu'un automatisme.
+    expect(noPowers.gridItemsAvg).toBeGreaterThan(mixed.gridItemsAvg);
+    expect(noPowers.gridFullShare).toBeLessThan(0.1);
   });
 });
 

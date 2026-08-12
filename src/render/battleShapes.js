@@ -6,6 +6,12 @@
  * Aucune règle, aucun état — comme `tierShapes.js`. Les tailles à l'écran sont ici et
  * non dans `balance.json` : elles n'influencent aucun calcul de gameplay (le modèle
  * raisonne en unités de couloir), ce sont des choix de lisibilité.
+ *
+ * **Aucune unité n'est ronde** depuis le Lot 4. Le cercle est réservé aux items de pouvoir
+ * (`powerShapes.js`), et la règle « rond = pouvoir » ne vaut que si elle n'a pas
+ * d'exception : le panneau d'aide montre les types d'unités et les pouvoirs l'un sous
+ * l'autre, et un mono-cible rond y contredirait la ligne qui le suit. Le `single` est donc
+ * un **carré** — la forme la plus neutre pour le type le plus générique.
  */
 
 import { tierColor } from './tierShapes.js';
@@ -71,8 +77,7 @@ export function drawUnitShape(graphics, type, tier, size) {
   graphics.lineStyle(Math.max(1.5, size * 0.1), tierColor(tier), 1);
 
   if (type === 'single') {
-    graphics.fillCircle(0, 0, radius);
-    graphics.strokeCircle(0, 0, radius);
+    strokeAndFill(graphics, squarePoints(radius));
   } else if (type === 'aoe') {
     strokeAndFill(graphics, diamondPoints(radius));
   } else if (type === 'slow') {
@@ -132,6 +137,17 @@ function regularPolygon(sides, radius) {
     points.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
   }
   return points;
+}
+
+/** Carré à plat — le mono-cible. Un côté horizontal le distingue nettement du losange. */
+function squarePoints(radius) {
+  const side = radius * 0.86;
+  return [
+    { x: -side, y: -side },
+    { x: side, y: -side },
+    { x: side, y: side },
+    { x: -side, y: side },
+  ];
 }
 
 function diamondPoints(radius) {

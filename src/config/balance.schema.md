@@ -9,7 +9,8 @@ Toutes les sections sont actives : `itemSpawner` est lue par `parseSpawnerConfig
 (`src/systems/itemSpawner.js`), `battle` / `units` / `enemies` / `waves` par
 `parseBattleConfig()` (`src/systems/battleConfig.js`), `input` par `parseInputConfig()`
 (`src/systems/tapGesture.js`), `draft` par `parseDraftConfig()`
-(`src/systems/DraftSystem.js`). Toutes refusent une config incomplète plutôt que d'inventer
+(`src/systems/DraftSystem.js`), `powers` par `parsePowersConfig()`
+(`src/systems/PowerSystem.js`). Toutes refusent une config incomplète plutôt que d'inventer
 un défaut.
 
 ## Règles générales
@@ -295,6 +296,8 @@ sans effet :
 | `deployCooldown`  | multiplicatif | 1      | cooldown de sortie de la file de déploiement              |
 | `spawnInterval`   | multiplicatif | 1      | intervalle d'apparition des items, **plancher compris**   |
 | `skipCooldown`    | multiplicatif | 1      | cooldown du bouton « passer »                             |
+| `powerAmount`     | multiplicatif | 1      | puissance des pouvoirs : PV rendus et dégâts de zone, **jamais le rayon** |
+| `powerChance`     | multiplicatif | 1      | probabilité qu'un item qui apparaît soit un pouvoir (borné à 0,9) |
 | `slotBonus`       | additif       | 0      | places en plus dans la file de déploiement                |
 | `baseHpBonus`     | additif       | 0      | PV de base gagnés **et rendus** à la prise                |
 | `spawnTierBonus`  | additif       | 0      | décalage du tier des items qui apparaissent               |
@@ -310,6 +313,53 @@ global : `unitRange: 1.14` puis `byType.support.range: 1.2` donnent ×1,368 au s
 sort de la fenêtre de vagues visée, ce que le harness voit tout de suite
 (`npm run sim`, colonne `draft`). `baseHpBonus` est l'exception assumée : c'est une valeur
 absolue, et 22 PV sur 100 se lisent comme une bouée, pas comme un multiplicateur.
+
+## `powers` — pouvoirs actifs (Lot 4)
+
+La grille produit **deux familles d'items**. Un item d'unité part en file de déploiement
+quand on le tape ; un item de **pouvoir** est consommé sur-le-champ pour un effet immédiat
+— ni file, ni cooldown. Lu par `parsePowersConfig()` (`src/systems/PowerSystem.js`).
+
+```jsonc
+"powers": {
+  "maxTier": 6,               // plafond de fusion des pouvoirs, **plus bas** que celui des items
+  "spawnChance": 0.2,         // probabilité qu'un item qui apparaît soit un pouvoir
+  "types": {
+    "meteor": {
+      "label": "Météorite",   // titre montré au joueur
+      "blurb": "Frappe le groupe d'ennemis le plus menaçant. Les rushs ne passent pas.",
+      "kind": "blast",        // `blast` (dégâts de zone) ou `heal` (soigne les unités)
+      "weight": 50,           // poids relatif du tirage entre pouvoirs
+      "amount": 260,          // dégâts (blast) ou PV rendus par unité (heal), **au tier 1**
+      "radius": 120,          // rayon de la zone, en unités de couloir (0 si l'effet ne vise pas)
+      "telegraphMs": 400,     // délai entre l'annonce de la zone et l'impact (0 = immédiat)
+      "tierScaling": { "amount": 3.5, "radius": 1.09 }
+    }
+  }
+}
+```
+
+Comme pour les unités : `stat(tier) = stat(1) × facteur^(tier-1)`.
+
+**`maxTier` est plus bas que celui de la grille, et ce n'est pas un détail.** Un pouvoir
+demande 2^(tier-1) items **de son propre type** ; à 20 % d'apparition partagés entre deux
+types, le tier 5 est déjà le plafond réel d'une partie. Un `maxTier` très haut ne rendrait
+donc pas les pouvoirs plus forts : il laisserait seulement deux pouvoirs plafonnés
+fusionnables en théorie et jamais en pratique. Le spawner **écrête** au passage le tier
+tiré, pour que « gisement riche » ne fasse pas naître un pouvoir au-dessus de son maximum.
+
+**`telegraphMs` est ici et non dans `juice.json`** parce que c'est du jeu, pas du décor :
+les ennemis continuent d'avancer pendant l'annonce, donc la zone figée au tap n'attrape pas
+exactement les mêmes ennemis selon leur vitesse. `juice.json` ne règle que l'**apparence**
+de l'anneau (`power.*`) ; sa durée vient d'ici, et l'anneau se ferme exactement à l'impact.
+
+**Doser un pouvoir** : la courbe est volontairement plus raide que celle des unités
+(×3,5 par tier contre ×2,3). C'est ce qui fait qu'un pouvoir dépensé au tier 1 ne vaut
+presque rien alors qu'un tier 3-4 renverse une vague — donc ce qui empêche le spam de
+pouvoirs de concurrencer la préparation, exactement comme pour les items d'unité. Deux
+mesures du harness encadrent le réglage : la part de dégâts venue des pouvoirs (visée
+30-50 % pour le joueur médian) et l'écart entre `mixed` et `noPowers`, qui doit rester
+franc (cf. `src/sim/targets.js`).
 
 ## `itemSpawner` — apparition des items sur la grille
 

@@ -2,13 +2,22 @@
  * Spawner d'items — logique pure, pilotée par `balance.json`. Aucune dépendance à
  * Phaser : la scène se contente de rythmer les appels avec un timer.
  *
- * Deux responsabilités, testables séparément :
+ * Trois responsabilités, testables séparément :
+ *   - **quelle famille** apparaît — item d'unité ou pouvoir (Lot 4), tirage à une pièce
+ *     pondérée par `powers.spawnChance` ;
  *   - **quel tier** apparaît (tirage pondéré sur `spawnTierWeights`) ;
  *   - **quand** il apparaît (intervalle initial qui décroît vers un plancher).
+ *
+ * L'ordre des tirages compte pour le déterminisme du harness : **famille, puis type de
+ * pouvoir le cas échéant, puis tier, puis case**. Le changer décale toutes les parties
+ * simulées d'un coup — c'est légal, mais ça se paie d'une re-validation au harness.
  *
  * Aucune valeur n'est écrite en dur ici : `parseSpawnerConfig` refuse une config
  * incomplète plutôt que d'inventer un défaut (règle de `balance.schema.md`).
  */
+
+import { ITEM_FAMILY } from './GridModel.js';
+import { pickPowerType, powerSpawnChance } from './PowerSystem.js';
 
 /**
  * Valide et normalise la section `itemSpawner` de `balance.json`.
@@ -158,14 +167,21 @@ export class ItemSpawner {
    * @param {import('./GridModel.js').GridModel} options.model
    * @param {() => number} [options.rng]
    */
-  constructor({ config, model, rng = Math.random, getModifiers = null }) {
+  constructor({ config, model, rng = Math.random, getModifiers = null, powers = null }) {
     this.config = config;
     this.model = model;
     this.rng = rng;
     /** Modificateurs de draft (cadence, tier d'apparition), ou null. */
     this.getModifiers = getModifiers;
+    /**
+     * Config des pouvoirs (`parsePowersConfig`), ou null pour un spawner qui ne produit que
+     * des items d'unité — c'est ce que font les tests de grille et les bancs d'essai.
+     */
+    this.powers = powers;
     /** Nombre d'items effectivement apparus depuis le début de la partie. */
     this.spawnCount = 0;
+    /** Apparitions par famille — descriptif, lu par les tests de distribution. */
+    this.spawnedByFamily = { [ITEM_FAMILY.UNIT]: 0, [ITEM_FAMILY.POWER]: 0 };
   }
 
   /** Délai avant la prochaine apparition, grille pleine comprise. */
@@ -189,15 +205,48 @@ export class ItemSpawner {
   }
 
   /**
+   * Sorte du prochain item : famille, et type de pouvoir le cas échéant.
+   *
+   * Sans config de pouvoirs, aucun nombre n'est consommé au générateur : un spawner
+   * construit sans `powers` produit exactement la même suite d'items qu'avant le Lot 4, ce
+   * qui garde les bancs d'essai comparables d'un lot à l'autre.
+   *
+   * Le pouvoir est tiré sur le **haut** de l'intervalle, comme le tier rare l'est déjà par
+   * `pickSpawnTier` : un générateur figé à 0 (l'idiome des tests, « le tirage le plus
+   * ordinaire possible ») rend donc un item d'unité de tier 1 sur la première case libre.
+   * À distribution uniforme c'est strictement équivalent, et ça garde les tests lisibles.
+   *
+   * @returns {{family: string, power: ?string}}
+   */
+  nextKind() {
+    if (!this.powers) return { family: ITEM_FAMILY.UNIT, power: null };
+
+    const chance = powerSpawnChance(this.powers, this.getModifiers?.() ?? null);
+    if (this.rng() < 1 - chance) return { family: ITEM_FAMILY.UNIT, power: null };
+    return { family: ITEM_FAMILY.POWER, power: pickPowerType(this.powers.weights, this.rng) };
+  }
+
+  /**
    * Tente une apparition sur une case libre.
    *
    * @returns {{index: number, item: object}|null} null si la grille est pleine
    */
   trySpawn() {
     if (this.model.isFull()) return null;
-    const tier = pickSpawnTier(this.tierWeights(), this.rng);
-    const result = this.model.spawn(tier, this.rng);
-    if (result !== null) this.spawnCount += 1;
+
+    const kind = this.nextKind();
+    // Un pouvoir plafonne plus bas qu'un item d'unité : « gisement riche » ne doit pas
+    // pouvoir faire naître un pouvoir au-dessus de son propre maximum.
+    const tier = Math.min(
+      pickSpawnTier(this.tierWeights(), this.rng),
+      this.model.maxTierOf(kind.family)
+    );
+
+    const result = this.model.spawn(tier, this.rng, kind);
+    if (result !== null) {
+      this.spawnCount += 1;
+      this.spawnedByFamily[kind.family] += 1;
+    }
     return result;
   }
 

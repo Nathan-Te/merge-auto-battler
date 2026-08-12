@@ -4,6 +4,7 @@ import juiceConfig from '../config/juice.json';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
 import { drawUnitShape } from '../render/battleShapes.js';
+import { drawPowerShape } from '../render/powerShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 
@@ -18,7 +19,10 @@ import { sceneTextResolution } from '../render/hiDpi.js';
  *
  *   1. les **deux gestes** (taper / glisser), qui sont tout le jeu ;
  *   2. les **quatre types d'unités**, forme greybox et rôle en une ligne ;
- *   3. le **rythme** : file de types, bouton « passer », draft toutes les N vagues.
+ *   3. les **pouvoirs** — la règle « rond = pouvoir, tap pour utiliser », puis une ligne par
+ *      pouvoir (Lot 4). Sans elle, un joueur découvre la seconde famille en la dépensant
+ *      par accident, exactement ce que la silhouette ronde cherche à éviter ;
+ *   4. le **rythme** : file de types, bouton « passer », draft toutes les N vagues.
  *
  * Les libellés et les nombres viennent de la session (donc de `balance.json`) : le panneau
  * ne peut pas annoncer un draft toutes les 3 vagues si le fichier en dit 4.
@@ -47,12 +51,14 @@ export default class HelpScene extends Phaser.Scene {
   }
 
   /**
-   * @param {{units: {type: string, label: string, role: string}[], draftEveryWaves: number,
+   * @param {{units: {type: string, label: string, role: string}[],
+   *          powers: {type: string, label: string, role: string}[], draftEveryWaves: number,
    *          skipCooldownMs: number, graceMs: number, onClose: () => void,
    *          juice: import('../render/juiceKit.js').JuiceKit}} data
    */
   init(data) {
     this.units = data?.units ?? [];
+    this.powers = data?.powers ?? [];
     this.draftEveryWaves = data?.draftEveryWaves ?? 0;
     this.skipSeconds = Math.round((data?.skipCooldownMs ?? 0) / 1000);
     this.onClose = data?.onClose ?? (() => {});
@@ -96,7 +102,7 @@ export default class HelpScene extends Phaser.Scene {
 
     this.gestureText = this.label(
       'Taper un item → il part au combat, du type en tête de file.\n' +
-        'Glisser sur un item identique → fusion, un tier de plus.\n' +
+        'Glisser sur un item de la même sorte et du même tier → fusion.\n' +
         'Un merge ne déclenche rien : c’est le tap qui envoie.',
       { color: COLORS.text, align: 'left' }
     ).setOrigin(0, 0);
@@ -111,6 +117,30 @@ export default class HelpScene extends Phaser.Scene {
       unit,
       shape: this.add.graphics().setDepth(DEPTH.banner + 2),
       text: this.label(`${unit.label} — ${unit.role}`, {
+        color: COLORS.text,
+        align: 'left',
+      }).setOrigin(0, 0),
+    }));
+
+    this.powersTitle = this.label('Les pouvoirs', {
+      fontStyle: 'bold',
+      color: COLORS.accent,
+    }).setOrigin(0, 0);
+
+    // La règle avant les pouvoirs eux-mêmes : c'est la silhouette qui doit rester en tête,
+    // pas la liste. Un joueur qui retient « rond = pouvoir » n'en dépensera pas un par
+    // erreur, même s'il a oublié lequel fait quoi.
+    this.powersRule = this.label(
+      'Rond = pouvoir. Tap pour l’utiliser tout de suite : pas de file, pas d’attente.\n' +
+        'Un pouvoir ne fusionne qu’avec le même pouvoir — jamais avec un item d’unité.',
+      { color: COLORS.text, align: 'left' }
+    ).setOrigin(0, 0);
+
+    /** Une ligne par pouvoir, même grammaire que les unités : forme puis rôle. */
+    this.powerRows = this.powers.map((power) => ({
+      power,
+      shape: this.add.graphics().setDepth(DEPTH.banner + 2),
+      text: this.label(`${power.label} — ${power.role}`, {
         color: COLORS.text,
         align: 'left',
       }).setOrigin(0, 0),
@@ -204,12 +234,15 @@ export default class HelpScene extends Phaser.Scene {
     this.titleText.setFontSize(heading);
     this.gestureText.setFontSize(body).setWordWrapWidth(innerWidth);
     this.unitsTitle.setFontSize(Math.round(heading * 0.78));
-    for (const row of this.unitRows) {
+    this.powersTitle.setFontSize(Math.round(heading * 0.78));
+    for (const row of [...this.unitRows, ...this.powerRows]) {
       row.text.setFontSize(body).setWordWrapWidth(innerWidth - textLeftOffset);
     }
+    this.powersRule.setFontSize(body).setWordWrapWidth(innerWidth);
     this.rhythmText.setFontSize(Math.round(body * 0.95)).setWordWrapWidth(innerWidth);
 
     const rowHeights = this.unitRows.map((row) => Math.max(iconSize, row.text.height));
+    const powerRowHeights = this.powerRows.map((row) => Math.max(iconSize, row.text.height));
     const buttonHeight = Math.max(34, Math.round(body * 2.8));
     const contentHeight =
       this.titleText.height +
@@ -220,11 +253,27 @@ export default class HelpScene extends Phaser.Scene {
       gap * 0.8 +
       rowHeights.reduce((sum, value) => sum + value + gap * 0.7, 0) +
       gap * 0.8 +
+      this.powersTitle.height +
+      gap * 0.6 +
+      this.powersRule.height +
+      gap * 0.6 +
+      powerRowHeights.reduce((sum, value) => sum + value + gap * 0.7, 0) +
+      gap * 0.8 +
       this.rhythmText.height +
       gap * 1.2 +
       buttonHeight;
 
-    return { body, heading, gap, iconSize, textLeftOffset, rowHeights, buttonHeight, contentHeight };
+    return {
+      body,
+      heading,
+      gap,
+      iconSize,
+      textLeftOffset,
+      rowHeights,
+      powerRowHeights,
+      buttonHeight,
+      contentHeight,
+    };
   }
 
   /**
@@ -260,8 +309,16 @@ export default class HelpScene extends Phaser.Scene {
       metrics = this.measure(body, innerWidth);
     }
 
-    const { heading, gap, iconSize, textLeftOffset, rowHeights, buttonHeight, contentHeight } =
-      metrics;
+    const {
+      heading,
+      gap,
+      iconSize,
+      textLeftOffset,
+      rowHeights,
+      powerRowHeights,
+      buttonHeight,
+      contentHeight,
+    } = metrics;
     const panelHeight = Math.min(height * 0.94, contentHeight + pad * 2);
     const cx = width / 2;
     const cy = height / 2;
@@ -287,6 +344,21 @@ export default class HelpScene extends Phaser.Scene {
       row.shape.setPosition(left + iconSize / 2, y + body * 0.6);
       row.text.setPosition(left + textLeftOffset, y);
       y += rowHeights[index] + gap * 0.7;
+    });
+
+    y += gap * 0.1;
+    this.powersTitle.setPosition(left, y);
+    y += this.powersTitle.height + gap * 0.6;
+
+    this.powersRule.setPosition(left, y);
+    y += this.powersRule.height + gap * 0.6;
+
+    this.powerRows.forEach((row, index) => {
+      // Le tier 1 comme pour les unités : le panneau parle des **types**, pas des tiers.
+      drawPowerShape(row.shape, row.power.type, 1, iconSize);
+      row.shape.setPosition(left + iconSize / 2, y + body * 0.6);
+      row.text.setPosition(left + textLeftOffset, y);
+      y += powerRowHeights[index] + gap * 0.7;
     });
 
     y += gap * 0.1;

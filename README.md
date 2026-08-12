@@ -854,3 +854,143 @@ de lignes et n'ajoute aucun asset.
 - **Navigateur** : DPR 1 et 3, portrait et paysage, rotation dans les deux sens, draft ouvert
   pendant une rotation — mémoire de rendu, style CSS, caméras et coordonnées de jeu vérifiés à
   chaque étape, aucune erreur console.
+
+---
+
+## Lot 4 — ce qui est livré
+
+**Dernière mécanique de la V1.** Le Lot 3.5 avait installé une respiration et des choix de
+long terme (draft), mais la partie n'avait toujours aucun **moment fort** : rien ne
+permettait de renverser une vague par une décision ponctuelle. Ce lot ajoute les **pouvoirs
+actifs** — une seconde famille d'items sur la grille, qui se fusionne comme la première mais
+se dépense d'un tap pour un effet immédiat sur la bataille. Toujours en greybox : les assets
+arrivent au Lot 5.
+
+Après ce lot, **le périmètre gameplay est clos** : `docs/v1-1-ideas.md` est la salle
+d'attente de tout ce qui vient après.
+
+### Deux familles d'items sur une seule règle de fusion
+
+La grille produit désormais des items d'unité (silhouette **anguleuse**) et des items de
+pouvoir (silhouette **ronde**, couleur par type). La règle de fusion n'a pas été dédoublée,
+son identité a été élargie : deux items fusionnent s'ils ont **le même tier et la même
+sorte** — même famille, et même type de pouvoir. Il n'y a donc aucun merge croisé, et le
+refus emprunte le retour animé qui existait déjà.
+
+Le cercle est désormais **réservé aux pouvoirs**, sans exception : le tier 1 des items
+d'unité est passé du disque au triangle, et le mono-cible du champ de bataille du disque au
+carré. Sans cela, le panneau d'aide aurait affiché un rond juste au-dessus de la ligne
+« rond = pouvoir ».
+
+### Les deux pouvoirs
+
+| pouvoir            | effet                                                | tier 1 | tier 3 | tier 5 |
+| ------------------ | ---------------------------------------------------- | ------ | ------ | ------ |
+| **Potion de soin** | soigne **toutes** les unités vivantes (plafonné aux PV max) | 80 PV | 769 PV | 7 388 PV |
+| **Météorite**      | dégâts de zone sur le groupe le plus menaçant        | 260    | 3 185  | 39 016 |
+
+- **Ciblage automatique**, pas de visée manuelle en V1 : le glisser reste réservé à la
+  fusion. La zone se pose sur le groupe qui compte le plus d'ennemis dans le rayon, et à
+  nombre égal sur le plus avancé — donc le plus près de la base.
+- **Télégraphie de 400 ms** avant l'impact, avec un anneau qui se resserre. Le délai est
+  dans `balance.json` et non dans `juice.json` parce que c'est **du jeu** : les ennemis
+  avancent pendant l'annonce, et la zone est figée au tap.
+- **Un pouvoir sans la moindre cible est refusé** — l'item reste sur la grille. C'est le
+  pendant de « pas de cooldown » : le coût d'un pouvoir est sa rareté, et le perdre sur un
+  mistap pendant une pause serait une punition que rien n'annonce. Soigner une armée intacte
+  reste permis : c'est un jugement du joueur.
+
+### Les deux taps ne se confondent pas
+
+C'est le critère d'acceptation numéro un, et il est tenu sur trois canaux à la fois :
+
+| | tap sur un item d'unité | tap sur un item de pouvoir |
+| --- | --- | --- |
+| silhouette | anguleuse (polygone, étoile) | **ronde**, double anneau |
+| trajet | grille → slot de déploiement → couloir | grille → **droit sur le couloir** |
+| son | `tap`, clic bref | `powerCast`, montée 240 → 1180 Hz |
+| effet | attend son tour dans la file | immédiat, ni file ni cooldown |
+
+### Draft
+
+Deux cartes ajoutées au pool (13 au total) :
+
+| id          | carte             | effet par niveau                          | niveaux |
+| ----------- | ----------------- | ----------------------------------------- | ------- |
+| `arcane`    | Charge arcanique  | puissance des pouvoirs ×1,30              | 3       |
+| `resonance` | Résonance         | probabilité d'apparition des pouvoirs ×1,45 | 2     |
+
+Comme toutes les autres, ce sont des **modificateurs** : `powerAmount` et `powerChance`
+n'écrivent rien dans `balance.json`, et `powerChance` est borné à 0,9 — un cumul
+d'améliorations ne doit pas pouvoir supprimer l'armée.
+
+### Valeurs retenues
+
+| réglage                       | valeur | note                                                       |
+| ----------------------------- | ------ | ---------------------------------------------------------- |
+| `powers.spawnChance`          | 0,20   | un item sur cinq ; haut de la fourchette du prompt         |
+| `powers.maxTier`              | 6      | un cran au-dessus du plafond réellement atteignable        |
+| poids `heal` / `meteor`       | 50/50  | à revoir si l'un des deux ne se garde jamais               |
+| `meteor` : montant / courbe   | 260 · ×3,5 | courbe plus raide que celle des unités (×2,3)          |
+| `heal` : montant / courbe     | 80 · ×3,1  | un soin de tier 3 remet une unité de tier 3 à neuf     |
+| `meteor.radius`               | 120 · ×1,09 | 12 % du couloir au tier 1                             |
+| `meteor.telegraphMs`          | 400    | assez pour lire la zone, assez court pour rester un réflexe |
+| `waves.scaling.hpPerWave`     | 1,66   | **relevé** de 1,62 : la difficulté monte en face          |
+
+La courbe raide (×3,5 par tier) n'est pas cosmétique : elle étend l'invariant du jeu à la
+seconde famille d'items. Quatre pouvoirs brûlés au tier 1 donnent 1 040 de dégâts ; les mêmes
+quatre fusionnés en un tier 3 en donnent 3 185. Préparer bat spammer, pour les pouvoirs comme
+pour les unités.
+
+### Résultats du harness — 30 parties par politique, graines 1..30
+
+Une quatrième politique, **`noPowers`**, est le jumeau exact de `mixed` à un réglage près :
+elle fusionne les pouvoirs (c'est gratuit) mais n'en dépense jamais. L'écart entre les deux
+ne mesure donc rien d'autre que la mécanique.
+
+| politique           | vague moy. | σ    | durée moy. | pouvoirs/partie | part des dégâts | soins/partie |
+| ------------------- | ---------- | ---- | ---------- | --------------- | --------------- | ------------ |
+| Spam tier 1         | 6,23       | 0,72 | 3:03       | 18,3            | 55 %            | 339 PV       |
+| **Mixte tier 3**    | **9,63**   | 1,05 | **4:06**   | 13,4            | 43 %            | 1 236 PV     |
+| Prépare tier 4      | 9,17       | 1,24 | 3:42       | 13,0            | 42 %            | 1 747 PV     |
+| Mixte sans pouvoirs | 8,30       | 0,78 | 3:40       | 0,0             | 0 %             | 0 PV         |
+
+- ✔ première défaite **vagues 8-12** (9,63)
+- ✔ durée de partie **3-5 min** (4:06)
+- ✔ **merge bat spam ×1,47** (seuil ×1,4)
+- ✔ **les pouvoirs se voient : +1,33 vague** (seuil +0,5) — nouvel objectif chiffré du lot
+
+Les objectifs chiffrés sont **inchangés depuis le Lot 3** : les pouvoirs ajoutent de la
+puissance, la difficulté a été relevée en face (`hpPerWave` 1,62 → 1,66) plutôt que la cible
+déplacée. Détail du raisonnement et de la première valeur essayée — qui ne se voyait pas du
+tout — dans `docs/balance-notes.md`, section 8.
+
+### Architecture
+
+- **`PowerSystem`** (`src/systems/PowerSystem.js`), pur et testé sans Phaser : ciblage,
+  montants par tier, temporisation. Contrat en un événement :
+  `usePower { type, tier, origin }`, émis par `GameSession` au tap et consommé par lui seul.
+- Il ne retire **jamais** un PV lui-même : il appelle `BattleModel.blast()` ou
+  `BattleModel.healUnits()`, seules portes par lesquelles un pouvoir touche le champ de
+  bataille. Le modèle reste propriétaire de ses unités et de ses ennemis.
+- `GameSession.update()` l'avance, donc un draft ouvert gèle une météorite en vol comme il
+  gèle tout le reste ; `destroy()` l'emporte avec la partie, un test le verrouille.
+
+### Ce qui est testable
+
+- `npm test` : **532 tests** (+52), dont un fichier entier pour les pouvoirs
+  (`tests/powerSystem.test.js`) : ciblage du cluster, soin plafonné aux PV max, dégâts par
+  tier, zone figée au tap, impact annulé si la partie se termine pendant la télégraphie.
+  Ailleurs : refus des merges croisés (famille **et** type), progression des tiers de
+  pouvoir, distribution seedée du spawner entre familles, tap de pouvoir file pleine,
+  enchaînement de deux parties sans rien traîner.
+- `npm run sim` : rapport à quatre politiques, avec une ligne « pouvoirs » par politique.
+- **Au doigt** : taper un rond et un anguleux à la suite (silhouette, son et trajet doivent
+  différer sans ambiguïté), tenter un merge croisé (retour animé), lâcher une météorite sur
+  un rush de la vague 4 et un soin quand la ligne plie en vague 7.
+
+### Poids
+
+**`dist/` : 1,33 Mo** (356 Ko gzip), soit **+13 Ko** bruts et **+4 Ko** gzip par rapport à
+`main` (1 313 649 → 1 326 975 octets). Deux modules de logique, un module de formes, aucun
+asset. Très loin des 20 Mo visés par le seed doc et des 5 Mo du critère de ce lot.

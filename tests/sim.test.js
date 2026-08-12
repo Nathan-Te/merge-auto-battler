@@ -5,7 +5,7 @@ import { simulateGame, runPolicy, mean, stdDev, median } from '../src/sim/simula
 import { POLICIES, findMerge, findHighest, findLowest, resolvePolicies } from '../src/sim/policies.js';
 import { formatDuration, formatReport, evaluateTargets } from '../src/sim/report.js';
 import { runMatchup, SQUADS } from '../src/sim/matchups.js';
-import { GridModel } from '../src/systems/GridModel.js';
+import { GridModel, ITEM_FAMILY } from '../src/systems/GridModel.js';
 import { parseArgs } from '../src/sim/cli.js';
 
 /**
@@ -139,6 +139,49 @@ describe('politiques', () => {
     const result = simulateGame({ balance, policy: POLICIES.prepare, seed: 9 });
     const tiersSent = Object.keys(result.recap.sentByTier).map(Number);
     expect(Math.min(...tiersSent)).toBeGreaterThanOrEqual(POLICIES.prepare.sendTier);
+  });
+
+  it('findMerge ne propose jamais une paire que la grille refuserait (Lot 4)', () => {
+    const grid = new GridModel({
+      maxTier: balance.itemSpawner.maxTier,
+      powerMaxTier: balance.powers.maxTier,
+    });
+    grid.placeItem(0, 2, { silent: true });
+    grid.placeItem(1, 2, { silent: true, family: ITEM_FAMILY.POWER, power: 'heal' });
+    grid.placeItem(2, 2, { silent: true, family: ITEM_FAMILY.POWER, power: 'meteor' });
+
+    // Trois items de tier 2, trois sortes différentes : aucune fusion. Sans cette règle, la
+    // politique proposerait un lâcher refusé et tournerait à vide toute la partie.
+    expect(findMerge(grid, 11)).toBeNull();
+
+    grid.placeItem(3, 2, { silent: true, family: ITEM_FAMILY.POWER, power: 'heal' });
+    expect(findMerge(grid, 11)).toMatchObject({ tier: 2, from: 1, to: 3 });
+  });
+
+  it('findHighest ne désigne que des items d’unité — un pouvoir ne part jamais en file', () => {
+    const grid = new GridModel({
+      maxTier: balance.itemSpawner.maxTier,
+      powerMaxTier: balance.powers.maxTier,
+    });
+    grid.placeItem(0, 2, { silent: true });
+    grid.placeItem(1, 5, { silent: true, family: ITEM_FAMILY.POWER, power: 'meteor' });
+
+    expect(findHighest(grid)).toMatchObject({ index: 0, tier: 2 });
+    expect(findHighest(grid, 1, { family: ITEM_FAMILY.POWER })).toMatchObject({ index: 1 });
+  });
+
+  it('« sans pouvoirs » n’en dépense aucun, mais les fusionne quand même', () => {
+    const result = simulateGame({ balance, policy: POLICIES.noPowers, seed: 9 });
+    expect(result.recap.powersUsed).toBe(0);
+    expect(result.recap.powerDamage).toBe(0);
+    expect(result.actions.merge).toBeGreaterThan(0);
+  });
+
+  it('les autres politiques en dépensent, et le récap le raconte', () => {
+    const result = simulateGame({ balance, policy: POLICIES.mixed, seed: 9 });
+    expect(result.actions.power).toBeGreaterThan(0);
+    expect(result.recap.powersUsed).toBe(result.actions.power);
+    expect(Object.keys(result.recap.powersByType).length).toBeGreaterThan(0);
   });
 
   it('resolvePolicies refuse un identifiant inconnu plutôt que de l’ignorer', () => {

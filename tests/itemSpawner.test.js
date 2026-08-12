@@ -9,6 +9,8 @@ import {
 } from '../src/systems/itemSpawner.js';
 import { GridModel } from '../src/systems/GridModel.js';
 import balance from '../src/config/balance.json';
+import { parsePowersConfig } from '../src/systems/PowerSystem.js';
+import { makeRng } from '../src/systems/rng.js';
 
 const VALID = {
   itemSpawner: {
@@ -197,3 +199,104 @@ describe('spawnDelayMs — facteur d’amélioration', () => {
   });
 });
 
+
+describe('ItemSpawner — les deux familles (Lot 4)', () => {
+  const config = parseSpawnerConfig(balance);
+  const powers = parsePowersConfig(balance);
+
+  const build = (rng, { getModifiers } = {}) => {
+    const model = new GridModel({
+      maxTier: config.maxTier,
+      powerMaxTier: powers.maxTier,
+    });
+    return {
+      model,
+      spawner: new ItemSpawner({ config, model, rng, powers, getModifiers }),
+    };
+  };
+
+  it('sans config de pouvoirs, ne produit que des items d’unité — et ne tire rien de plus', () => {
+    // Un spawner d'avant le Lot 4 doit produire exactement la même suite : c'est ce qui
+    // garde les bancs d'essai comparables d'un lot à l'autre.
+    const model = new GridModel({ maxTier: config.maxTier });
+    const plain = new ItemSpawner({ config, model, rng: makeRng(3) });
+    const withPowers = build(makeRng(3)).spawner;
+
+    plain.trySpawn();
+    withPowers.trySpawn();
+    expect(model.itemAt(model.cells.findIndex(Boolean)).family).toBe('unit');
+    expect(plain.spawnedByFamily.power).toBe(0);
+  });
+
+  it('respecte la probabilité annoncée, sur un échantillon seedé', () => {
+    const { spawner, model } = build(makeRng(7));
+    let powerCount = 0;
+    for (let i = 0; i < 600; i += 1) {
+      const result = spawner.trySpawn();
+      if (result === null) continue;
+      if (result.item.family === 'power') powerCount += 1;
+      // La grille est vidée à chaque tour : on mesure le tirage, pas la saturation.
+      model.removeItem(result.index);
+    }
+    const share = powerCount / 600;
+    // Tolérance large à dessein : le test protège l'ordre de grandeur (et surtout le fait
+    // que les deux familles apparaissent), pas la troisième décimale d'un tirage.
+    expect(share).toBeGreaterThan(powers.spawnChance * 0.6);
+    expect(share).toBeLessThan(powers.spawnChance * 1.4);
+  });
+
+  it('produit les deux types de pouvoirs', () => {
+    const { spawner, model } = build(makeRng(11));
+    const seen = new Set();
+    for (let i = 0; i < 400; i += 1) {
+      const result = spawner.trySpawn();
+      if (result === null) continue;
+      if (result.item.power) seen.add(result.item.power);
+      model.removeItem(result.index);
+    }
+    expect([...seen].sort()).toEqual(['heal', 'meteor']);
+  });
+
+  it('« résonance » relève la part des pouvoirs, à graine égale', () => {
+    const measure = (modifiers) => {
+      const { spawner, model } = build(makeRng(5), { getModifiers: () => modifiers });
+      let count = 0;
+      for (let i = 0; i < 400; i += 1) {
+        const result = spawner.trySpawn();
+        if (result === null) continue;
+        if (result.item.family === 'power') count += 1;
+        model.removeItem(result.index);
+      }
+      return count;
+    };
+    expect(measure({ powerChance: 2 })).toBeGreaterThan(measure(null));
+  });
+
+  it('« gisement riche » ne fait jamais naître un pouvoir au-dessus de son plafond', () => {
+    // Un décalage énorme pousserait le tirage bien au-delà du tier maximum des pouvoirs :
+    // sans écrêtage, `placeItem` refuserait et l'apparition serait silencieusement perdue.
+    const { spawner, model } = build(makeRng(2), { getModifiers: () => ({ spawnTierBonus: 20 }) });
+    let powersSeen = 0;
+    for (let i = 0; i < 200; i += 1) {
+      const result = spawner.trySpawn();
+      expect(result).not.toBeNull();
+      if (result.item.family === 'power') {
+        powersSeen += 1;
+        expect(result.item.tier).toBeLessThanOrEqual(powers.maxTier);
+      }
+      model.removeItem(result.index);
+    }
+    expect(powersSeen).toBeGreaterThan(0);
+  });
+
+  it('compte ses apparitions par famille', () => {
+    const { spawner, model } = build(makeRng(4));
+    for (let i = 0; i < 50; i += 1) {
+      const result = spawner.trySpawn();
+      model.removeItem(result.index);
+    }
+    const { unit, power } = spawner.spawnedByFamily;
+    expect(unit + power).toBe(50);
+    expect(power).toBeGreaterThan(0);
+  });
+});

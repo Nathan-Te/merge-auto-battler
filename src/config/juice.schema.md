@@ -202,10 +202,44 @@ paraissent longs.
 `pickBurst` est volontairement la plus grosse gerbe du jeu (22 particules contre 12 pour une
 fusion) : c'est le seul moment de la partie où le joueur gagne quelque chose de permanent.
 
+## `power` — les pouvoirs actifs (Lot 4)
+
+```jsonc
+"power": {
+  "castMs": 240,              // trajet de l'item, de sa case vers la bataille
+  "ringWidthPx": 3,           // épaisseur de l'anneau de zone
+  "ringPulseMs": 220,         // réservé au feedback d'annonce
+  "impactRingMs": 260,        // onde de choc, à l'inverse de la télégraphie
+  "impactRingScale": 1.35,    // jusqu'où l'onde s'ouvre avant de s'effacer
+  "castBurst": {              // éclat sur la case, au moment du tap
+    "count": 14, "speedPx": 170, "lifeMs": 380, "sizePx": 5
+  },
+  "blastBurst": {             // impact de la météorite
+    "count": 26, "speedPx": 260, "lifeMs": 520, "sizePx": 6
+  },
+  "healBurst": {              // une gerbe **par unité soignée**, donc volontairement petite
+    "count": 6, "speedPx": 90, "lifeMs": 420, "sizePx": 4
+  }
+}
+```
+
+**La durée de la télégraphie n'est pas ici.** Elle vit dans `balance.json`
+(`powers.<type>.telegraphMs`) parce qu'elle est du jeu : les ennemis avancent pendant
+l'annonce. Ce fichier ne règle que l'apparence de l'anneau, qui se ferme **exactement** à
+l'impact — sinon il mentirait sur ce qui va se passer.
+
+`healBurst` est la plus petite gerbe du jeu à dessein : elle est émise **une fois par unité
+soignée**, donc dix fois d'un coup en fin de partie. Une gerbe de taille normale y ferait
+un mur blanc et viderait le pool de particules d'un seul soin.
+
+Le trajet d'un pouvoir (`castMs`) est plus rapide et plus tendu que celui d'une unité
+(`flight.toSlotMs`), et il ne passe pas par les slots : c'est la moitié visuelle de « les
+deux taps ne se confondent pas ». L'autre moitié est sonore (`sfx.powerCast`).
+
 ## `sfx` — sons synthétisés
 
 Les sons sont **générés à l'exécution** (façon jsfxr, `src/systems/sfx.js`), pas chargés :
-zéro octet de téléchargement, réglables comme le reste du feel. Le Lot 4 les remplacera par
+zéro octet de téléchargement, réglables comme le reste du feel. Le Lot 5 les remplacera par
 de vrais sons.
 
 ```jsonc
@@ -223,7 +257,13 @@ de vrais sons.
 ```
 
 Sons obligatoires (`SFX_NAMES`, absence = erreur au chargement) : `merge`, `tap`, `reject`,
-`deploy`, `shot`, `death`, `baseHit`, `wave`, `gameOver`.
+`deploy`, `shot`, `death`, `baseHit`, `wave`, `gameOver`, `powerCast`, `powerBlast`,
+`powerHeal`.
+
+Les trois sons de pouvoir doivent rester **franchement distincts de `tap`** : un joueur qui
+dépense un pouvoir par erreur doit l'entendre avant même de regarder la bataille. C'est
+pour ça que `powerCast` monte (240 → 1180 Hz) là où `tap` fait un clic bref, et que
+`powerBlast` est le seul bruit blanc long du jeu.
 
 `minIntervalMs` compte : vingt unités qui tirent produiraient trente sons par seconde et une
 bouillie. Un son en retard est **ignoré**, jamais mis en file — un son décalé ment sur ce
