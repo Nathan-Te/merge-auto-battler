@@ -24,6 +24,8 @@
  * ici — un habillage ne change pas les hitboxes, c'est la règle du lot.
  */
 
+import { DEFAULT_NATIVE_SIZE, spriteFit } from '../systems/pixelScale.js';
+
 import { DEFAULT_TIER_BANDS, bandOf } from './skinNames.js';
 
 /** Clé de la texture Phaser d'un atlas de catégorie. */
@@ -41,6 +43,13 @@ export class Skin {
     this.index = index ?? null;
     /** Nom de sprite → clé d'atlas, tel que le pipeline l'a écrit. */
     this.frames = new Map(Object.entries(index?.frames ?? {}));
+    /**
+     * Résolution native du projet, telle que le pipeline l'a inscrite dans l'index. Elle
+     * n'est lue que pour l'affichage de debug : la mise à l'échelle, elle, se calcule sur la
+     * taille réelle de chaque frame, ce qui reste juste même pour un décor qui n'a pas la
+     * taille d'un personnage.
+     */
+    this.nativeSize = index?.pixel?.nativeSize ?? DEFAULT_NATIVE_SIZE;
     /**
      * Plages de paliers visuels : elles viennent du **manifest**, pas du code, pour qu'un
      * playtest qui trouve la marche mal placée se corrige depuis l'éditeur web de GitHub.
@@ -90,14 +99,34 @@ export class Skin {
     return image;
   }
 
-  /** Redimensionne une image déjà posée, en conservant son rapport d'aspect. */
+  /**
+   * Met une image déjà posée au plus grand **multiple entier** de sa taille native qui tient
+   * dans `size`, en conservant son rapport d'aspect.
+   *
+   * C'est le seul endroit du rendu où la règle d'échelle entière s'applique, et c'est
+   * volontaire : toutes les vues passent par ici pour poser un sprite, donc aucune ne peut
+   * l'oublier. `size` reste un **diamètre visé** et non une taille imposée — le sprite occupe
+   * un peu moins que la place offerte quand elle n'est pas un multiple de 16, et c'est le
+   * marché qu'on a signé en passant en pixel art (cf. `src/systems/pixelScale.js`).
+   *
+   * On passe par `setScale` et non par `setDisplaySize` : le second recalcule un facteur en
+   * divisant deux flottants, et rend 2,9999999 là où on a demandé 3.
+   */
   resize(image, size) {
     if (!image) return image;
-    const source = image.frame;
-    const longest = Math.max(source.width, source.height) || 1;
-    const scale = size / longest;
-    image.setDisplaySize(source.width * scale, source.height * scale);
+    const { scale } = spriteFit(image.frame, size);
+    image.setScale(scale);
     return image;
+  }
+
+  /** Facteur entier auquel un sprite s'afficherait pour un diamètre visé. */
+  scaleFor(name, size) {
+    const category = this.frames.get(name);
+    if (!category) return 1;
+    const texture = this.scene.textures.get(atlasKey(category));
+    const frame = texture?.has(name) ? texture.get(name) : null;
+    if (!frame) return 1;
+    return spriteFit(frame, size).scale;
   }
 
   /**

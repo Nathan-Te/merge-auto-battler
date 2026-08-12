@@ -66,6 +66,7 @@ figure {
   border-radius: .5rem;
   overflow: hidden;
 }
+.thumbs { display: flex; align-items: stretch; }
 .thumb {
   /* Damier : c'est lui qui rend un détourage raté visible d'un coup d'œil. */
   background-color: #20242f;
@@ -74,14 +75,32 @@ figure {
     linear-gradient(45deg, #2b3040 25%, transparent 25%, transparent 75%, #2b3040 75%);
   background-size: 16px 16px;
   background-position: 0 0, 8px 8px;
-  aspect-ratio: 1;
   position: relative;
   overflow: hidden;
+}
+/* La colonne de gauche montre le sprite à sa taille réelle : c'est là qu'on juge la lisibilité. */
+.thumb.x1 { width: 44px; flex: 0 0 44px; border-right: 1px solid var(--line); }
+/* Celle de droite l'agrandit : c'est là qu'on voit les pixels sales. */
+.thumb.zoom { flex: 1 1 auto; aspect-ratio: 1; }
+.thumb b {
+  position: absolute;
+  left: 2px;
+  bottom: 1px;
+  font: 600 9px/1 ui-monospace, monospace;
+  color: var(--dim);
+  background: rgba(18, 20, 28, .72);
+  padding: 1px 3px;
+  border-radius: 2px;
 }
 /*
  * Chaque vignette est une **fenêtre découpée dans l'atlas**, pas un fichier de plus : la
  * galerie est déployée avec le jeu, et réexporter 60 sprites à l'unité doublerait le poids
  * d'assets pour une page de revue. Le facteur d'échelle est calculé à la génération.
+ *
+ * La propriété image-rendering: pixelated est **le** réglage qui rend cette page utile en
+ * pixel art :
+ * sans lui, le navigateur interpole l'agrandissement et montre exactement ce qu'on cherche
+ * à éviter — un sprite flou, dont on ne peut plus juger ni les bords ni les couleurs.
  */
 .thumb i {
   position: absolute;
@@ -89,10 +108,17 @@ figure {
   top: 50%;
   background-repeat: no-repeat;
   transform-origin: center;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 figcaption { padding: .35rem .45rem .5rem; font-size: .68rem; line-height: 1.35; }
 .name { display: block; word-break: break-all; }
 .meta { color: var(--dim); }
+.tag { display: inline-block; margin-right: .25rem; padding: 0 .25rem; border-radius: 2px; font-size: .62rem; }
+.tag.pack { background: #22322a; color: #86c69a; }
+.tag.off { background: #3a2a22; color: var(--warn); }
+.swatches { display: flex; flex-wrap: wrap; gap: 2px; margin-top: .5rem; }
+.swatches i { width: 13px; height: 13px; border-radius: 2px; display: block; }
 .missing { color: var(--warn); }
 .orphan { color: var(--bad); }
 ul.notes { margin: .4rem 1rem 0; padding-left: 1.1rem; color: var(--dim); font-size: .8rem; }
@@ -108,10 +134,12 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
         ne pas éditer à la main.
       </p>
       <div class="budget">
-      <span class="pill ok">total 99.8 Ko — sous la cible</span>
-      <span class="pill">cible 10.00 Mo</span>
+      <span class="pill ok">total 1.6 Ko — sous la cible</span>
+      <span class="pill">cible 5.00 Mo</span>
       <span class="pill">limite 20.00 Mo</span>
-      <span class="pill">orbs 99.8 Ko · 512×2048</span>
+      <span class="pill">natif 16×16 px</span>
+      <span class="pill">palette 119 couleurs</span>
+      <span class="pill">orbs 1.6 Ko · 64×128</span>
       </div>
       <ul class="notes">
         <li class="missing"><strong>49 sprite(s) attendus par le jeu et absents</strong> (le greybox vectoriel prend le relais) : power.heal.1, power.heal.2, power.heal.3, power.meteor.1, power.meteor.2, power.meteor.3, unit.single.1, unit.single.2, unit.single.3, unit.aoe.1, unit.aoe.2, unit.aoe.3, unit.slow.1, unit.slow.2, unit.slow.3, unit.support.1, unit.support.2, unit.support.3, enemy.basic, enemy.fast, enemy.tank, projectile.arrow, projectile.fireball, projectile.frost, decor.field, decor.castle, decor.portal, decor.table, decor.sky, ui.panel.wood, ui.panel.parchment, ui.card, ui.button, icon.sound.on, icon.sound.off, icon.help, icon.draft.rate, icon.draft.damage, icon.draft.range, icon.draft.shield, icon.draft.clock, icon.draft.slot, icon.draft.base, icon.draft.tier, icon.draft.grid, icon.draft.aura, icon.draft.skip, icon.draft.power, icon.draft.orb</li>
@@ -120,87 +148,247 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
       <h2>orbs · 11</h2>
       <div class="grid">
         <figure>
-          <div class="thumb"><i style="width:169px;height:180px;background-image:url(../assets/atlas-orbs.webp);background-position:-189px -776px;transform:translate(-50%,-50%) scale(0.533)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-38px -38px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-38px -38px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.1</span>
-            <span class="meta">169×180 · ≈7.9 Ko</span>
+            <span class="meta">15×16 px d'art · ≈141 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:192px;height:191px;background-image:url(../assets/atlas-orbs.webp);background-position:-186px -196px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -2px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.10</span>
-            <span class="meta">192×191 · ≈9.5 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:192px;height:158px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -962px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:14px;background-image:url(../assets/atlas-orbs.webp);background-position:-19px -56px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:14px;background-image:url(../assets/atlas-orbs.webp);background-position:-19px -56px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.11</span>
-            <span class="meta">192×158 · ≈7.8 Ko</span>
+            <span class="meta">16×14 px d'art · ≈132 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:185px;height:184px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -776px;transform:translate(-50%,-50%) scale(0.519)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-20px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-20px -2px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.2</span>
-            <span class="meta">185×184 · ≈8.8 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:190px;height:191px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -583px;transform:translate(-50%,-50%) scale(0.503)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-38px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-38px -2px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.3</span>
-            <span class="meta">190×191 · ≈9.4 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:191px;height:192px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -2px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -20px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -20px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.4</span>
-            <span class="meta">191×192 · ≈9.5 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:192px;height:191px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -390px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-20px -20px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-20px -20px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.5</span>
-            <span class="meta">192×191 · ≈9.5 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:192px;height:189px;background-image:url(../assets/atlas-orbs.webp);background-position:-194px -583px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-38px -20px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-38px -20px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.6</span>
-            <span class="meta">192×189 · ≈9.4 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:182px;height:192px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -196px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -56px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -56px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.7</span>
-            <span class="meta">182×192 · ≈9.0 Ko</span>
+            <span class="meta">15×16 px d'art · ≈141 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:192px;height:191px;background-image:url(../assets/atlas-orbs.webp);background-position:-196px -390px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -38px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-2px -38px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.8</span>
-            <span class="meta">192×191 · ≈9.5 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
         <figure>
-          <div class="thumb"><i style="width:191px;height:192px;background-image:url(../assets/atlas-orbs.webp);background-position:-195px -2px;transform:translate(-50%,-50%) scale(0.500)"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-20px -38px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:16px;height:16px;background-image:url(../assets/atlas-orbs.webp);background-position:-20px -38px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
           <figcaption>
             <span class="name">orb.9</span>
-            <span class="meta">191×192 · ≈9.5 Ko</span>
+            <span class="meta">16×16 px d'art · ≈150 o</span>
           </figcaption>
         </figure>
       </div>
+      <h2>palette partagée · 119</h2>
+      <p class="sub" style="margin:0 1rem">
+        Extraite de Basic Holy 3x.png, Basic Undead 4x.png par
+        <code>npm run palette</code>. Toute source non native y est quantifiée.
+      </p>
+      <div class="swatches" style="padding:0 1rem">
+        <i style="background:#1d1d1c" title="#1d1d1c"></i>
+        <i style="background:#2a2236" title="#2a2236"></i>
+        <i style="background:#2c3438" title="#2c3438"></i>
+        <i style="background:#3056ac" title="#3056ac"></i>
+        <i style="background:#323232" title="#323232"></i>
+        <i style="background:#33272a" title="#33272a"></i>
+        <i style="background:#345d41" title="#345d41"></i>
+        <i style="background:#363f35" title="#363f35"></i>
+        <i style="background:#373334" title="#373334"></i>
+        <i style="background:#373448" title="#373448"></i>
+        <i style="background:#398dd5" title="#398dd5"></i>
+        <i style="background:#3d3957" title="#3d3957"></i>
+        <i style="background:#3d3f4b" title="#3d3f4b"></i>
+        <i style="background:#424961" title="#424961"></i>
+        <i style="background:#42bfe8" title="#42bfe8"></i>
+        <i style="background:#432b23" title="#432b23"></i>
+        <i style="background:#444443" title="#444443"></i>
+        <i style="background:#452a1b" title="#452a1b"></i>
+        <i style="background:#464762" title="#464762"></i>
+        <i style="background:#485262" title="#485262"></i>
+        <i style="background:#486859" title="#486859"></i>
+        <i style="background:#4c3d2e" title="#4c3d2e"></i>
+        <i style="background:#4f291c" title="#4f291c"></i>
+        <i style="background:#524a63" title="#524a63"></i>
+        <i style="background:#564f5b" title="#564f5b"></i>
+        <i style="background:#594d4d" title="#594d4d"></i>
+        <i style="background:#595757" title="#595757"></i>
+        <i style="background:#5a748d" title="#5a748d"></i>
+        <i style="background:#5d9b79" title="#5d9b79"></i>
+        <i style="background:#5e718e" title="#5e718e"></i>
+        <i style="background:#636e7c" title="#636e7c"></i>
+        <i style="background:#64364b" title="#64364b"></i>
+        <i style="background:#64754a" title="#64754a"></i>
+        <i style="background:#659257" title="#659257"></i>
+        <i style="background:#67656d" title="#67656d"></i>
+        <i style="background:#682a19" title="#682a19"></i>
+        <i style="background:#695b59" title="#695b59"></i>
+        <i style="background:#696682" title="#696682"></i>
+        <i style="background:#6d1d51" title="#6d1d51"></i>
+        <i style="background:#6e6e6e" title="#6e6e6e"></i>
+        <i style="background:#6e95a9" title="#6e95a9"></i>
+        <i style="background:#6f4d2b" title="#6f4d2b"></i>
+        <i style="background:#6fbdd5" title="#6fbdd5"></i>
+        <i style="background:#724b2c" title="#724b2c"></i>
+        <i style="background:#73efe8" title="#73efe8"></i>
+        <i style="background:#807b7a" title="#807b7a"></i>
+        <i style="background:#855f39" title="#855f39"></i>
+        <i style="background:#86c69a" title="#86c69a"></i>
+        <i style="background:#886e6a" title="#886e6a"></i>
+        <i style="background:#88a3bc" title="#88a3bc"></i>
+        <i style="background:#8aa1f6" title="#8aa1f6"></i>
+        <i style="background:#8ac4c3" title="#8ac4c3"></i>
+        <i style="background:#8b1842" title="#8b1842"></i>
+        <i style="background:#8c5b3e" title="#8c5b3e"></i>
+        <i style="background:#8f8685" title="#8f8685"></i>
+        <i style="background:#966888" title="#966888"></i>
+        <i style="background:#97edca" title="#97edca"></i>
+        <i style="background:#9a97b9" title="#9a97b9"></i>
+        <i style="background:#9c4f41" title="#9c4f41"></i>
+        <i style="background:#9c8850" title="#9c8850"></i>
+        <i style="background:#9c8bdb" title="#9c8bdb"></i>
+        <i style="background:#a15735" title="#a15735"></i>
+        <i style="background:#a5e5da" title="#a5e5da"></i>
+        <i style="background:#a69e9a" title="#a69e9a"></i>
+        <i style="background:#abd5da" title="#abd5da"></i>
+        <i style="background:#ac162d" title="#ac162d"></i>
+        <i style="background:#b0bb5b" title="#b0bb5b"></i>
+        <i style="background:#b25266" title="#b25266"></i>
+        <i style="background:#b28b78" title="#b28b78"></i>
+        <i style="background:#b29476" title="#b29476"></i>
+        <i style="background:#b3785d" title="#b3785d"></i>
+        <i style="background:#b3a49a" title="#b3a49a"></i>
+        <i style="background:#b47538" title="#b47538"></i>
+        <i style="background:#b5a793" title="#b5a793"></i>
+        <i style="background:#b5e7cb" title="#b5e7cb"></i>
+        <i style="background:#b8ccd8" title="#b8ccd8"></i>
+        <i style="background:#bda499" title="#bda499"></i>
+        <i style="background:#c090a9" title="#c090a9"></i>
+        <i style="background:#c5c7dd" title="#c5c7dd"></i>
+        <i style="background:#c68556" title="#c68556"></i>
+        <i style="background:#c7935d" title="#c7935d"></i>
+        <i style="background:#c7b198" title="#c7b198"></i>
+        <i style="background:#c9d4fd" title="#c9d4fd"></i>
+        <i style="background:#cbc6c1" title="#cbc6c1"></i>
+        <i style="background:#d31212" title="#d31212"></i>
+        <i style="background:#d4b8b8" title="#d4b8b8"></i>
+        <i style="background:#d6a851" title="#d6a851"></i>
+        <i style="background:#dacdc1" title="#dacdc1"></i>
+        <i style="background:#dceaee" title="#dceaee"></i>
+        <i style="background:#ddcebf" title="#ddcebf"></i>
+        <i style="background:#e1bf89" title="#e1bf89"></i>
+        <i style="background:#e27285" title="#e27285"></i>
+        <i style="background:#e2b27e" title="#e2b27e"></i>
+        <i style="background:#e3cddf" title="#e3cddf"></i>
+        <i style="background:#e6e7f0" title="#e6e7f0"></i>
+        <i style="background:#e84444" title="#e84444"></i>
+        <i style="background:#e88a36" title="#e88a36"></i>
+        <i style="background:#eae0dd" title="#eae0dd"></i>
+        <i style="background:#ebe185" title="#ebe185"></i>
+        <i style="background:#ecebe7" title="#ecebe7"></i>
+        <i style="background:#f0ece2" title="#f0ece2"></i>
+        <i style="background:#f1ebdb" title="#f1ebdb"></i>
+        <i style="background:#f1f2ff" title="#f1f2ff"></i>
+        <i style="background:#f6a2a8" title="#f6a2a8"></i>
+        <i style="background:#f6d896" title="#f6d896"></i>
+        <i style="background:#f8c53a" title="#f8c53a"></i>
+        <i style="background:#f8e398" title="#f8e398"></i>
+        <i style="background:#f8f644" title="#f8f644"></i>
+        <i style="background:#fad6ff" title="#fad6ff"></i>
+        <i style="background:#fbb3e6" title="#fbb3e6"></i>
+        <i style="background:#fcf1d7" title="#fcf1d7"></i>
+        <i style="background:#fcf7be" title="#fcf7be"></i>
+        <i style="background:#fdc9c9" title="#fdc9c9"></i>
+        <i style="background:#ffc02a" title="#ffc02a"></i>
+        <i style="background:#ffdc04" title="#ffdc04"></i>
+        <i style="background:#ffe0b7" title="#ffe0b7"></i>
+        <i style="background:#ffe9e3" title="#ffe9e3"></i>
+        <i style="background:#fff089" title="#fff089"></i>
+        <i style="background:#ffffff" title="#ffffff"></i>
+      </div>
     <footer>
       Tout problème d'asset se diagnostique ici avant de toucher au code : un sprite mal
-      détouré, mal cadré ou absent se voit sur cette page, et se corrige dans
-      <code>assets-src/manifest.json</code>.
+      détouré, mal cadré, mal pixelisé ou absent se voit sur cette page, et se corrige dans
+      <code>assets-src/manifest.json</code>. Le zoom ×4 est la vue qui compte : un bord en
+      demi-transparence ou une teinte hors palette n'y échappe pas.
     </footer>
   </body>
 </html>

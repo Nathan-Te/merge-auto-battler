@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { t } from '../i18n/index.js';
 
 import { DEPTH } from '../render/depths.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { DEBUG_SPEEDS } from '../systems/debug.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 
@@ -97,7 +97,7 @@ export class DebugPanel {
       const cy = top + buttonHeight / 2;
       button.box.setPosition(cx, cy).setSize(buttonWidth, buttonHeight);
       button.box.input?.hitArea?.setTo(0, 0, buttonWidth, buttonHeight);
-      button.text.setFontSize(fontSize).setPosition(cx, cy);
+      button.text.setFontSize(pixelFontSize(fontSize)).setPosition(cx, cy);
     });
   }
 

@@ -5,6 +5,7 @@ import juiceConfig from '../config/juice.json';
 import { GameSession, SESSION_DROP, SESSION_TAP } from '../systems/GameSession.js';
 import { computeLayout, cellCenterAt, nearestCellIndex } from '../systems/layout.js';
 import { isTap } from '../systems/tapGesture.js';
+import { artPixelSize } from '../systems/pixelScale.js';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { itemColor, styleTierLabel, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
@@ -14,7 +15,7 @@ import { isDebugEnabled, isScreenshotEnabled } from '../systems/debug.js';
 import { t } from '../i18n/index.js';
 import { Skin } from '../render/skin.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
 import { IntelBar } from './IntelBar.js';
@@ -320,10 +321,18 @@ export default class GameScene extends Phaser.Scene {
     this.layoutData = layout;
 
     this.background.setSize(width, height);
-    this.juice.layout(width, height);
+    /**
+     * La trame de pixels d'art de tout l'écran se déduit de la **case de la grille** : c'est
+     * elle qui porte les sprites les plus regardés (les orbes), donc c'est son facteur
+     * d'échelle qui définit la grosseur d'un pixel pour le reste. Prendre le champ de
+     * bataille comme référence donnerait deux trames différentes sur le même écran, ce qui
+     * se voit dès qu'une particule traverse de l'une à l'autre.
+     */
+    this.artPixel = artPixelSize(layout.grid.cell);
+    this.juice.layout(width, height, { pixelSize: this.artPixel });
 
     const headerFont = Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.034), 11, 18);
-    this.title.setFontSize(headerFont);
+    this.title.setFontSize(pixelFontSize(headerFont));
     const headerMiddle = layout.header.y + layout.header.height / 2;
     this.title.setPosition(layout.header.x, headerMiddle);
 
@@ -334,12 +343,12 @@ export default class GameScene extends Phaser.Scene {
     const soundX = layout.header.x + layout.header.width - soundSize / 2;
     this.soundButton.setPosition(soundX, headerMiddle).setSize(soundSize, soundSize);
     this.soundButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
-    this.soundIcon.setFontSize(Math.round(soundSize * 0.55)).setPosition(soundX, headerMiddle);
+    this.soundIcon.setFontSize(pixelFontSize(Math.round(soundSize * 0.55))).setPosition(soundX, headerMiddle);
 
     const helpX = soundX - soundSize - gap;
     this.helpButton.setPosition(helpX, headerMiddle).setSize(soundSize, soundSize);
     this.helpButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
-    this.helpIcon.setFontSize(Math.round(soundSize * 0.55)).setPosition(helpX, headerMiddle);
+    this.helpIcon.setFontSize(pixelFontSize(Math.round(soundSize * 0.55))).setPosition(helpX, headerMiddle);
 
     // Mode capture : tout ce qui n'est pas le jeu quitte l'écran, et le bouton de gel prend
     // la place laissée par le bouton son.
@@ -351,11 +360,11 @@ export default class GameScene extends Phaser.Scene {
       this.helpButton.disableInteractive();
       this.freezeButton.setPosition(soundX, headerMiddle).setSize(soundSize, soundSize);
       this.freezeButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
-      this.freezeIcon.setFontSize(Math.round(soundSize * 0.45)).setPosition(soundX, headerMiddle);
+      this.freezeIcon.setFontSize(pixelFontSize(Math.round(soundSize * 0.45))).setPosition(soundX, headerMiddle);
     }
 
     // Plus petit que le titre : la ligne de debug est dense et partage la même rangée.
-    this.debugText.setFontSize(Phaser.Math.Clamp(Math.round(headerFont * 0.78), 8, 14));
+    this.debugText.setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(headerFont * 0.78), 8, 14)));
     this.debugText.setPosition(helpX - soundSize / 2 - layout.pad / 2, headerMiddle);
 
     const gridWidth = layout.grid.cell * layout.grid.cols;
@@ -642,7 +651,7 @@ export default class GameScene extends Phaser.Scene {
     const label = view.getData('label');
 
     repaintVisual(shape, this.skin, { kind: 'item', item: view.getData('item') }, itemSize);
-    const fontSize = Math.max(9, Math.round(itemSize * 0.4));
+    const fontSize = pixelFontSize(Math.max(9, Math.round(itemSize * 0.4)));
     label.setFontSize(fontSize);
     // Le liseré est réappliqué à chaque redimensionnement : son épaisseur suit la police.
     styleTierLabel(label, fontSize);

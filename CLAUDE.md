@@ -89,6 +89,77 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   — la tienne, celle d'un playtest, celle d'un joueur — s'écrit dans `docs/v1-1-ideas.md` et
   ne s'implémente pas. La timebox est ferme : une idée notée ne coûte rien, une idée ajoutée
   se paie sur le fini du jeu.
+- **La direction artistique est le pixel art, et elle tient sur deux règles d'or.** Décision
+  actée après le Lot 5, pour pouvoir mélanger de vrais packs pixel art et de la génération IA
+  sans que l'écran devienne un patchwork. Le thème fantasy classique ne change pas ; le rendu
+  et le pipeline, si.
+  **(1) Une seule résolution native** — `pixel.nativeSize` = **16**, mesurée sur le pack de
+  référence (cellules de 16 px, marge 1 px, gouttière 2 px, planche livrée en ×4). Un
+  personnage fait 16 pixels de dessin, un décor en fait plus mais du même calibre. **Aucun
+  asset d'une autre résolution native n'entre en jeu.**
+  **(2) Une seule palette partagée** — `assets-src/palette.json`, **119 couleurs** extraites
+  du pack de référence par `npm run palette`, committée. Toute source qui n'est pas déjà du
+  pixel art y est quantifiée.
+  Ce ne sont pas des réglages qu'on ajuste au playtest : ce sont elles qui font que deux
+  sprites voisins appartiennent au même dessin, et ça ne se rattrape pas après coup. Le pack
+  de référence **est** la planche de style ; l'IA comble les manques et passe par la
+  pixelisation. Corollaire d'unité qui se lit dans le manifest : `sizes.<catégorie>` est en
+  **pixels d'art**, plus en pixels d'écran — une valeur à 192 est le symptôme d'un manifest
+  écrit avant la bascule, et le pipeline la refuse.
+- **La pixelisation est une étape du pipeline, dans un ordre qui n'est pas cosmétique.**
+  Toute source **non native** (génération IA, image haute résolution) traverse
+  `réduction → seuillage alpha → quantification` (`src/tools/assets/pixelOps.js`), et jamais
+  dans un autre ordre : un pixel de bord à 40 % d'opacité porte une couleur à moitié mélangée
+  au fond, donc le quantifier avant de le seuiller ferait entrer dans la palette une teinte
+  qui n'est celle de personne — puis on l'effacerait. Le **seuillage alpha** (opaque ou
+  transparent, jamais entre les deux) est celui qui se voit le plus : un bord adouci sur un
+  sprite affiché en ×4 ne produit pas un dégradé mais un gros carré translucide, quatre fois
+  plus visible que le pixel qu'il devait adoucir. La réduction se fait par **moyenne de
+  surface** et non au plus-proche-voisin, parce qu'un pixel d'art recouvre un bloc de 20×20
+  pixels de source et que le plus-proche-voisin en tire un seul au hasard du cadrage ; comme
+  le seuillage et la quantification passent après, elle ne laisse derrière elle ni
+  demi-transparence ni couleur hors palette. `"resample": "nearest"` reste disponible par
+  planche pour une source déjà pixelisée mal agrandie. Une source **native** (un pack) ne
+  subit **rien** — seulement une réduction à ×1 si elle est livrée agrandie, d'un facteur
+  **mesuré sur les pixels** et non lu dans le nom du fichier (les deux planches de référence
+  s'appellent « 3x » et « 4x » et sont toutes les deux en ×4). Ses couleurs hors palette sont
+  **signalées** dans la galerie, jamais corrigées : un pack ne se retouche pas, il fait
+  référence. Dernière conséquence, et elle est facile à oublier : l'atlas WebP est encodé
+  **sans perte**. Compresser avec perte réinventerait des milliers de teintes intermédiaires
+  et adoucirait chaque bord, à la toute dernière étape et sans que rien ne le signale.
+- **Mise à l'échelle entière, partout, sans exception.** Un sprite s'affiche à un **multiple
+  entier** de sa taille native (`src/systems/pixelScale.js`, appliqué dans `Skin.resize()` —
+  le seul endroit du rendu qui pose un sprite, donc aucune vue ne peut l'oublier). Un facteur
+  de 3,4 répartit les pixels d'art sur 3 ou 4 pixels d'écran selon leur position : le sprite
+  n'est pas « un peu flou », il est **irrégulier**, et c'est ça qui distingue un jeu pixel art
+  d'une image de pixel art redimensionnée. On perd quelques pixels de remplissage quand une
+  case n'est pas un multiple de 16 ; on garde une grille intacte sur tous les écrans. Même
+  raison côté DPR : `effectivePixelRatio()` **tronque à l'entier** depuis la bascule — le zoom
+  des caméras *est* ce ratio, et un 2,625 casserait la chaîne juste après que le sprite l'ait
+  respectée. Le prix (une demi-résolution de texte perdue sur les écrans en 1,5) est payé les
+  yeux ouverts : la netteté du pixel art prime, `render.maxPixelRatio` reste le seul curseur.
+  `pixelArt: true` + `roundPixels: true` dans `src/main.js` ferment la chaîne côté GPU.
+- **Aucune rotation continue sur un sprite.** Une rotation libre détruit la grille de pixels :
+  elle rééchantillonne le dessin à chaque frame et fabrique des pixels qui n'existent dans
+  aucune planche. Les effets de juice se font à l'**échelle entière**, en flips, en frames et
+  en décalages — jamais en `setAngle`/`setRotation` animés, ni en `angle`/`rotation` dans un
+  tween. Le jeu en contenait **une** au moment de la bascule, la mort d'un combattant qui
+  basculait à 45° en rétrécissant : elle est devenue un **écrasement au sol**
+  (`combat.deathSquash`), qui raconte la même chose en ne touchant qu'aux deux axes d'échelle.
+  La règle vaut pour les sprites, pas pour un `Graphics` vectoriel du greybox.
+  Corollaire pour les particules : elles sont des **carrés sur la trame**, dont la taille est
+  un multiple entier du pixel d'art et la position alignée dessus au dessin — simulées en
+  flottant, affichées sur la grille (`src/render/particles.js`). `juice.json` continue de
+  régler des intensités en unités de jeu : un réglage de feel n'a pas à connaître la
+  résolution native, sinon il faudrait le refaire à chaque écran.
+- **Les polices sont bitmap, et rendues à taille entière.** Une police vectorielle posée sur
+  du pixel art de 16 px jure autant qu'un cercle parfaitement lisse, et pour la même raison :
+  ses bords sont gris là où le reste de l'écran n'a que des pixels pleins. Toutes les tailles
+  passent par `pixelFontSize()` (`src/render/fonts.js`), qui les contraint aux multiples de la
+  taille de dessin de la police — **et qui reste inerte tant qu'aucune police pixel n'est
+  livrée**, parce que contraindre un repli vectoriel ferait sauter tous les textes du jeu de
+  trois tailles d'un coup sans gagner la moindre netteté. Fichiers attendus et convention de
+  nom : `docs/fonts.md`.
 - **Tout asset entre par `assets-src/`, jamais directement dans `public/assets/`.** Le
   pipeline (`npm run assets`, cf. `src/tools/assets/`) découpe les planches déposées dans
   `assets-src/` selon `assets-src/manifest.json`, détoure le fond blanc **par propagation
@@ -110,8 +181,14 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
 - **Tout problème d'asset se diagnostique dans la galerie avant de toucher au code.**
   `npm run assets` génère `public/gallery/index.html`, déployée sur `/gallery/` hors de la
   navigation du jeu : chaque sprite y est sur fond en **damier** (le seul moyen de voir un
-  halo blanc ou un bord mangé), avec ses dimensions, son poids et le budget en tête de page.
-  Elle annonce aussi les **manques** (ce que le jeu attend et qui n'existe pas) et les
+  halo blanc ou un bord mangé) et **deux fois — à ×1 et agrandi ×4 au plus-proche-voisin**,
+  avec ses dimensions en pixels d'art, son poids et le budget en tête de page. Les deux vues
+  ne se remplacent pas : à ×1 un sprite de 16 px est trop petit pour qu'on voie quoi que ce
+  soit, et c'est pourtant à cette taille qu'on juge sa lisibilité ; c'est au zoom que se
+  voient les pixels sales — un bord resté en demi-transparence, une teinte qui a échappé à la
+  palette, une diagonale en escalier irrégulier. La page affiche aussi la **palette partagée**
+  en toutes lettres, parce qu'une palette qu'on ne regarde jamais dérive sans qu'on s'en
+  aperçoive. Elle annonce aussi les **manques** (ce que le jeu attend et qui n'existe pas) et les
   **orphelins** (ce qui existe sans que le jeu le demande — presque toujours une faute de
   frappe dans `names`). La boucle visée est opérable à 100 % au téléphone : upload d'une
   planche via l'interface web de GitHub → CI → galerie à jour → correction du manifest. Un
@@ -142,7 +219,11 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   Elles restent donc à entretenir : un nouveau type d'unité ou de pouvoir se dessine
   **d'abord** en greybox (`src/render/`), et son sprite vient après. C'est ce qui a permis de
   valider tout le fun du jeu sans une seule image, et ce qui permet aujourd'hui de recevoir
-  les planches une par une.
+  les planches une par une. Depuis la bascule en pixel art, ses cercles et ses hexagones font
+  un escalier — `pixelArt: true` coupe le lissage géométrique en même temps que le filtrage
+  des textures. C'est assumé : un escalier de pixels sur un écran de pixel art est bien moins
+  étranger qu'un cercle parfaitement lisse posé à côté d'un personnage de 16 px, et la place
+  du greybox est de toute façon de disparaître planche après planche.
 - **Rond = pouvoir, et sans exception — y compris en sprites.** Les items de pouvoir sont les
   **seules** formes rondes du jeu : les items d'unité sont des polygones puis des étoiles
   (`src/render/tierShapes.js`), et même le mono-cible du champ de bataille est un carré
@@ -203,7 +284,10 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   netteté ou de performance passe par ce plafond**, jamais par des tailles en dur dans une
   scène : baisser une police ou un rayon pour gagner des images par seconde casserait la
   lisibilité au doigt sans rien régler du vrai coût, qui est du remplissage. `?dpr=N` force
-  la valeur pour comparer sur un téléphone sans reconstruire.
+  la valeur pour comparer sur un téléphone sans reconstruire. **Depuis la bascule en pixel
+  art, le ratio effectif est tronqué à l'entier** : le zoom des caméras *est* ce ratio, donc
+  un 2,625 casserait la grille de pixels juste après que le sprite l'ait respectée (détail et
+  contrepartie dans la règle « mise à l'échelle entière », plus haut).
 - **Le layout est responsive par construction.** Le canvas est en `Scale.RESIZE` : chaque
   scène se relayoute dans un `layout(width, height)` appelé au `create` et sur l'événement
   `resize`. Pas de positions absolues calculées une seule fois au démarrage.
@@ -461,6 +545,7 @@ npm run dev      # serveur de dev Vite (exposé sur le réseau local pour le tes
 npm test         # vitest, une passe
 npm run sim      # harness d'équilibrage headless — rapport par politique
 npm run assets   # découpe assets-src/ → public/assets/ + galerie (obligatoire après un asset)
+npm run palette  # ré-extrait la palette partagée du pack de référence (à la main, jamais en CI)
 npm run docs     # régénère les deux références depuis balance.json (obligatoire après réglage)
 npm run build    # build de production dans dist/
 npm run preview  # sert le build de production en local
@@ -500,6 +585,7 @@ src/tools/        générateur des références (`npm run docs`), pipeline d'ass
                   (`npm run assets`), zip de soumission (`npm run package`)
 src/config/       balance.json + juice.json + credits.json, chacun avec son schéma documenté
 assets-src/       **entrée unique des assets** : planches, audio, polices + manifest de découpe
+                  + palette.json, la palette partagée **générée** par `npm run palette`
 public/           fichiers copiés tels quels dans dist/ — dont `assets/` et `gallery/`,
                   **entièrement générés** par le pipeline
 tests/            tests vitest
@@ -508,6 +594,7 @@ docs/balance-notes.md  valeurs retenues, raisonnement, résultats du harness
 docs/reference.md      référence **générée** (unités, pouvoirs, ennemis, vagues, améliorations)
 docs/v1-1-ideas.md     salle d'attente : ce qui n'entre pas en V1
 docs/audio.md          les 18 sons attendus, leurs noms de fichiers et leur format
+docs/fonts.md          les 2 polices pixel attendues, leur convention de nom et leur licence
 docs/release-checklist.md  checklist de release, exécutée et cochée
 ```
 
@@ -566,13 +653,30 @@ fonctions pures ; les scènes orchestrent et affichent.
   polices auto-hébergées ; page de crédits (CC BY des icônes) ; mode capture `?screenshot=1`
   avec gel de la scène ; zip de soumission produit et déposé en artefact de CI. Aucune valeur
   de gameplay touchée — les quatre objectifs chiffrés sont identiques au centième.
+- **Lot 5.5 — Pivot pixel art** ✅ **Dernière décision de direction artistique du projet.** Le
+  jeu passe en pixel art pour pouvoir mélanger de vrais packs et de la génération IA sans que
+  l'écran devienne un patchwork. Thème fantasy et contenu du Lot 5 inchangés (i18n, audio,
+  méta, soumission) ; seuls le rendu et le pipeline évoluent. Deux règles d'or actées comme
+  contraintes permanentes — **résolution native unique de 16 px** (mesurée sur le pack de
+  référence, pas lue dans le nom du fichier) et **palette partagée de 119 couleurs** extraite
+  du même pack par `npm run palette` et committée. Le pipeline gagne une étape de
+  **pixelisation** (réduction par moyenne de surface → seuillage alpha → quantification), les
+  sources natives passent sans transformation et voient leurs teintes hors palette signalées,
+  et l'atlas est encodé **sans perte** — sans quoi l'encodeur défaisait toute la chaîne à la
+  dernière étape. Côté rendu : `pixelArt` + `roundPixels`, **mise à l'échelle entière** des
+  sprites, ratio de rendu tronqué à l'entier, particules carrées sur la trame, polices bitmap
+  à taille entière, interdiction des rotations continues sur sprite. La galerie montre chaque
+  sprite à ×1 **et** ×4, plus la palette. Toute planche de pack exige sa ligne de crédit, qui
+  remonte seule à l'écran de crédits. Aucune valeur de `balance.json` touchée : le jeu se joue
+  exactement pareil, il ne se regarde plus pareil.
 
 ## Après la V1
 
 **La V1 est close et part en Basic Launch.** Le périmètre gameplay l'était depuis le Lot 4 ;
-depuis le Lot 5, le périmètre tout court l'est aussi. Il ne reste que des assets à déposer,
-un nom à écrire à un seul endroit (`src/i18n/en.json` → `game.title`) et un clic sur le
-portail.
+depuis le Lot 5, le périmètre tout court l'est aussi — le pivot pixel art du Lot 5.5 est une
+décision de **direction artistique**, pas un élargissement de périmètre : il ne change ni une
+règle ni une valeur d'équilibrage. Il ne reste que des assets à déposer, un nom à écrire à un
+seul endroit (`src/i18n/en.json` → `game.title`) et un clic sur le portail.
 
 Toute idée ultérieure — la tienne, celle d'un playtest, celle d'un joueur — s'écrit dans
 `docs/v1-1-ideas.md` et **attend les métriques**. C'est le point important : la V1 n'a encore

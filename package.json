@@ -12,6 +12,7 @@
     "assets": "node src/tools/assets/run.js",
     "package": "node src/tools/packageBuild.js",
     "docs": "node src/tools/generateReference.js",
+    "palette": "node src/tools/assets/extractPalette.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },

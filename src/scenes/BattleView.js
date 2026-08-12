@@ -5,7 +5,7 @@ import { styleTierLabel, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
 import { enemySize, unitColor, enemyColor } from '../render/battleShapes.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { compositionText, t, waveLabelText } from '../i18n/index.js';
@@ -226,8 +226,8 @@ export class BattleView {
     );
 
     // Une ligne, deux ancrages : rien ne peut se chevaucher, même à 320 px.
-    this.hpText.setFontSize(hudFont).setPosition(zone.hud.x, zone.hud.y);
-    this.queueText.setFontSize(hudFont).setPosition(zone.hud.x + zone.hud.width, zone.hud.y);
+    this.hpText.setFontSize(pixelFontSize(hudFont)).setPosition(zone.hud.x, zone.hud.y);
+    this.queueText.setFontSize(pixelFontSize(hudFont)).setPosition(zone.hud.x + zone.hud.width, zone.hud.y);
 
     // Le bandeau se plie à la **largeur** du couloir : en portrait, celui-ci est une
     // colonne étroite, et une texture au nom long déborderait sur la grille à pleine taille.
@@ -241,11 +241,11 @@ export class BattleView {
     );
     const laneCenter = lanePoint(zone, 0.5);
     this.banner
-      .setFontSize(bannerFont)
+      .setFontSize(pixelFontSize(bannerFont))
       .setWordWrapWidth(Math.max(60, zone.lane.width))
       .setPosition(laneCenter.x, laneCenter.y);
     this.hint
-      .setFontSize(Phaser.Math.Clamp(Math.round(bannerFont * 0.55), 10, 18))
+      .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(bannerFont * 0.55), 10, 18)))
       .setWordWrapWidth(Math.max(60, zone.lane.width))
       .setPosition(laneCenter.x, laneCenter.y);
 
@@ -636,7 +636,9 @@ export class BattleView {
   resizeFighterView(view, size, type, tier) {
     view.setData({ type, tier });
     repaintVisual(view.getData('shape'), this.skin, { kind: 'unit', type, tier }, size);
-    const fontSize = Math.max(8, Math.round(size * 0.42));
+    // La taille est ramenée à la grille **avant** d'habiller le liseré : les deux doivent
+    // parler de la même police, sinon le contour est calculé pour un corps qui n'existe pas.
+    const fontSize = pixelFontSize(Math.max(8, Math.round(size * 0.42)));
     styleTierLabel(view.getData('label').setText(String(tier)).setFontSize(fontSize), fontSize);
 
     const barWidth = size * 1.15;
@@ -679,11 +681,16 @@ export class BattleView {
     this.juice.play('death');
 
     this.scene.tweens.killTweensOf(view);
+    // **Écrasement, et surtout pas rotation.** Une rotation libre rééchantillonne le sprite
+    // à chaque frame et fabrique des pixels qui n'existent dans aucune planche : c'est la
+    // seule chose formellement interdite sur un sprite depuis la bascule en pixel art
+    // (cf. `CLAUDE.md`). Un combattant qui s'aplatit au sol raconte la même chose que le
+    // basculement à 45° qu'il remplace, en ne touchant qu'aux deux axes d'échelle.
     this.scene.tweens.add({
       targets: view,
-      scale: 0.15,
+      scaleX: combat.deathSquash.scaleX,
+      scaleY: combat.deathSquash.scaleY,
       alpha: 0,
-      angle: 45,
       duration: combat.deathMs,
       ease: 'Quad.easeOut',
       onComplete: () => view.destroy(),

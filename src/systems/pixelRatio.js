@@ -26,26 +26,45 @@
  *
  * **Toute correction de netteté ou de performance passe par ce plafond**, jamais par des
  * tailles en dur dans les scènes (cf. `CLAUDE.md`).
+ *
+ * ## Pourquoi le ratio est devenu entier au passage en pixel art
+ *
+ * Le zoom des caméras **est** ce ratio. Tant que le jeu était vectoriel, un zoom de 2,625
+ * était un cadeau : chaque courbe gagnait en finesse et rien ne s'y opposait. En pixel art
+ * il devient le maillon qui casse la chaîne — un sprite affiché à un multiple entier
+ * impeccable de sa taille native, multiplié ensuite par 2,625, retombe entre deux pixels
+ * d'écran, et une colonne de pixels d'art sur trois s'étale sur une largeur différente de ses
+ * voisines. Le sprite n'est pas flou, il est **irrégulier**, ce qui est pire et se voit sur
+ * un visage de 16 px.
+ *
+ * On tronque donc à l'entier. Le prix est réel et il est payé les yeux ouverts : sur un écran
+ * en 1,5 le texte perd sa demi-résolution, sur un écran en 2,625 il rend à 2 et le navigateur
+ * étire l'image du reste. Mais cet étirement-là est **uniforme** — une homothétie propre sur
+ * toute la surface, que l'œil lit comme un léger adoucissement — là où un zoom fractionnaire
+ * appliqué avant le filtrage au plus proche voisin déforme la grille elle-même. La netteté du
+ * pixel art prime, c'est la décision de direction artistique.
  */
 
 /** Plafond de repli si `juice.json` est illisible. Même valeur que le fichier. */
 export const DEFAULT_MAX_PIXEL_RATIO = 2;
 
 /**
- * Ratio de rendu effectif : le ratio de l'écran, borné par le plafond, jamais sous 1.
+ * Ratio de rendu effectif : le ratio de l'écran, borné par le plafond, **tronqué à l'entier**,
+ * jamais sous 1.
  *
- * Le ratio n'est **pas** arrondi à l'entier. Sur les écrans à 1,5 ou 2,625 (très courants
- * sur Android), arrondir vers le bas jetterait la moitié du gain de netteté pour la seule
- * satisfaction d'avoir un facteur entier.
+ * L'entier est la contrainte du pixel art (cf. l'en-tête du module). Il est obtenu par
+ * troncature et non par arrondi : un écran en 1,9 rend à 1 et non à 2, parce que rendre dans
+ * une mémoire **plus grande** que l'écran physique ferait réduire l'image par le navigateur —
+ * c'est-à-dire jeter un pixel d'art sur deux, exactement ce qu'on cherche à éviter.
  *
  * @param {number} deviceRatio `window.devicePixelRatio`
  * @param {number} [maxRatio] Plafond (`render.maxPixelRatio`)
- * @returns {number} Ratio effectif, dans [1, maxRatio]
+ * @returns {number} Ratio effectif entier, dans [1, maxRatio]
  */
 export function effectivePixelRatio(deviceRatio, maxRatio = DEFAULT_MAX_PIXEL_RATIO) {
   const cap = Number.isFinite(maxRatio) && maxRatio >= 1 ? maxRatio : 1;
   const raw = Number.isFinite(deviceRatio) && deviceRatio > 0 ? deviceRatio : 1;
-  return Math.min(Math.max(1, raw), cap);
+  return Math.max(1, Math.floor(Math.min(raw, cap)));
 }
 
 /**

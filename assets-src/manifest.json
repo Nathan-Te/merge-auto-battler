@@ -1,18 +1,26 @@
 {
-  "budgetKb": { "target": 10240, "max": 20480 },
+  "budgetKb": { "target": 5120, "max": 20480 },
 
-  "keying": { "color": [255, 255, 255], "tolerance": 24, "softness": 16 },
+  "pixel": { "nativeSize": 16, "alphaThreshold": 128, "resample": "area" },
 
-  "atlas": { "maxSize": 2048, "padding": 2, "quality": 82 },
+  "palette": {
+    "file": "palette.json",
+    "sources": ["Basic Holy 3x.png", "Basic Undead 4x.png"],
+    "quantize": true
+  },
+
+  "keying": { "color": [255, 255, 255], "tolerance": 40, "softness": 8 },
+
+  "atlas": { "maxSize": 2048, "padding": 2, "quality": 82, "lossless": true },
 
   "sizes": {
-    "orbs": 192,
-    "powers": 192,
-    "units": 224,
-    "enemies": 224,
-    "projectiles": 96,
-    "decor": 640,
-    "ui": 256
+    "orbs": 16,
+    "powers": 16,
+    "units": 16,
+    "enemies": 16,
+    "projectiles": 8,
+    "decor": 128,
+    "ui": 32
   },
 
   "tierBands": {
@@ -23,15 +31,15 @@
 
   "sheets": [
     {
-  "file": "1786556420128.png",
-  "category": "orbs",
-  "cols": 4,
-  "rows": 3,
-  "names": [
-    "orb.1", "orb.2", "orb.3", "orb.4",
-    "orb.5", "orb.6", "orb.7", "orb.8",
-    "orb.9", "orb.10", "orb.11", null
-  ]
+      "file": "1786556420128.png",
+      "category": "orbs",
+      "cols": 4,
+      "rows": 3,
+      "names": [
+        "orb.1", "orb.2", "orb.3", "orb.4",
+        "orb.5", "orb.6", "orb.7", "orb.8",
+        "orb.9", "orb.10", "orb.11", null
+      ]
     }
   ]
 }
