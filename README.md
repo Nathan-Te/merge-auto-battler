@@ -994,3 +994,125 @@ tout — dans `docs/balance-notes.md`, section 8.
 **`dist/` : 1,33 Mo** (356 Ko gzip), soit **+13 Ko** bruts et **+4 Ko** gzip par rapport à
 `main` (1 313 649 → 1 326 975 octets). Deux modules de logique, un module de formes, aucun
 asset. Très loin des 20 Mo visés par le seed doc et des 5 Mo du critère de ce lot.
+
+---
+
+## Lot 4.5 — ce qui est livré
+
+Demi-lot correctif, sans nouvelle mécanique : le périmètre gameplay reste clos. Le playtest
+du Lot 4 remonte le dernier défaut de rythme — **les items submergent la grille**, le jeu
+devient nerveux et sans stratégie.
+
+### La cause, et pourquoi ça avait déjà été « corrigé » une fois
+
+Le Lot 3.5 avait déjà ralenti le débit d'items pour la même raison. La récidive est
+structurelle : depuis la **seconde famille d'items** du Lot 4, chaque item a **moins de
+partenaires de fusion valides** — un tier 1 d'unité ne fusionne plus avec tout ce qui porte
+un 1, et deux pouvoirs de types différents ne fusionnent pas. À débit constant, un item
+stagne donc plus longtemps et la grille sature plus vite, sans qu'aucune valeur de cadence
+ait bougé.
+
+Ralentir à nouveau aurait traité le symptôme une troisième fois. Le correctif est une
+**régulation**.
+
+### Le spawner est asservi au remplissage
+
+L'intervalle effectif n'est plus une valeur : c'est l'intervalle **nominal** multiplié par un
+facteur qui suit le taux d'occupation de la grille.
+
+```
+  remplissage ≤ 36 %         →  ×1     cadence nominale, la grille respire
+  36 % → 80 %                →  ×1 → ×14, en puissance 2
+  remplissage ≥ 80 %         →  ×14    quasi-arrêt
+```
+
+Trois choix de conception :
+
+- **la courbure (exposant 2) retarde le freinage** — à mi-chemin des seuils, seul le quart du
+  frein est appliqué. Un frein linéaire se sentirait dès la première case au-dessus du seuil,
+  et le jeu paraîtrait retenir ses items sans raison ;
+- **l'horloge d'apparition passe du compte à rebours à une jauge d'avancement.** Un compte à
+  rebours fige l'intervalle au moment où il est armé : une grille pleine programmerait vingt
+  secondes d'attente, que le joueur subirait même après l'avoir vidée. La jauge relit
+  l'intervalle à chaque pas — la régulation est donc réversible instantanément ;
+- **la pause « grille pleine » disparaît en tant que cas particulier.** C'est le dernier cran
+  de la même courbe, et l'apparition y est *retenue* (jauge à fond), pas perdue.
+
+### Une politique de harness pour mesurer la main, pas la stratégie
+
+Le harness ne voyait pas le problème : ses politiques jouent **trois gestes par seconde** et
+entretiennent donc une grille impeccable (`mixed` flotte à 4,2 items sur 25). **`slowHands`**
+joue exactement le jeu de `mixed` à **un geste toutes les 1,1 s** — le pouce d'un joueur qui
+regarde la bataille entre deux fusions. C'est la seule ligne du rapport qui parle de confort
+de grille, et elle chiffre enfin le playtest.
+
+### Résultats — 30 parties par politique
+
+| politique            | grille avant | grille après    | pleine avant | pleine après | vagues avant | vagues après |
+| -------------------- | ------------ | --------------- | ------------ | ------------ | ------------ | ------------ |
+| Spam tier 1          | 19,6 (78 %)  | **11,5 (46 %)** | 55 %         | **0 %**      | 6,23         | 6,13         |
+| Mixte tier 3         | 4,2 (17 %)   | 4,2 (17 %)      | 0 %          | 0 %          | 9,63         | 9,63         |
+| Prépare tier 4       | 4,5 (18 %)   | 4,5 (18 %)      | 0 %          | 0 %          | 9,17         | 9,17         |
+| Mixte sans pouvoirs  | 5,8 (23 %)   | 5,8 (23 %)      | 0 %          | 0 %          | 8,33         | 8,33         |
+| **Mixte, main lente**| 15,0 (60 %)  | **8,6 (35 %)**  | **31 %**     | **0 %**      | 9,07         | 9,03         |
+
+**Les trois politiques qui entretiennent leur grille rendent des chiffres identiques au
+centième** — la régulation ne se déclenche que pour qui en a besoin. Et `slowHands` survit
+toujours 9,0 vagues avec presque deux fois moins d'items à l'écran : c'est un réglage de
+**confort**, pas de difficulté.
+
+Objectifs chiffrés tous verts, sans déplacer une cible : vagues 8-12 (9,63) · durée 3-5 min
+(4:06) · merge bat spam ×1,49 · les pouvoirs se voient +1,30 vague.
+
+### Le ralentissement de base a été mesuré, puis écarté
+
+Le prompt du lot demandait aussi un intervalle de base ralenti. Mesuré, il **retourne
+l'invariant central** :
+
+| réglage                      | `prepare` | `spam` | ratio     |
+| ---------------------------- | --------- | ------ | --------- |
+| 1 900 / 880 (conservé)       | 9,17      | 6,23   | **×1,49** |
+| 2 300 / 1 000                | 7,69      | 6,31   | ✘ ×1,21   |
+| 2 100 / 950 + cooldown 3 800 | 8,83      | 6,04   | ✘ (pires parties) |
+
+Un ralentissement global pénalise **d'abord celui qui prépare** — un envoi de tier 4 coûte
+8 items, il est limité par les items — et n'atteint pas le spammeur, limité lui par le
+cooldown de sortie, qui a déjà plus d'items qu'il ne peut en envoyer. La cadence nominale est
+donc **inchangée** (1 900 ms → plancher 880 ms), et la courbe fait tout le travail. La règle
+est inscrite dans `CLAUDE.md` : la pression de grille se règle par la courbe de remplissage,
+jamais par un intervalle fixe.
+
+La probabilité d'apparition des pouvoirs a été testée à 16 % : gain négligeable sur la grille
+(8,4 au lieu de 8,6 items) pour une perte franche sur l'invariant des pouvoirs (+0,75 au lieu
+de +1,30 vague). Conservée à **20 %**.
+
+### Le critère d'acceptation, mesuré
+
+Un joueur totalement passif, qui ne touche à rien et se contente de regarder :
+
+| temps de jeu | avant        | après     |
+| ------------ | ------------ | --------- |
+| 10 s         | 14/25        | 13/25     |
+| 20 s         | 20/25        | 14/25     |
+| **30 s**     | **25/25 — pleine** | 16/25 |
+| 60 s         | 25/25        | 18/25     |
+| 120 s        | 25/25        | **20/25 — et ça s'arrête là** |
+
+Avant, la grille était noyée **avant la vague 2**. Après, elle plafonne à 20 cases sur 25 et
+n'en bouge plus : cinq cases restent libres quoi qu'il arrive, donc la situation reste
+toujours rattrapable. On peut suivre une vague entière des yeux.
+
+### Ce qui est testable
+
+- `npm test` : **546 tests** (+14), dont la courbe à 0 / 50 / 80 / 100 % de remplissage, sa
+  monotonie et sa continuité aux deux bornes, sa composition avec la progression de partie et
+  avec « Extraction », la non-saturation d'une grille laissée à l'abandon une minute, et la
+  reprise du rythme quand le joueur la vide.
+- `npm run sim` : cinq politiques, avec `slowHands` en instrument de confort.
+- **Au doigt** : suivre une vague entière des yeux sans toucher la grille, puis vérifier que
+  la situation reste rattrapable.
+
+### Poids
+
+**`dist/` : 1,33 Mo** (356 Ko gzip), **+1,5 Ko** par rapport au Lot 4 — une fonction de
+courbe et une horloge réécrite.

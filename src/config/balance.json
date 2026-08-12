@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "input": {
     "tapMaxDistancePx": 12,
     "tapMaxDurationMs": 600,
@@ -345,7 +345,12 @@
     "intervalMs": 1900,
     "minIntervalMs": 880,
     "intervalDecay": 0.99,
-    "gridFullRetryMs": 400,
+    "fillPressure": {
+      "startFill": 0.36,
+      "stopFill": 0.8,
+      "maxFactor": 14,
+      "exponent": 2
+    },
     "spawnTierWeights": {
       "1": 85,
       "2": 15

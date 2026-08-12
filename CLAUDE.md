@@ -27,10 +27,11 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   `juice.json`. On règle l'un au harness, l'autre au doigt sur un téléphone.
 - **`npm run sim` avant toute retouche d'équilibrage.** Le harness headless
   (`src/sim/`, cf. `docs/balance-notes.md`) joue des dizaines de parties automatiques et
-  sort un rapport reproductible : quatre politiques (`spam` — envoie tout dès que ça
+  sort un rapport reproductible : cinq politiques (`spam` — envoie tout dès que ça
   apparaît ; `mixed` — fusionne jusqu'au tier 3, **le joueur de référence** ; `prepare` —
   ne lâche rien avant le tier 4 ; `noPowers` — le jumeau de `mixed` qui n'utilise jamais un
-  pouvoir), vague moyenne, écart-type, durée, occupation de la grille, pouvoirs dépensés.
+  pouvoir ; `slowHands` — le jumeau de `mixed` qui joue à vitesse humaine), vague moyenne,
+  écart-type, durée, occupation de la grille, pouvoirs dépensés.
   `--matchups` mesure en plus quel type d'unité tient quelle texture de vague. Un réglage se
   valide en secondes, pas en playtests.
 - **Invariant intouchable : « merger bat spammer ».** Préparer un gros item doit rester
@@ -52,6 +53,22 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   réglage se juge à ces trois nombres. Ils sont **inchangés depuis le Lot 3** : le draft puis
   les pouvoirs ont ajouté de la puissance, et à chaque fois la difficulté a été relevée en
   face plutôt que la cible déplacée (mesures dans `docs/balance-notes.md`, sections 7 et 8).
+- **La pression de grille se règle par la courbe de remplissage, jamais par un intervalle
+  fixe.** Depuis le Lot 4.5, le spawner est **asservi** au taux d'occupation
+  (`itemSpawner.fillPressure`) : cadence nominale tant que la grille respire, freinage
+  progressif au-delà de `startFill`, quasi-arrêt à `stopFill`. Si un playtest dit « il y a
+  trop d'items », le réflexe est de descendre `startFill` ou de durcir la courbe — **pas** de
+  ralentir `intervalMs`. La raison est structurelle et mesurée : un ralentissement global
+  pénalise d'abord celui qui **prépare** (limité par les items, il lui en faut 4 à 8 par
+  envoi) et n'atteint pas le spammeur (limité, lui, par `deployCooldownMs`). Il retourne donc
+  l'invariant central pendant qu'il soigne le symptôme. La courbe, elle, ne coûte **rien** à
+  qui entretient sa grille : au harness, `mixed`, `prepare` et `noPowers` rendent des chiffres
+  identiques avec et sans elle. Mesures : `docs/balance-notes.md`, section 9.
+- **Une politique du harness mesure la main, pas la stratégie.** `slowHands` joue exactement
+  le jeu de `mixed` à un geste toutes les 1,1 s au lieu de 0,3. Les autres politiques
+  entretiennent une grille impeccable et ne voient donc **jamais** la saturation dont se
+  plaignent les playtests : c'est celle-ci, et elle seule, qui mesure le confort de grille.
+  Tout réglage qui prétend soigner « trop d'items » se juge sur sa ligne.
 - **Les améliorations de draft sont des modificateurs, jamais des mutations.** Une carte
   prise n'écrit **rien** dans `balance.json` : elle accumule un facteur
   (`src/systems/modifiers.js`), et ce sont les lecteurs — `unitStats`, `DeployQueue`,

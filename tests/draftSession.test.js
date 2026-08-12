@@ -170,9 +170,9 @@ describe('draft — effets', () => {
   it('« Extraction » accélère l’apparition, plancher compris', () => {
     const session = makeSession().start();
     session.spawner.spawnCount = 500; // largement au plancher
-    const before = session.spawner.nextDelayMs();
+    const before = session.spawner.nominalDelayMs();
     session.draft.choose('extraction');
-    expect(session.spawner.nextDelayMs()).toBeLessThan(before);
+    expect(session.spawner.nominalDelayMs()).toBeLessThan(before);
   });
 });
 
