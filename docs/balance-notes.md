@@ -8,8 +8,8 @@
 > `npm run sim -- --games=30` et `npm run sim -- --matchups --tier=3`.
 >
 > **Les sections 1 à 5 décrivent l'état du Lot 3**, conservées pour le raisonnement qui a
-> mené à ces valeurs. **La section 7 donne l'état courant (Lot 3.5)** : c'est elle qui fait
-> foi pour les chiffres.
+> mené à ces valeurs. La section 7 décrit le Lot 3.5, et **la section 7.7 donne l'état
+> courant** — c'est elle qui fait foi pour les chiffres.
 
 ## 1. L'outil : `npm run sim`
 
@@ -385,3 +385,68 @@ dessous, il ne change pas l'issue d'un seul échange ; au-dessus, il en change p
 - **Le soutien n'a toujours pas de retour visuel d'aura**, et son buff est maintenant deux
   fois plus fort qu'au Lot 3 : l'invisibilité de sa valeur devient franchement gênante.
   Candidat n° 1 du prochain passage de lisibilité.
+
+## 7.7 Deuxième passe du Lot 3.5 — après playtest
+
+Le premier jet du lot tenait ses objectifs au harness mais pas au doigt. Le retour de
+playtest a produit un seul changement d'équilibrage — la cadence d'apparition des items —
+et il valait la peine d'être mesuré.
+
+### Le constat
+
+« Spawner d'items trop rapide, grille vite pleine. » Le harness ne pouvait pas le voir : ses
+politiques consomment parfaitement (2,2 items de moyenne sur la grille), donc elles ne
+ressentent jamais l'encombrement. C'est exactement ce que la section 1 annonçait — le
+harness mesure la difficulté, pas le confort.
+
+La mesure qui manquait, et qu'il fallait inventer pour ce réglage : **combien de temps la
+grille met-elle à se remplir si le joueur ne fait rien ?** Elle se calcule directement depuis
+`balance.json` (somme des 17 intervalles au-dessus des 8 items de départ) et elle dit ce que
+le joueur ressent, là où la vague moyenne dit seulement s'il gagne.
+
+### Avant / après
+
+| valeur                        | Lot 3.5 (1er jet) | après playtest | effet                     |
+| ----------------------------- | ----------------- | -------------- | ------------------------- |
+| `itemSpawner.intervalMs`      | 1300              | **1900**       | le début de partie respire |
+| `itemSpawner.minIntervalMs`   | 860               | **880**        | la pression de fin reste   |
+| `itemSpawner.intervalDecay`   | 0,985             | **0,99**       | montée bien plus progressive |
+| *grille pleine si inactif*    | ~20 s             | **30 s**       | mesure dérivée            |
+| *plancher atteint après*      | 77 s              | **102 s**      | soit vers la vague 5      |
+
+Les trois valeurs se règlent **ensemble**, et c'est `intervalDecay` qui fait le gros du
+travail : c'est elle qui décide *quand* on passe du rythme de découverte au rythme de
+pression. Toucher au seul plancher aurait déplacé la pression sans la retarder.
+
+### Résultats, 30 parties par politique, graines 1..30
+
+| politique      | vague moy. | σ    | méd. | durée moy. | drafts/partie |
+| -------------- | ---------- | ---- | ---- | ---------- | ------------- |
+| Spam tier 1    | 5,70       | 0,46 | 6    | 2:49       | 1,8           |
+| Mixte tier 3   | **9,80**   | 0,83 | 10   | **3:56**   | 3,1           |
+| Prépare tier 4 | 10,03      | 0,66 | 10   | 4:03       | 3,2           |
+
+✔ fenêtre 8-12 · ✔ durée 3-5 min · ✔ **merge bat spam ×1,76**
+
+### Ce que ce réglage a coûté, et qu'il faut surveiller
+
+Le ratio « merge bat spam » passe de **×1,93 à ×1,76**, et `prepare` (10,03) ne devance
+presque plus `mixed` (9,80). La raison est arithmétique : un envoi de tier 4 coûte 8 items,
+soit 7 s au plancher actuel, pour un cooldown de sortie de 3,5 s — le préparateur ne peut
+remplir qu'un créneau sur deux. Ralentir le débit pénalise donc **d'abord** celui qui prépare
+le plus gros.
+
+Ce n'est pas une surprise (la section 3 documentait déjà « le tier 4 est hors d'atteinte
+durablement ») et l'invariant reste largement au-dessus du seuil de ×1,4, verrouillé par
+`tests/balanceInvariant.test.js`. Mais c'est **le curseur qui rapproche le plus le jeu de sa
+limite de design** : si un futur réglage devait encore ralentir le débit d'items, il faudrait
+compenser ailleurs — le plus propre serait de baisser `battle.deployCooldownMs` en même
+temps, pour que les deux restent accordés.
+
+### Ce qui n'a pas été mesuré
+
+Les trois autres retours du playtest (bandeau fugace, clics accidentels sur le draft,
+absence de référence) ne touchent aucune valeur de `balance.json` : ce sont des corrections
+de rendu, d'input et d'outillage. Elles sont décrites dans le README de livraison. Seule
+`input.overlayGraceMs` (400 ms) est une valeur nouvelle, et comme `skipCooldownMs` elle est
+réglée au raisonnement — aucun harness ne mesure un doigt.

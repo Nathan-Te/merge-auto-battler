@@ -197,16 +197,67 @@ export class BattleModel {
   }
 
   /**
-   * Ce que le HUD affiche pendant une pause : la vague à venir et le temps qui reste.
-   * Pendant une vague, `remainingMs` vaut 0 — il n'y a plus rien à préparer.
+   * Ce qu'il **reste** de la vague en cours : les ennemis pas encore apparus plus ceux
+   * encore en vie, par type.
+   *
+   * C'est ce que lit le bandeau compact pendant le combat. La composition annoncée avant la
+   * vague répond à « qu'est-ce qui arrive ? » ; celle-ci répond à « qu'est-ce qui arrive
+   * **encore** ? », et c'est la question qu'on se pose une fois la vague lancée.
+   *
+   * Les types sont rendus dans l'ordre de la composition annoncée, pour que les icônes ne
+   * changent pas de place en cours de vague — un compteur qui se déplace ne se lit plus.
+   *
+   * @returns {{wave: number, composition: {type: string, count: number}[], label: string,
+   *            description: string, spawnGapMs: number, total: number}}
+   */
+  waveRemaining() {
+    const counts = new Map();
+    for (const type of this.spawnQueue) counts.set(type, (counts.get(type) ?? 0) + 1);
+    for (const enemy of this.enemies) counts.set(enemy.type, (counts.get(enemy.type) ?? 0) + 1);
+
+    const announced = waveComposition(this.config, this.wave);
+    const composition = announced
+      .map((entry) => ({ type: entry.type, count: counts.get(entry.type) ?? 0 }))
+      .filter((entry) => entry.count > 0);
+    // Un type qui n'était pas annoncé ne peut pas exister, mais on ne perd rien à ne pas en
+    // dépendre : le décompte reste juste même si la composition change un jour.
+    for (const [type, count] of counts) {
+      if (!announced.some((entry) => entry.type === type)) composition.push({ type, count });
+    }
+
+    return {
+      wave: this.wave,
+      composition,
+      label: waveLabel(this.config, this.wave),
+      description: composition
+        .map((entry) => `${entry.count}× ${this.config.enemies[entry.type].label}`)
+        .join(', '),
+      spawnGapMs: this.spawnGapMs,
+      total: composition.reduce((sum, entry) => sum + entry.count, 0),
+    };
+  }
+
+  /**
+   * Ce que le HUD affiche en continu.
+   *
+   * Deux régimes, deux questions : pendant une **pause**, la vague à venir et le temps qui
+   * reste pour s'y préparer ; pendant une **vague**, ce qu'il en reste à encaisser.
    */
   countdown() {
     const pending = this.phase === PHASE.PAUSE;
+    if (pending) {
+      return {
+        pending: true,
+        remainingMs: Math.max(0, this.phaseTimerMs),
+        totalMs: this.countdownTotalMs,
+        ...this.wavePreview(this.wave + 1),
+      };
+    }
     return {
-      pending,
-      remainingMs: pending ? Math.max(0, this.phaseTimerMs) : 0,
+      pending: false,
+      remainingMs: 0,
       totalMs: this.countdownTotalMs,
-      ...this.wavePreview(pending ? this.wave + 1 : this.wave),
+      ...this.waveRemaining(),
     };
   }
 

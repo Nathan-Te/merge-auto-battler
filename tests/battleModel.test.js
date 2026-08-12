@@ -27,6 +27,7 @@ const TEST_BALANCE = {
   units: {
     single: {
       label: 'Mono',
+      blurb: 'unité de test',
       role: 'damage',
       hp: 100,
       speed: 100,
@@ -37,6 +38,7 @@ const TEST_BALANCE = {
     },
     aoe: {
       label: 'Zone',
+      blurb: 'unité de test',
       role: 'aoe',
       hp: 100,
       speed: 100,
@@ -48,6 +50,7 @@ const TEST_BALANCE = {
     },
     slow: {
       label: 'Ralenti',
+      blurb: 'unité de test',
       role: 'slow',
       hp: 100,
       speed: 100,
@@ -61,6 +64,7 @@ const TEST_BALANCE = {
     },
     support: {
       label: 'Soutien',
+      blurb: 'unité de test',
       role: 'support',
       hp: 100,
       speed: 100,

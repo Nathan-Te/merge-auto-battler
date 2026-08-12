@@ -22,7 +22,7 @@
  * Valide et normalise la section `input` de `balance.json`.
  *
  * @param {object} balance Contenu de `balance.json`
- * @returns {{tapMaxDistancePx: number, tapMaxDurationMs: number}}
+ * @returns {{tapMaxDistancePx: number, tapMaxDurationMs: number, overlayGraceMs: number}}
  */
 export function parseInputConfig(balance) {
   const raw = balance?.input;
@@ -44,6 +44,11 @@ export function parseInputConfig(balance) {
   return {
     tapMaxDistancePx: number('tapMaxDistancePx', { min: 1, max: 200 }),
     tapMaxDurationMs: number('tapMaxDurationMs', { min: 50, max: 5000 }),
+    /**
+     * Délai après l'ouverture d'un écran par-dessus le jeu pendant lequel ses boutons ne
+     * répondent pas — le temps de voir ce qu'on a sous le doigt (cf. `overlayGuard.js`).
+     */
+    overlayGraceMs: number('overlayGraceMs', { min: 0, max: 3000 }),
   };
 }
 

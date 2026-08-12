@@ -46,6 +46,7 @@ const COLORS = {
   textDim: '#8f97b0',
   soundOn: 0x4d96ff,
   soundOff: 0x2c3350,
+  helpButton: 0x2c3350,
 };
 
 /** Réglages d'interaction qui ne sont pas du feel : ergonomie du geste. */
@@ -135,6 +136,7 @@ export default class GameScene extends Phaser.Scene {
     this.debugAccumulator = 0;
 
     this.buildSoundButton();
+    this.buildHelpButton();
 
     this.gridPanel = this.add
       .rectangle(0, 0, 10, 10, COLORS.gridPanel)
@@ -160,6 +162,51 @@ export default class GameScene extends Phaser.Scene {
           .setDepth(DEPTH.cell)
       );
     }
+  }
+
+  /**
+   * Bouton « ? » — l'aide en pause.
+   *
+   * Le playtest du Lot 3.5 a montré qu'aucune interface ne disait ce que font les quatre
+   * types d'unités ni à quel rythme revient le draft : on apprenait les règles en perdant.
+   * Discret à côté du bouton son, il ouvre `HelpScene` par-dessus la partie gelée.
+   */
+  buildHelpButton() {
+    this.helpButton = this.add
+      .rectangle(0, 0, 10, 10, COLORS.helpButton, 1)
+      .setDepth(DEPTH.hud)
+      .setInteractive({ useHandCursor: true });
+    this.helpIcon = this.add
+      .text(0, 0, '?', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text })
+      .setOrigin(0.5, 0.5)
+      .setDepth(DEPTH.hud + 1)
+      .setResolution(this.textResolution());
+
+    this.helpButton.on('pointerup', () => this.openHelp());
+  }
+
+  /** Ouvre l'aide. Comme le draft : geste en cours reposé, puis scène gelée. */
+  openHelp() {
+    if (this.session.over || this.gameOverStarted || this.session.draftPending) return;
+
+    this.juice.sfx.unlock();
+    this.cancelPendingGesture();
+    this.juice.clearVignette();
+    this.scene.launch('HelpScene', {
+      // Le panneau ne connaît ni `balance.json` ni les règles : il affiche ce que la
+      // session lui donne, comme tout le reste du rendu.
+      units: Object.values(this.session.battleConfig.units).map((def) => ({
+        type: def.id,
+        label: def.label,
+        role: def.blurb,
+      })),
+      draftEveryWaves: this.session.draftConfig.everyWaves,
+      skipCooldownMs: this.session.battleConfig.skipCooldownMs,
+      graceMs: this.session.inputConfig.overlayGraceMs,
+      juice: this.juice,
+      onClose: () => {},
+    });
+    this.scene.pause();
   }
 
   /** Bouton son — exigé au périmètre V1 (seed doc), et le choix survit au rechargement. */
@@ -243,16 +290,23 @@ export default class GameScene extends Phaser.Scene {
     const headerMiddle = layout.header.y + layout.header.height / 2;
     this.title.setPosition(layout.header.x, headerMiddle);
 
-    // Bouton son collé au bord droit de l'en-tête ; la ligne de debug se range à sa gauche.
+    // Deux boutons collés au bord droit de l'en-tête : son puis « ? ». La ligne de debug se
+    // range à leur gauche.
     const soundSize = Phaser.Math.Clamp(Math.round(layout.header.height * 0.72), 20, 40);
+    const gap = Math.max(4, Math.round(soundSize * 0.22));
     const soundX = layout.header.x + layout.header.width - soundSize / 2;
     this.soundButton.setPosition(soundX, headerMiddle).setSize(soundSize, soundSize);
     this.soundButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
     this.soundIcon.setFontSize(Math.round(soundSize * 0.55)).setPosition(soundX, headerMiddle);
 
+    const helpX = soundX - soundSize - gap;
+    this.helpButton.setPosition(helpX, headerMiddle).setSize(soundSize, soundSize);
+    this.helpButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
+    this.helpIcon.setFontSize(Math.round(soundSize * 0.55)).setPosition(helpX, headerMiddle);
+
     // Plus petit que le titre : la ligne de debug est dense et partage la même rangée.
     this.debugText.setFontSize(Phaser.Math.Clamp(Math.round(headerFont * 0.78), 8, 14));
-    this.debugText.setPosition(soundX - soundSize / 2 - layout.pad / 2, headerMiddle);
+    this.debugText.setPosition(helpX - soundSize / 2 - layout.pad / 2, headerMiddle);
 
     const gridWidth = layout.grid.cell * layout.grid.cols;
     const gridHeight = layout.grid.cell * layout.grid.rows;
@@ -320,6 +374,12 @@ export default class GameScene extends Phaser.Scene {
   onDraftOffer({ wave, cards }) {
     if (this.gameOverStarted) return;
 
+    // Le draft s'ouvre pile quand le joueur manipule la grille : un item resté sous le
+    // doigt se figerait au milieu de l'écran pendant tout le draft. On repose ce qui est
+    // en main **avant** de geler la scène — et on le fait sans tween, qui serait figé lui
+    // aussi.
+    this.cancelPendingGesture();
+
     // Même précaution que pour le game over : une vignette prise en plein fondu resterait
     // rouge derrière l'écran de draft, la scène étant figée.
     this.juice.clearVignette();
@@ -327,9 +387,29 @@ export default class GameScene extends Phaser.Scene {
       wave,
       cards,
       juice: this.juice,
+      graceMs: this.session.inputConfig.overlayGraceMs,
       onChoose: (id) => this.onDraftChosen(id),
     });
     this.scene.pause();
+  }
+
+  /**
+   * Repose immédiatement l'item en cours de drag et oublie le tap en attente.
+   *
+   * Sans tween : la scène est sur le point d'être mise en pause, et un tween figé laisserait
+   * l'item à mi-chemin, agrandi, par-dessus tout le reste.
+   */
+  cancelPendingGesture() {
+    this.tapCandidate = null;
+    const drag = this.dragState;
+    if (!drag) return;
+    this.dragState = null;
+
+    const view = drag.view;
+    if (!view?.active) return;
+    this.tweens.killTweensOf(view);
+    const center = cellCenterAt(this.layoutData, drag.fromIndex);
+    view.setDepth(DEPTH.item).setPosition(center.x, center.y).setScale(1);
   }
 
   /**
