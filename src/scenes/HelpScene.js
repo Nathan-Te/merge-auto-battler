@@ -103,7 +103,7 @@ export default class HelpScene extends Phaser.Scene {
     this.gestureText = this.label(
       'Taper un item → il part au combat, du type en tête de file.\n' +
         'Glisser sur un item de la même sorte et du même tier → fusion.\n' +
-        'Un merge ne déclenche rien : c’est le tap qui envoie.',
+        'Sinon, les deux items échangent leur place : rangez votre grille.',
       { color: COLORS.text, align: 'left' }
     ).setOrigin(0, 0);
 

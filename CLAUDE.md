@@ -105,7 +105,8 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   **d'unité** de la grille le consomme et met une unité de son tier en file de déploiement,
   du type dicté par la file de types (visible dans le HUD, fixée **au moment du tap**).
   Taper un item **de pouvoir** le dépense immédiatement (ni file, ni cooldown). Glisser
-  fusionne ou déplace, et le merge ne déclenche **rien** côté combat. La file se vide toute seule au
+  fusionne, déplace ou **échange** — un lâcher n'est jamais perdu — et le merge ne déclenche
+  **rien** côté combat. La file se vide toute seule au
   rythme de `battle.deployCooldownMs` : c'est le métronome du jeu, et c'est ce qui rend le
   spam de petites unités perdant. Décision actée au Lot 2.5 — les deux gestes ne doivent
   jamais se confondre, seuils dans `balance.json` (`input`), logique dans `tapGesture.js`.
@@ -220,8 +221,7 @@ Depuis le Lot 4, la grille produit **deux familles d'items** — et c'est tout c
 La règle de fusion est **une seule règle, avec une identité élargie** : deux items
 fusionnent s'ils ont le même tier **et la même sorte** (même famille, et même type de
 pouvoir). Il n'y a donc aucun merge croisé — ni entre familles, ni entre deux pouvoirs
-différents — et le refus emprunte le retour animé qui existait déjà. Les pouvoirs ont leur
-propre plafond (`powers.maxTier`, plus bas que celui des items d'unité) parce qu'ils sont
+différents. Les pouvoirs ont leur propre plafond (`powers.maxTier`, plus bas que celui des items d'unité) parce qu'ils sont
 plus rares : un plafond commun serait hors d'atteinte, et deux pouvoirs plafonnés resteraient
 collés sur la grille.
 

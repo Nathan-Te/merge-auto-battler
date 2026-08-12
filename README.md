@@ -1102,17 +1102,46 @@ Avant, la grille était noyée **avant la vague 2**. Après, elle plafonne à 20
 n'en bouge plus : cinq cases restent libres quoi qu'il arrive, donc la situation reste
 toujours rattrapable. On peut suivre une vague entière des yeux.
 
+### Glisser sur un item qui ne fusionne pas : les deux échangent leur place
+
+Second retour de playtest, traité dans le même lot parce qu'il parle du même sujet — le
+confort de grille. Jusqu'ici, lâcher un item sur un autre qui ne lui correspondait pas ne
+faisait **rien** : l'item revenait chez lui. Pour réorganiser, il fallait passer par une case
+vide — et quand la grille est chargée, il n'y en a pas, c'est-à-dire exactement au moment où
+on a le plus besoin de ranger.
+
+Désormais, un lâcher n'est jamais perdu :
+
+| lâcher sur… | résultat |
+| --- | --- |
+| une case vide | déplacement (inchangé) |
+| un item de la même sorte et du même tier | **fusion** (inchangé, toujours prioritaire) |
+| n'importe quel autre item | **échange de place** |
+
+Rapprocher deux futurs partenaires, dégager un coin, sortir un pouvoir du chemin : tout ça
+devient un geste unique, et il fonctionne **grille pleine**. Le feedback est volontairement
+celui d'un déplacement ordinaire — un échange est un rangement, pas un événement.
+
+Conséquence assumée : le retour animé de refus disparaît pour les cases occupées. Il ne reste
+que pour un lâcher hors grille. C'est un gain net — l'ancien « non » n'apprenait rien que les
+numéros de tier ne disaient déjà.
+
+Aucun impact sur l'équilibrage : les politiques du harness ne proposent que des fusions
+valides, et le rapport est **identique au centième** avant et après.
+
 ### Ce qui est testable
 
-- `npm test` : **546 tests** (+14), dont la courbe à 0 / 50 / 80 / 100 % de remplissage, sa
+- `npm test` : **553 tests** (+21), dont la courbe à 0 / 50 / 80 / 100 % de remplissage, sa
   monotonie et sa continuité aux deux bornes, sa composition avec la progression de partie et
   avec « Extraction », la non-saturation d'une grille laissée à l'abandon une minute, et la
-  reprise du rythme quand le joueur la vide.
+  reprise du rythme quand le joueur la vide. Côté échange : la fusion reste prioritaire, les
+  items sont conservés (ni créés ni détruits), l'échange marche par-dessus les familles et
+  grille pleine, et deux échanges successifs ramènent tout en place.
 - `npm run sim` : cinq politiques, avec `slowHands` en instrument de confort.
 - **Au doigt** : suivre une vague entière des yeux sans toucher la grille, puis vérifier que
   la situation reste rattrapable.
 
 ### Poids
 
-**`dist/` : 1,33 Mo** (356 Ko gzip), **+1,5 Ko** par rapport au Lot 4 — une fonction de
-courbe et une horloge réécrite.
+**`dist/` : 1,33 Mo** (356 Ko gzip), **+2 Ko** par rapport au Lot 4 — une fonction de courbe,
+une horloge réécrite et un échange de deux cases.

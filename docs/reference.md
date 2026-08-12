@@ -16,7 +16,8 @@ Version de `balance.json` : **8**.
 - **Taper** un item de pouvoir (silhouette **ronde**) le dépense tout de suite : ni file, ni
   cooldown.
 - **Glisser** un item sur un autre de la même sorte et du même tier les fusionne en un tier
-  supérieur ; sur une case vide, il se déplace. Un merge ne déclenche **rien** côté combat.
+  supérieur ; sur une case vide, il se déplace ; sur n’importe quel autre item, les deux
+  **échangent leur place**. Un merge ne déclenche **rien** côté combat.
 
 La file se vide toute seule au rythme du cooldown de sortie : c’est le métronome du jeu, et
 c’est ce qui rend le spam de petites unités perdant.

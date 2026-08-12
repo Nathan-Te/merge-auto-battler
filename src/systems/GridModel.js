@@ -9,6 +9,7 @@
  * Événements émis :
  *   - `spawn`  { index, item }                     un item apparaît sur une case libre
  *   - `move`   { from, to, item }                  un item change de case
+ *   - `swap`   { from, to, source, target, reason } deux items échangent leur case
  *   - `merge`  { tier, resultTier, index, from, to, item, consumed }
  *   - `full`   { }                                 la grille vient de se remplir
  *   - `unfull` { }                                 une case s'est libérée
@@ -27,9 +28,17 @@
  *
  * La règle de fusion est la même pour tout le monde, avec une identité élargie : deux items
  * fusionnent s'ils ont **le même tier, la même famille et le même type de pouvoir**. Il n'y
- * a donc **aucun merge croisé** — ni entre familles, ni entre deux pouvoirs différents — et
- * le refus emprunte le retour animé qui existe déjà. Le modèle ne connaît rien du contenu de
- * ces chaînes : c'est `balance.json` qui les définit, la grille ne fait que les comparer.
+ * a donc **aucun merge croisé** — ni entre familles, ni entre deux pouvoirs différents. Le
+ * modèle ne connaît rien du contenu de ces chaînes : c'est `balance.json` qui les définit,
+ * la grille ne fait que les comparer.
+ *
+ * ## Lâcher sur une case occupée : fusion, sinon échange
+ *
+ * Deux items qui ne fusionnent pas **échangent leur place**. Un lâcher n'est donc jamais
+ * perdu, et ranger sa grille devient un geste à part entière : rapprocher deux futurs
+ * partenaires, dégager un coin, sortir un pouvoir du chemin. Avant, il fallait passer par
+ * une case vide — et quand la grille est pleine, il n'y en a pas, c'est-à-dire exactement
+ * au moment où on a le plus besoin de réorganiser.
  */
 
 import { GRID_COLS, GRID_ROWS, gridIndex, gridCoords } from './grid.js';
@@ -47,6 +56,8 @@ export const ITEM_FAMILY = {
 export const DROP = {
   MERGE: 'merge',
   MOVE: 'move',
+  /** Les deux items échangent leur case : la fusion était impossible, le rangement non. */
+  SWAP: 'swap',
   /** Lâché sur sa propre case : rien à faire, l'item revient sans que ce soit une erreur. */
   CANCEL: 'cancel',
   INVALID: 'invalid',
@@ -294,16 +305,36 @@ export class GridModel {
       this.moveItem(from, to);
       return { type: DROP.MOVE, from, to };
     }
-    // Case occupée par un item qui ne fusionne pas : rien ne bouge. La raison n'est là que
-    // pour les tests et le diagnostic — le rendu, lui, ramène l'item chez lui dans tous les
-    // cas, sans avoir à savoir pourquoi.
-    return { type: DROP.INVALID, reason: this.refusalReason(from, to) };
+    // Case occupée par un item qui ne fusionne pas : les deux **échangent leur place**.
+    // Un lâcher n'est donc jamais perdu, et ranger sa grille — rapprocher deux futurs
+    // partenaires, dégager un coin — devient un geste à part entière plutôt qu'un
+    // enchaînement de déplacements vers des cases vides.
+    return { type: DROP.SWAP, ...this.swapItems(from, to) };
   }
 
-  /** Pourquoi `from` ne peut pas se poser sur `to`, alors que les deux cases sont occupées. */
-  refusalReason(from, to) {
+  /**
+   * Échange les items de deux cases occupées.
+   *
+   * @returns {{from: number, to: number, source: object, target: object, reason: string}|null}
+   *   null si l'une des deux cases est vide
+   */
+  swapItems(from, to) {
+    if (from === to) return null;
     const source = this.itemAt(from);
     const target = this.itemAt(to);
+    if (source === null || target === null) return null;
+
+    this.cells[from] = target;
+    this.cells[to] = source;
+    // `reason` dit **pourquoi** ces deux-là n'ont pas fusionné. Le rendu n'en a pas besoin
+    // — il anime le même échange dans tous les cas — mais les tests et le diagnostic, si.
+    const payload = { from, to, source, target, reason: this.refusalReason(source, target) };
+    this.events.emit('swap', payload);
+    return payload;
+  }
+
+  /** Pourquoi deux items occupant des cases voisines n'ont pas fusionné. */
+  refusalReason(source, target) {
     if (source.family !== target.family) return 'familleDifferente';
     if (source.power !== target.power) return 'pouvoirDifferent';
     if (source.tier !== target.tier) return 'tierDifferent';

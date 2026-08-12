@@ -360,6 +360,7 @@ export default class GameScene extends Phaser.Scene {
   bindModel() {
     this.bus.on('spawn', ({ index, item }) => this.createItemView(index, item));
     this.bus.on('move', ({ to, item }) => this.onModelMove(to, item));
+    this.bus.on('swap', ({ from, to, source, target }) => this.onModelSwap(from, to, source, target));
     this.bus.on('merge', (payload) => this.onModelMerge(payload));
     // Un item quitte la grille pour la file de déploiement : sa vue s'aspire pendant que
     // `BattleView` fait voler sa vignette vers le slot.
@@ -445,6 +446,16 @@ export default class GameScene extends Phaser.Scene {
       duration: this.juiceConfig.grid.moveMs,
       ease: 'Quad.easeOut',
     });
+  }
+
+  /**
+   * Deux items échangent leur case : les deux vues glissent en même temps, avec le tween de
+   * déplacement ordinaire. C'est volontairement le **même** feedback qu'un déplacement vers
+   * une case vide — un échange est un rangement, pas un événement.
+   */
+  onModelSwap(from, to, source, target) {
+    this.onModelMove(to, source);
+    this.onModelMove(from, target);
   }
 
   onModelRemove(item) {
@@ -761,11 +772,13 @@ export default class GameScene extends Phaser.Scene {
     const result =
       target === -1 ? { type: SESSION_DROP.INVALID } : this.session.applyDrop(fromIndex, target);
 
-    // MERGE et MOVE sont déjà rendus par les écouteurs du bus ; tout le reste
-    // (case occupée par un autre tier, tier max, lâcher hors grille) revient.
-    if (result.type !== SESSION_DROP.MERGE && result.type !== SESSION_DROP.MOVE) {
-      this.returnHome(view, fromIndex);
-    }
+    // MERGE, MOVE et SWAP sont déjà rendus par les écouteurs du bus ; le reste (lâcher hors
+    // grille, lâcher sur sa propre case) ramène l'item chez lui.
+    const handled =
+      result.type === SESSION_DROP.MERGE ||
+      result.type === SESSION_DROP.MOVE ||
+      result.type === SESSION_DROP.SWAP;
+    if (!handled) this.returnHome(view, fromIndex);
   }
 
   /** Ramène une vue d'item à la case que lui donne le modèle. */

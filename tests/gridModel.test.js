@@ -226,25 +226,29 @@ describe('GridModel — fusion', () => {
     expect(merges).toHaveLength(0);
   });
 
-  it('refuse la fusion de deux tiers différents, sans rien déplacer', () => {
+  it('ne fusionne pas deux tiers différents : elle les échange', () => {
     model.placeItem(0, 2);
     model.placeItem(1, 3);
 
     const result = model.applyDrop(0, 1);
 
-    expect(result).toEqual({ type: DROP.INVALID, reason: 'tierDifferent' });
-    expect(model.itemAt(0).tier).toBe(2);
-    expect(model.itemAt(1).tier).toBe(3);
+    expect(result).toMatchObject({ type: DROP.SWAP, from: 0, to: 1, reason: 'tierDifferent' });
+    // Aucune fusion : les deux tiers existent toujours, ils ont juste changé de case.
+    expect(model.itemAt(0).tier).toBe(3);
+    expect(model.itemAt(1).tier).toBe(2);
+    expect(model.count()).toBe(2);
   });
 
-  it('refuse de dépasser le tier maximum', () => {
+  it('refuse de dépasser le tier maximum — deux items plafonnés s’échangent', () => {
     model.placeItem(0, 11);
     model.placeItem(1, 11);
 
     const result = model.applyDrop(0, 1);
 
-    expect(result).toEqual({ type: DROP.INVALID, reason: 'tierMax' });
+    expect(result).toMatchObject({ type: DROP.SWAP, reason: 'tierMax' });
     expect(model.count()).toBe(2);
+    expect(model.itemAt(0).tier).toBe(11);
+    expect(model.itemAt(1).tier).toBe(11);
     expect(model.canMerge(0, 1)).toBe(false);
   });
 
@@ -268,6 +272,96 @@ describe('GridModel — fusion', () => {
     expect(model.canMerge(0, 0)).toBe(false);
     expect(model.canMerge(0, 1)).toBe(false);
     expect(model.canMerge(1, 0)).toBe(false);
+  });
+});
+
+describe('GridModel — échange de deux items', () => {
+  let model;
+  beforeEach(() => {
+    model = new GridModel({ maxTier: 11, powerMaxTier: 6 });
+  });
+
+  it('échange deux items qui ne fusionnent pas, et émet `swap`', () => {
+    const source = model.placeItem(0, 2);
+    const target = model.placeItem(1, 5);
+    const swaps = record(model, 'swap');
+
+    const result = model.applyDrop(0, 1);
+
+    expect(result.type).toBe(DROP.SWAP);
+    expect(model.itemAt(0)).toBe(target);
+    expect(model.itemAt(1)).toBe(source);
+    expect(swaps).toHaveLength(1);
+    expect(swaps[0]).toMatchObject({ from: 0, to: 1, source, target });
+  });
+
+  it('conserve les items eux-mêmes : un échange ne crée ni ne détruit rien', () => {
+    const a = model.placeItem(3, 4);
+    const b = model.placeItem(9, 7);
+    const ids = [a.id, b.id];
+
+    model.applyDrop(3, 9);
+    model.applyDrop(9, 3);
+
+    // Deux échanges successifs ramènent tout en place, aux mêmes identifiants.
+    expect(model.itemAt(3).id).toBe(ids[0]);
+    expect(model.itemAt(9).id).toBe(ids[1]);
+    expect(model.count()).toBe(2);
+  });
+
+  it('la fusion reste prioritaire : deux items identiques fusionnent, ils ne s’échangent pas', () => {
+    model.placeItem(0, 3);
+    model.placeItem(1, 3);
+    const swaps = record(model, 'swap');
+
+    expect(model.applyDrop(0, 1).type).toBe(DROP.MERGE);
+    expect(swaps).toHaveLength(0);
+  });
+
+  it('échange par-dessus les familles — c’est tout l’intérêt pour ranger', () => {
+    const unit = model.placeItem(0, 1);
+    const power = model.placeItem(1, 4, { family: ITEM_FAMILY.POWER, power: 'meteor' });
+
+    expect(model.applyDrop(0, 1).type).toBe(DROP.SWAP);
+    expect(model.itemAt(0)).toBe(power);
+    expect(model.itemAt(1)).toBe(unit);
+  });
+
+  it('reste possible grille pleine — le moment où on en a le plus besoin', () => {
+    for (let i = 0; i < model.size; i += 1) model.placeItem(i, 1 + (i % 3));
+    expect(model.isFull()).toBe(true);
+
+    // Deux tiers différents (1 et 2) : rien ne peut fusionner, et pourtant le geste passe.
+    const a = model.itemAt(0);
+    const b = model.itemAt(1);
+    expect(a.tier).not.toBe(b.tier);
+    expect(model.applyDrop(0, 1).type).toBe(DROP.SWAP);
+
+    expect(model.itemAt(0)).toBe(b);
+    expect(model.itemAt(1)).toBe(a);
+    expect(model.isFull()).toBe(true);
+  });
+
+  it('n’échange pas avec une case vide (c’est un déplacement) ni avec soi-même', () => {
+    model.placeItem(0, 2);
+    const swaps = record(model, 'swap');
+
+    expect(model.applyDrop(0, 4).type).toBe(DROP.MOVE);
+    expect(model.applyDrop(4, 4).type).toBe(DROP.CANCEL);
+    expect(model.swapItems(4, 4)).toBeNull();
+    expect(model.swapItems(4, 7)).toBeNull();
+    expect(swaps).toHaveLength(0);
+  });
+
+  it('ne change jamais le nombre d’items, quelle que soit la paire', () => {
+    model.placeItem(0, 2);
+    model.placeItem(1, 9);
+    model.placeItem(2, 6, { family: ITEM_FAMILY.POWER, power: 'heal' });
+
+    for (const [from, to] of [[0, 1], [1, 2], [2, 0], [0, 2]]) {
+      model.applyDrop(from, to);
+      expect(model.count()).toBe(3);
+    }
   });
 });
 
@@ -322,10 +416,13 @@ describe('GridModel — deux familles d’items (Lot 4)', () => {
 
     expect(model.canMerge(0, 1)).toBe(false);
     expect(model.canMerge(1, 0)).toBe(false);
-    expect(model.applyDrop(0, 1)).toEqual({
-      type: DROP.INVALID,
+    // Pas de fusion, mais un échange : les deux sortes sont intactes, aux cases près.
+    expect(model.applyDrop(0, 1)).toMatchObject({
+      type: DROP.SWAP,
       reason: 'familleDifferente',
     });
+    expect(model.itemAt(0)).toMatchObject({ tier: 3, family: ITEM_FAMILY.POWER, power: 'heal' });
+    expect(model.itemAt(1)).toMatchObject({ tier: 3, family: ITEM_FAMILY.UNIT });
     expect(model.count()).toBe(2);
   });
 
@@ -334,9 +431,13 @@ describe('GridModel — deux familles d’items (Lot 4)', () => {
     putPower(1, 2, 'meteor');
 
     expect(model.canMerge(0, 1)).toBe(false);
-    expect(model.applyDrop(0, 1)).toEqual({ type: DROP.INVALID, reason: 'pouvoirDifferent' });
-    expect(model.itemAt(0).power).toBe('heal');
-    expect(model.itemAt(1).power).toBe('meteor');
+    expect(model.applyDrop(0, 1)).toMatchObject({
+      type: DROP.SWAP,
+      reason: 'pouvoirDifferent',
+    });
+    // Les deux pouvoirs existent toujours : ils ont échangé leur case, rien de plus.
+    expect(model.itemAt(0).power).toBe('meteor');
+    expect(model.itemAt(1).power).toBe('heal');
   });
 
   it('déplacer reste libre : seule la fusion regarde la sorte', () => {
@@ -352,7 +453,8 @@ describe('GridModel — deux familles d’items (Lot 4)', () => {
     putPower(0, 6, 'heal');
     putPower(1, 6, 'heal');
     expect(model.canMerge(0, 1)).toBe(false);
-    expect(model.applyDrop(0, 1)).toEqual({ type: DROP.INVALID, reason: 'tierMax' });
+    expect(model.applyDrop(0, 1)).toMatchObject({ type: DROP.SWAP, reason: 'tierMax' });
+    expect(model.count()).toBe(2);
 
     // Les items d'unité, eux, montent toujours jusqu'à 11.
     putUnit(2, 6);
