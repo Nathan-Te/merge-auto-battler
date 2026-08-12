@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 import { unitColor } from '../render/battleShapes.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t, waveLabelText } from '../i18n/index.js';
@@ -214,7 +214,7 @@ export class IntelBar {
     this.skipFill.setPosition(rightX - skipWidth, midY).setSize(skipWidth, skipHeight);
     this.skipWidth = skipWidth;
     this.skipText
-      .setFontSize(Phaser.Math.Clamp(Math.round(skipHeight * 0.38), 8, 14))
+      .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(skipHeight * 0.38), 8, 14)))
       .setPosition(rightX - skipWidth / 2, midY);
 
     // Les chips se lisent de gauche à droite, tête en premier — le même sens que la file
@@ -231,7 +231,7 @@ export class IntelBar {
     // Une marge, pour que le titre de vague ne vienne jamais lécher le séparateur.
     this.leftWidth = Math.max(30, leftWidth - pad * 2);
     const font = Phaser.Math.Clamp(Math.round(Math.min(bar.height * 0.3, leftWidth * 0.1)), 8, 15);
-    this.waveText.setFontSize(font).setScale(1).setPosition(bar.x + pad, bar.y + bar.height * 0.3);
+    this.waveText.setFontSize(pixelFontSize(font)).setScale(1).setPosition(bar.x + pad, bar.y + bar.height * 0.3);
 
     this.divider.setPosition(chipsLeft - pad / 2, bar.y + pad).setSize(1, bar.height - pad * 2);
 
@@ -239,7 +239,7 @@ export class IntelBar {
     this.iconFont = Phaser.Math.Clamp(Math.round(bar.height * 0.26), 7, 13);
     this.iconRow = { x: bar.x + pad, y: bar.y + bar.height * 0.72, width: leftWidth };
     this.countdownText
-      .setFontSize(Phaser.Math.Clamp(Math.round(font * 0.95), 8, 14))
+      .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(font * 0.95), 8, 14)))
       .setPosition(this.iconRow.x, this.iconRow.y);
 
     this.refresh({ force: true });
@@ -327,7 +327,7 @@ export class IntelBar {
       repaintVisual(icon.shape, this.skin, { kind: 'enemy', type: entry.type }, this.iconSize);
       icon.shape.setPosition(cursor + this.iconSize / 2, this.iconRow.y);
       icon.text
-        .setFontSize(this.iconFont)
+        .setFontSize(pixelFontSize(this.iconFont))
         .setText(`×${entry.count}`)
         .setPosition(cursor + this.iconSize + 3, this.iconRow.y);
       cursor = icon.text.x + icon.text.width + this.iconSize * 0.6;

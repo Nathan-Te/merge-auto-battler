@@ -7,6 +7,57 @@ web de GitHub, sur un téléphone, sans rien connaître du pipeline.
 > JSON n'accepte pas les commentaires : c'est pour ça que les explications sont ici et non
 > dans le fichier. Même règle que `src/config/balance.schema.md`.
 
+## D'abord : le jeu est en pixel art
+
+Deux règles d'or gouvernent tout ce fichier, et elles ne se négocient pas.
+
+**1. Une seule résolution native.** Tous les sprites du jeu sont dessinés sur la même grille
+de pixels : `pixel.nativeSize` vaut **16**, la taille mesurée sur le pack de référence
+(cellules de 16 px, marge 1 px, gouttière 2 px, planche livrée en ×4). Un personnage fait
+16 pixels de dessin, un décor en fait plus mais **du même calibre**. C'est ce qui fait que
+deux sprites voisins ont des pixels de la même taille — et ça ne se rattrape pas après coup.
+
+**2. Une seule palette partagée.** `assets-src/palette.json`, extraite du pack de référence
+par `npm run palette`, committée. Toute source qui n'est pas déjà du pixel art y est
+**quantifiée**. Sans elle, chaque planche garderait ses propres teintes et l'écran serait un
+patchwork.
+
+Conséquence directe sur les tailles : **`sizes` est en pixels d'art, pas en pixels d'écran.**
+Avant la bascule, `sizes.orbs` valait 192 et voulait dire « 192 pixels à l'écran » ; il vaut
+maintenant 16 et veut dire « 16 pixels de dessin ». C'est le **rendu** qui choisit ensuite par
+quel entier multiplier, écran par écran. Le pipeline refuse une valeur trop grande plutôt que
+de la découvrir dans la galerie.
+
+### Deux sortes de sources
+
+| | planche de **pack** | planche **générée** (IA) |
+| --- | --- | --- |
+| dans le manifest | `"native": true` | rien à écrire, c'est le défaut |
+| ce qu'elle subit | rien — réduite à ×1 si elle est livrée agrandie | pixelisation complète |
+| détourage du blanc | non (elle arrive sur du transparent) | oui |
+| quantification | **non** — un pack ne se retouche pas, il fait référence | oui |
+| hors palette | **signalé** dans la galerie, sprite par sprite | impossible par construction |
+| crédit | **obligatoire** (voir plus bas) | sans objet |
+
+La pixelisation d'une source générée fait trois choses, dans cet ordre :
+
+```
+réduction à la résolution native  →  seuillage alpha  →  quantification
+     (moyenne de surface)            (opaque ou rien)     (palette partagée)
+```
+
+Le **seuillage alpha** est celui qui se voit le plus : le pixel art n'a pas de
+demi-transparence. Un bord adouci sur un sprite affiché en ×4 ne produit pas un dégradé mais
+un gros carré translucide, quatre fois plus visible que le pixel qu'il devait adoucir. C'est
+le défaut n° 1 d'une génération pixelisée, et il saute aux yeux au zoom ×4 de la galerie.
+
+### Le facteur d'agrandissement n'est jamais demandé
+
+Il est **mesuré sur les pixels**. Les deux planches de référence du projet s'appellent
+« Basic Holy 3x » et « Basic Undead 4x » et sont toutes les deux en ×4 : le nom du fichier
+ment, les pixels non. On ne le force avec `scale` que pour une raison précise, et le pipeline
+prévient quand la valeur forcée contredit la mesure.
+
 ## La boucle, en quatre gestes
 
 1. Dépose une planche dans `assets-src/` (bouton **Add file** de GitHub, depuis le téléphone).
@@ -70,8 +121,18 @@ blanc d'un œil). Deux boutons, globaux ou planche par planche :
 
 | clé | rôle | quand y toucher |
 | --- | --- | --- |
-| `sizes.<catégorie>` | côté visé d'un sprite, en pixels | un sprite pixelisé en jeu (monter) ou un atlas trop lourd (descendre) |
-| `atlas.quality` | qualité WebP, 1-100 | descendre pour tenir le budget de poids |
+| `pixel.nativeSize` | **la** résolution native du projet, en pixels d'art | jamais — c'est une constante de direction artistique |
+| `pixel.alphaThreshold` | au-dessus, le pixel est opaque ; en dessous, il n'existe pas | les bords des sprites pixelisés bavent (monter) ou sont rongés (descendre) |
+| `pixel.resample` | réduction par défaut : `area` ou `nearest` | une source déjà pixelisée mais agrandie d'un facteur non entier (`nearest`) |
+| `palette.sources` | les planches de **pack** dont on extrait la palette | un nouveau pack de référence arrive — puis relancer `npm run palette` |
+| `palette.quantize` | quantifier ou non | pour regarder une planche non quantifiée en galerie, le temps de juger si la palette est trop pauvre. Jamais pour publier |
+| `native` (par planche) | la planche est déjà du pixel art | toute planche de pack |
+| `credit` (par planche) | auteur, pack, licence, lien | **obligatoire** dès que `native` est vrai |
+| `scale` (par planche) | forcer le facteur d'agrandissement de la source | quasi jamais : il est mesuré |
+| `keyOut` (par planche) | détourer le fond ou non | par défaut : oui pour une génération, non pour un pack |
+| `sizes.<catégorie>` | côté visé d'un sprite, en **pixels d'art** | un sprite trop petit ou trop grand par rapport aux autres |
+| `atlas.lossless` | encodage WebP sans perte | **jamais le passer à false** pour autre chose que comparer un poids : la compression avec perte réinvente des couleurs hors palette et adoucit les bords, à la toute dernière étape |
+| `atlas.quality` | qualité WebP, 1-100 — sans effet en sans perte | descendre pour tenir le budget de poids, si un jour `lossless` est coupé |
 | `atlas.maxSize` | côté maximum d'un atlas | le pipeline dit qu'une catégorie ne tient pas |
 | `atlas.padding` | gouttière entre sprites | des bribes du sprite voisin apparaissent en jeu (monter) |
 | `budgetKb` | cible et limite dure, en Ko | jamais sans raison : la limite vient du seed doc |
@@ -120,6 +181,36 @@ La galerie le dit. Si elle annonce des **orphelins** nommés `orb.4`, `orb.5`…
 dessiné plus d'orbes que la table `orb` n'en réclame : allonge-la, une plage par tier. Si
 elle annonce des **manques** `unit.single.3`, c'est l'inverse — il manque un dessin, ou la
 table `unit` en demande plus que la planche n'en fournit.
+
+## Crédits et licences des packs
+
+**Aucun asset de pack n'entre sans sa ligne de crédit.** Une planche déclarée `"native": true`
+sans `credit` fait **échouer** le pipeline, avec un message qui dit quoi écrire :
+
+```json
+{
+  "file": "mon-pack.png",
+  "category": "units",
+  "native": true,
+  "credit": {
+    "author": "Nom de l'auteur",
+    "pack": "Nom du pack",
+    "license": "CC BY 4.0",
+    "url": "https://…"
+  },
+  "cols": 5, "rows": 3,
+  "names": ["unit.single.1", "…"]
+}
+```
+
+`author` et `license` sont obligatoires ; `pack` et `url` sont recommandés (certaines licences
+imposent le lien). La ligne remonte toute seule dans l'écran de crédits du jeu, sans passer
+par `src/config/credits.json` : c'est le seul chemin qui ne peut pas mentir, puisque le
+pipeline refuse la planche sans elle.
+
+C'est volontairement raide. Un sprite de pack sans auteur ni licence ne se détecte plus une
+fois qu'il est dans l'atlas, mélangé à cinquante autres — le refuser à l'entrée est la seule
+barrière qui tienne, et elle est facile à franchir quand on a l'information sous la main.
 
 ## Audio et polices
 

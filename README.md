@@ -15,6 +15,7 @@ npm run dev      # serveur de dev, exposé sur le réseau local (test téléphon
 npm test         # vitest
 npm run sim      # harness d'équilibrage headless (voir Lot 3)
 npm run assets   # découpe assets-src/ → public/assets/ + galerie (voir Lot 5)
+npm run palette  # ré-extrait la palette partagée du pack de référence (voir Lot 5.5)
 npm run docs     # régénère docs/reference.md et docs/reference.en.md
 npm run build    # build de production dans dist/
 npm run preview  # sert le build de production en local
@@ -1442,3 +1443,215 @@ exclues.
 
 **Ce qui reste à Nathan, et rien d'autre** : les assets, le nom définitif, la vignette, la
 description, et le clic final.
+
+## Lot 5.5 — ce qui est livré
+
+**Pivot de direction artistique : le jeu passe en pixel art.** C'est la dernière décision de
+DA du projet, et elle a une raison précise — pouvoir mélanger de vrais packs pixel art
+achetés et de la génération IA sans que l'écran devienne un patchwork. Le thème fantasy
+classique et tout le contenu du Lot 5 (i18n, audio, méta, soumission) sont inchangés ; seuls
+le **rendu** et le **pipeline d'assets** évoluent.
+
+**Aucune valeur de `balance.json` n'est touchée.** Le jeu se joue exactement pareil — mêmes
+objectifs chiffrés, mêmes invariants, mêmes tests d'équilibrage — il ne se regarde plus
+pareil.
+
+### Les deux règles d'or
+
+Elles ne sont pas des réglages : ce sont elles qui font que deux sprites voisins appartiennent
+au même dessin, et ça ne se rattrape pas après coup.
+
+**1. Une seule résolution native : 16 × 16 pixels d'art.** Mesurée sur le pack de référence
+fourni, pas décrétée. Les deux planches (« Basic Holy 3x », « Basic Undead 4x ») sont en
+réalité **toutes les deux agrandies ×4**, sur une grille de cellules de 16 px avec 1 px de
+marge et 2 px de gouttière — Holy fait 90 × 54 px natifs, soit exactement
+`1 + 5×16 + 4×2 + 1`. Le nom du fichier ment, les pixels non : le pipeline **mesure** le
+facteur d'agrandissement au PGCD des plages de pixels identiques, et ne demande rien à
+personne.
+
+**2. Une seule palette partagée : 119 couleurs.** Extraites des deux planches de référence par
+`npm run palette`, écrites dans `assets-src/palette.json`, **committées**. Toute source qui
+n'est pas déjà du pixel art y est quantifiée.
+
+La palette est générée par une commande à part, jamais par `npm run assets`. Trois raisons,
+dans l'ordre : elle se **relit** (c'est une liste qu'on ouvre et qu'on discute) ; elle ne
+**bouge pas toute seule** — ajouter une planche de pack ne doit pas redéfinir en silence les
+couleurs de tous les sprites déjà quantifiés ; et un changement de palette est une décision de
+direction artistique, donc il se prend, se lance à la main, et se relit dans un diff.
+
+### L'étape de pixelisation
+
+Toute source **non native** traverse trois opérations, et leur ordre n'est pas cosmétique
+(`src/tools/assets/pixelOps.js`) :
+
+```
+réduction à la résolution native  →  seuillage alpha  →  quantification
+     (moyenne de surface)            (opaque ou rien)     (palette partagée)
+```
+
+**Pourquoi le seuillage avant la quantification.** Un pixel de bord à 40 % d'opacité porte une
+couleur à moitié mélangée au fond. Le quantifier d'abord ferait entrer dans la palette une
+teinte qui n'est celle de personne, puis on l'effacerait — du travail pour rien, et une
+couleur fausse si le seuil l'avait gardé.
+
+**Pourquoi le seuillage alpha du tout.** Le pixel art n'a pas de demi-transparence. Un bord
+adouci sur un sprite affiché en ×4 ne produit pas un dégradé mais un **gros carré
+translucide**, quatre fois plus visible que le pixel qu'il devait adoucir. C'est le défaut
+n° 1 d'une génération IA pixelisée.
+
+**Pourquoi la moyenne de surface plutôt que le plus-proche-voisin.** C'est le seul écart au
+brief, et il est délibéré. Une génération IA fait 1376 × 768 et un sprite en fait 16 : chaque
+pixel d'art recouvre un bloc d'environ 20 × 20 pixels de source. Le plus-proche-voisin en tire
+**un seul, au hasard du cadrage**, et jette les 399 autres — sur un dessin fin, le résultat
+change complètement selon qu'on rogne un pixel plus à gauche, et le bruit de l'image de départ
+passe tel quel. La moyenne lit le bloc entier, donc elle est stable ; et comme le seuillage
+puis la quantification passent **après**, elle ne laisse derrière elle ni demi-transparence ni
+couleur hors palette. Le résultat est aussi net, simplement mieux choisi. Le plus-proche-voisin
+reste disponible par planche (`"resample": "nearest"`), et sur une source native agrandie d'un
+facteur entier les deux donnent **exactement** le même résultat — c'est ce qui donne son sens à
+« les packs passent sans transformation ».
+
+**Une source native ne subit rien.** Seulement une réduction à ×1 si elle est livrée agrandie.
+On ne la quantifie pas : un pack ne se retouche pas, il fait référence. Ses couleurs hors
+palette sont **signalées** dans la galerie, sprite par sprite.
+
+**L'atlas est encodé sans perte.** Conséquence facile à oublier, et fatale si on l'oublie :
+toute la chaîne vient de ramener l'image sur cent teintes et sur une alpha binaire, et un
+encodage WebP avec perte réinventerait des dizaines de milliers de couleurs intermédiaires et
+redonnerait des bords flous — à la toute dernière étape, et sans que rien ne le signale. Le
+coût est nul : des aplats de 16 px se compressent **mieux** sans perte qu'avec.
+
+### Test de validation : les 11 orbes
+
+Le premier test du pipeline, comme prévu : pixeliser la planche des 11 orbes déjà générée et
+juger le résultat en galerie.
+
+| | avant | après |
+| --- | --- | --- |
+| taille des sprites | 192 px d'écran | **16 × 16 px d'art** |
+| atlas | 512 × 2048, WebP avec perte | **64 × 128, WebP sans perte** |
+| poids | 99,8 Ko | **1,6 Ko** — 63 fois moins |
+| valeurs d'alpha | 256 | **2** (0 ou 255) |
+| couleurs | plusieurs milliers | **67, toutes dans la palette** |
+
+**Verdict : le pipeline est bon, la planche source ne l'est pas.** Les quatre orbes de pierre
+(tiers 1-4) se distinguaient par des runes gravées : à 16 px elles disparaissent, et les quatre
+tiers deviennent quatre cailloux gris identiques. Les orbes bleus (5-8) et dorés (9-11) passent
+très bien — silhouette forte, couleur franche. La leçon vaut pour toutes les planches à venir :
+**un orbe qui doit se lire à 16 px se distingue par sa forme et sa couleur, jamais par un
+détail gravé**. À reprendre à la génération, pas au réglage.
+
+Deux défauts mineurs vus au zoom ×4 : un liseré clair autour des orbes bleus (c'est leur halo
+lumineux dans la source, correctement rendu — acceptable) et une petite excroissance blanche
+asymétrique sous l'orbe du tier 7, héritée de l'ombre portée de la source.
+
+### La galerie, revue de pixel art
+
+Chaque sprite y est désormais **deux fois : à ×1 et agrandi ×4** au plus-proche-voisin
+(`image-rendering: pixelated`). Les deux vues ne se remplacent pas — à ×1 un sprite de 16 px
+est trop petit pour qu'on y voie quoi que ce soit, et c'est pourtant à cette taille qu'on juge
+sa lisibilité ; c'est au zoom que se voient les pixels sales : un bord resté en
+demi-transparence, une teinte qui a échappé à la palette, une diagonale en escalier
+irrégulier. La page affiche aussi la **palette partagée** en toutes lettres, parce qu'une
+palette qu'on ne regarde jamais dérive sans qu'on s'en aperçoive, et marque chaque sprite
+`pack` ou `n hors palette`.
+
+### Côté rendu
+
+**`pixelArt: true` + `roundPixels: true`.** Aucun filtrage, aucune interpolation. Le prix est
+que le greybox vectoriel fait maintenant un escalier — assumé : c'est un **repli** dont la
+place est de disparaître planche après planche, et un escalier de pixels sur un écran de pixel
+art est bien moins étranger qu'un cercle parfaitement lisse posé à côté d'un personnage de
+16 px.
+
+**Mise à l'échelle entière** (`src/systems/pixelScale.js`, appliquée dans `Skin.resize()` — le
+seul endroit du rendu qui pose un sprite, donc aucune vue ne peut l'oublier). Un facteur de 3,4
+répartit les pixels d'art sur 3 ou 4 pixels d'écran selon leur position : le sprite n'est pas
+« un peu flou », il est **irrégulier**, et c'est ça qui distingue un jeu pixel art d'une image
+de pixel art redimensionnée. Un sprite de 16 px dans une case de 60 s'affiche donc à 48 : on
+perd douze pixels de remplissage, on garde une grille intacte sur tous les écrans.
+
+**Le ratio de rendu est tronqué à l'entier.** C'est la révision de la gestion DPR demandée par
+le brief. Le zoom des caméras *est* ce ratio : à 2,625, un sprite affiché à un multiple entier
+impeccable de sa taille native retombe entre deux pixels d'écran, et la chaîne casse juste
+après que le sprite l'ait respectée. Le prix est réel et payé les yeux ouverts — sur un écran
+en 1,5 le texte perd sa demi-résolution — mais l'étirement résiduel du navigateur est
+**uniforme**, là où un zoom fractionnaire déforme la grille elle-même. `render.maxPixelRatio`
+reste le seul curseur, `?dpr=N` le force toujours.
+
+**Aucune rotation continue sur un sprite.** Une rotation libre rééchantillonne le dessin à
+chaque frame et fabrique des pixels qui n'existent dans aucune planche. Le jeu en contenait
+**une** : la mort d'un combattant, qui basculait à 45° en rétrécissant. Elle est devenue un
+**écrasement au sol** — `scaleX` s'étire, `scaleY` s'aplatit — qui raconte exactement la même
+chose en ne touchant qu'aux deux axes d'échelle. Les valeurs sont dans `juice.json`
+(`combat.deathSquash`) comme toute intensité de feedback, et non plus en dur dans la vue. La
+règle est écrite dans `CLAUDE.md` pour que le jeu n'en regagne pas.
+
+**Particules carrées sur la trame.** Elles l'étaient déjà par économie ; elles le sont
+maintenant par cohérence. Leur taille est un multiple entier du pixel d'art et leur position
+est alignée dessus **au dessin** — simulées en flottant pour que le mouvement reste lisse,
+affichées sur la grille. `juice.json` n'a pas bougé : un réglage de feel n'a pas à connaître la
+résolution native, sinon il faudrait le refaire à chaque écran. La trame vient de la case de la
+grille, pas du champ de bataille — sinon deux trames différentes cohabiteraient sur le même
+écran, ce qui se voit dès qu'une particule traverse de l'une à l'autre.
+
+**Polices bitmap à taille entière.** Toutes les tailles passent par `pixelFontSize()`, qui les
+contraint aux multiples de la taille de dessin de la police — **et qui reste inerte tant
+qu'aucune police pixel n'est livrée**, parce que contraindre un repli vectoriel ferait sauter
+tous les textes du jeu de trois tailles d'un coup sans gagner la moindre netteté. Le repli est
+passé de `system-ui` à une pile **monospace** : une police de système d'exploitation est le
+contraire de ce qu'on veut voir sur un écran de pixel art. Fichiers attendus, convention de nom
+et licence : `docs/fonts.md`.
+
+### Crédits et licences des packs
+
+**Aucun asset de pack n'entre sans sa ligne de crédit.** Une planche déclarée `"native": true`
+sans bloc `credit` (auteur + licence obligatoires) fait **échouer** le pipeline, avec un
+message qui dit quoi écrire. La ligne remonte ensuite toute seule à l'écran de crédits, via
+`public/assets/index.json` — et pas par une recopie à la main dans `src/config/credits.json` :
+c'est le seul chemin qui ne peut pas mentir, puisque le pipeline refuse la planche sans elle.
+Une recopie marcherait au premier pack et dériverait au troisième, et une licence oubliée ne se
+voit pas, elle se découvre.
+
+### État des assets
+
+| asset | source | statut |
+| --- | --- | --- |
+| `orb.1` … `orb.11` | génération IA, pixelisée | **livré** — pipeline validé, planche à reprendre (tiers 1-4 indistinguables) |
+| « Basic Holy 3x » (15 sprites) | pack | **en attente de sa licence** — sert de référence de palette, pas encore découpé |
+| « Basic Undead 4x » (15 sprites) | pack | idem |
+| unités, ennemis, projectiles, décor, UI, icônes de draft | — | **49 manquants**, greybox conservé |
+| polices | — | aucune ; repli monospace |
+
+Les deux planches de pack sont dans `assets-src/` et servent de **référence de style et de
+palette**, mais ne sont pas déclarées dans `sheets` : elles n'ont ni auteur ni licence connus
+dans le dépôt. Il suffit d'ajouter leur bloc `credit` et `"native": true` pour qu'elles entrent
+— la découpe est régulière (5 × 3, cellules de 16 px, `margin: 1`, `spacing: 2`) et elles
+passeront **sans aucune transformation**, puisqu'elles définissent la référence.
+
+### Poids
+
+**1,6 Ko d'atlas**, contre 99,8 Ko avant — 63 fois moins, pour les mêmes onze orbes. La cible du budget descend de 10 Mo à **5 Mo** : en
+pixel art elle est très confortable, et une cible qu'on ne peut pas dépasser ne surveille plus
+rien. La limite dure reste 20 Mo (seed doc).
+
+### Tests
+
+`tests/pixelArt.test.js`, 37 cas, sans planche, sans `sharp` et sans canvas — le découpage
+habituel du projet. Ils verrouillent : la détection du facteur d'agrandissement (y compris « le
+nom du fichier ment »), la réduction sans perte d'une source native, la prémultiplication de
+l'alpha, le seuillage, la quantification, **l'ordre des trois étapes**, l'extraction et la
+relecture de la palette, la mise à l'échelle entière, et les nouveaux refus du manifest
+(taille en pixels d'écran, planche de pack sans crédit).
+
+Suite complète : **706 tests, 31 fichiers, au vert**. Les tests d'équilibrage sont inchangés et
+passent à l'identique — c'est la vérification que le pivot n'a touché aucune règle.
+
+### Ce qui reste ouvert
+
+- **La planche des 11 orbes est à regénérer** : formes et couleurs franches par tier, pas de
+  détail gravé. Le pipeline, lui, n'a plus rien à prouver dessus.
+- **La licence des deux packs** manque pour les câbler dans le manifest.
+- **Aucune police pixel livrée** : `pixelFontSize()` reste inerte jusque-là, et l'effet des
+  tailles contraintes sur les layouts n'a donc pas encore été vu à l'écran.
+- **49 sprites manquants** — unités, ennemis, projectiles, décor, UI. Le greybox tient.

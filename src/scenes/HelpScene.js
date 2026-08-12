@@ -5,7 +5,7 @@ import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
 import { Skin } from '../render/skin.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
@@ -262,15 +262,15 @@ export default class HelpScene extends Phaser.Scene {
     const iconSize = Math.round(body * 1.8);
     const textLeftOffset = iconSize * 1.5;
 
-    this.titleText.setFontSize(heading);
-    this.gestureText.setFontSize(body).setWordWrapWidth(innerWidth);
-    this.unitsTitle.setFontSize(Math.round(heading * 0.78));
-    this.powersTitle.setFontSize(Math.round(heading * 0.78));
+    this.titleText.setFontSize(pixelFontSize(heading));
+    this.gestureText.setFontSize(pixelFontSize(body)).setWordWrapWidth(innerWidth);
+    this.unitsTitle.setFontSize(pixelFontSize(Math.round(heading * 0.78)));
+    this.powersTitle.setFontSize(pixelFontSize(Math.round(heading * 0.78)));
     for (const row of [...this.unitRows, ...this.powerRows]) {
-      row.text.setFontSize(body).setWordWrapWidth(innerWidth - textLeftOffset);
+      row.text.setFontSize(pixelFontSize(body)).setWordWrapWidth(innerWidth - textLeftOffset);
     }
-    this.powersRule.setFontSize(body).setWordWrapWidth(innerWidth);
-    this.rhythmText.setFontSize(Math.round(body * 0.95)).setWordWrapWidth(innerWidth);
+    this.powersRule.setFontSize(pixelFontSize(body)).setWordWrapWidth(innerWidth);
+    this.rhythmText.setFontSize(pixelFontSize(Math.round(body * 0.95))).setWordWrapWidth(innerWidth);
 
     const rowHeights = this.unitRows.map((row) => Math.max(iconSize, row.text.height));
     const powerRowHeights = this.powerRows.map((row) => Math.max(iconSize, row.text.height));
@@ -405,13 +405,13 @@ export default class HelpScene extends Phaser.Scene {
     const buttonY = cy + panelHeight / 2 - buttonHeight / 2 - pad * 0.5 - creditsHeight;
     this.button.setPosition(cx, buttonY).setSize(buttonWidth, buttonHeight);
     this.button.input?.hitArea?.setTo(0, 0, buttonWidth, buttonHeight);
-    this.buttonText.setFontSize(Math.round(buttonHeight * 0.4)).setPosition(cx, buttonY);
+    this.buttonText.setFontSize(pixelFontSize(Math.round(buttonHeight * 0.4))).setPosition(cx, buttonY);
 
     // Le lien des crédits se range **dans** le panneau, sous le bouton : posé dessous, il
     // tomberait hors du panneau sur un écran court, là où le panneau occupe déjà 94 % de la
     // hauteur.
     this.creditsText
-      .setFontSize(Math.max(9, Math.round(body * 0.85)))
+      .setFontSize(pixelFontSize(Math.max(9, Math.round(body * 0.85))))
       .setPosition(cx, cy + panelHeight / 2 - pad * 0.5 - creditsHeight / 2);
     this.creditsText.input?.hitArea?.setTo(
       0,

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 import { loadAtlases } from '../render/skin.js';
-import { FONTS, installFonts } from '../render/fonts.js';
+import { FONTS, installFonts, pixelFontSize } from '../render/fonts.js';
 import { t } from '../i18n/index.js';
 
 /**
@@ -104,7 +104,7 @@ export default class BootScene extends Phaser.Scene {
         fontFamily: FONTS.display,
         fontStyle: 'bold',
         color: COLORS.text,
-        fontSize: `${Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.06), 16, 34)}px`,
+        fontSize: `${pixelFontSize(Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.06), 16, 34))}px`,
       })
       .setOrigin(0.5, 0.5);
 

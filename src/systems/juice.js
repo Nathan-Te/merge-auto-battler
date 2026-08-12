@@ -55,6 +55,8 @@ const REQUIRED_NUMBERS = [
   'combat.unitPopMs',
   'combat.enemyPopMs',
   'combat.deathMs',
+  'combat.deathSquash.scaleX',
+  'combat.deathSquash.scaleY',
   'combat.deathBurst.count',
   'combat.deathBurst.speedPx',
   'combat.deathBurst.lifeMs',

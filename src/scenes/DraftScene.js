@@ -6,7 +6,7 @@ import { OverlayGuard } from '../systems/overlayGuard.js';
 import { iconColor } from '../render/draftIcons.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
 import { Skin } from '../render/skin.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
@@ -323,10 +323,10 @@ export default class DraftScene extends Phaser.Scene {
     const pad = Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.03), 6, 20);
     const headerY = height * (stacked ? 0.12 : 0.14);
 
-    this.titleText.setFontSize(Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.06), 16, 34));
+    this.titleText.setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.06), 16, 34)));
     this.titleText.setPosition(width / 2, headerY);
     this.subtitleText
-      .setFontSize(Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.032), 10, 17))
+      .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.032), 10, 17)))
       .setWordWrapWidth(width * 0.86)
       .setPosition(width / 2, headerY + this.titleText.height * 0.9);
 
@@ -373,14 +373,14 @@ export default class DraftScene extends Phaser.Scene {
     const textWidth = stacked ? cardWidth - iconSize * 2.4 : cardWidth * 0.86;
 
     view.label
-      .setFontSize(Phaser.Math.Clamp(Math.round(unit * (stacked ? 0.19 : 0.13)), 12, 24))
+      .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(unit * (stacked ? 0.19 : 0.13)), 12, 24)))
       .setPosition(textX, stacked ? cy - cardHeight * 0.2 : cy + cardHeight * 0.02);
     view.description
-      .setFontSize(Phaser.Math.Clamp(Math.round(unit * (stacked ? 0.13 : 0.085)), 9, 15))
+      .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(unit * (stacked ? 0.13 : 0.085)), 9, 15)))
       .setWordWrapWidth(textWidth)
       .setPosition(textX, stacked ? cy - cardHeight * 0.06 : cy + cardHeight * 0.1);
     view.level
-      .setFontSize(Phaser.Math.Clamp(Math.round(unit * (stacked ? 0.11 : 0.075)), 8, 13))
+      .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(unit * (stacked ? 0.11 : 0.075)), 8, 13)))
       .setPosition(textX, cy + cardHeight / 2 - Math.max(6, unit * 0.06));
   }
 }

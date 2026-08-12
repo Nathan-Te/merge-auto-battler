@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 import juiceConfig from '../config/juice.json';
 import { DEPTH } from '../render/depths.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
@@ -278,9 +278,9 @@ export default class GameOverScene extends Phaser.Scene {
     // en largeur : sans ce recadrage, la ligne de score déborde du panneau sur un écran
     // étroit. On resserre plutôt que de tronquer — un score coupé serait absurde.
     const inner = panelWidth * 0.9;
-    this.fitWidth(this.titleText.setFontSize(Math.round(unit * 1.9)), inner);
-    this.fitWidth(this.scoreText.setFontSize(Math.round(unit * 1.4)), inner);
-    this.fitWidth(this.bestText.setFontSize(Math.round(unit * 1.05)), inner);
+    this.fitWidth(this.titleText.setFontSize(pixelFontSize(Math.round(unit * 1.9))), inner);
+    this.fitWidth(this.scoreText.setFontSize(pixelFontSize(Math.round(unit * 1.4))), inner);
+    this.fitWidth(this.bestText.setFontSize(pixelFontSize(Math.round(unit * 1.05))), inner);
     this.panelInnerWidth = inner;
 
     this.titleText.setPosition(cx, cy - unit * 5.4);
@@ -288,7 +288,7 @@ export default class GameOverScene extends Phaser.Scene {
     this.bestText.setPosition(cx, cy - unit * 1.5);
 
     this.buildText
-      ?.setFontSize(Phaser.Math.Clamp(Math.round(unit * 0.95), 9, 15))
+      ?.setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(unit * 0.95), 9, 15)))
       .setWordWrapWidth(panelWidth * 0.88)
       .setPosition(cx, cy + unit * 1.2);
 
@@ -299,12 +299,12 @@ export default class GameOverScene extends Phaser.Scene {
     // La zone tactile suit la taille du bouton : sur téléphone, viser 38 px de haut est
     // le minimum confortable.
     this.button.input?.hitArea?.setTo(0, 0, buttonWidth, buttonHeight);
-    this.buttonText.setFontSize(Math.round(unit * 1.3)).setPosition(cx, buttonY);
+    this.buttonText.setFontSize(pixelFontSize(Math.round(unit * 1.3))).setPosition(cx, buttonY);
 
     // Le récap se pose **sous** le panneau : il ne doit rien recouvrir, et il n'existe
     // que sous `?debug=1`.
     this.recapText
-      ?.setFontSize(Phaser.Math.Clamp(Math.round(unit * 0.62), 8, 13))
+      ?.setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(unit * 0.62), 8, 13)))
       .setPosition(cx, cy + panelHeight / 2 + unit * 0.6);
   }
 

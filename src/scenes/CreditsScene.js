@@ -5,7 +5,7 @@ import creditsConfig from '../config/credits.json';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
 import { DEPTH } from '../render/depths.js';
-import { FONTS } from '../render/fonts.js';
+import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
 
@@ -94,8 +94,25 @@ export default class CreditsScene extends Phaser.Scene {
       });
     }
 
-    if ((creditsConfig.art ?? []).length > 0) {
-      sections.push({ title: t('credits.artTitle'), body: list(creditsConfig.art) });
+    /**
+     * Les crédits d'art viennent de **deux** sources, et il ne faut pas les fusionner en
+     * amont : `credits.json` porte ce qu'on écrit à la main (une commande, une
+     * collaboration), l'index du pipeline porte les **packs de pixel art**, recopiés depuis
+     * la clé `credit` de leur planche dans `assets-src/manifest.json`.
+     *
+     * Le chemin est celui-là et pas l'inverse parce que c'est le seul qui ne peut pas
+     * mentir : le manifest **refuse** une planche native sans auteur ni licence, donc un
+     * pack qui est dans le jeu est un pack dont la ligne existe. Recopier ces lignes à la
+     * main dans `credits.json` marcherait le premier jour et dériverait au troisième pack.
+     */
+    const packArt = (this.registry.get('assetIndex')?.credits ?? []).map((entry) => ({
+      name: [entry.author, entry.pack].filter(Boolean).join(' — '),
+      license: entry.license,
+      url: entry.url,
+    }));
+    const art = [...(creditsConfig.art ?? []), ...packArt];
+    if (art.length > 0) {
+      sections.push({ title: t('credits.artTitle'), body: list(art) });
     }
     if ((creditsConfig.audio ?? []).length > 0) {
       sections.push({ title: t('credits.audioTitle'), body: list(creditsConfig.audio) });
@@ -249,7 +266,7 @@ export default class CreditsScene extends Phaser.Scene {
     const buttonY = cy + panelHeight / 2 - buttonHeight / 2 - pad * 0.5;
     this.button.setPosition(cx, buttonY).setSize(buttonWidth, buttonHeight);
     this.button.input?.hitArea?.setTo(0, 0, buttonWidth, buttonHeight);
-    this.buttonText.setFontSize(Math.round(buttonHeight * 0.4)).setPosition(cx, buttonY);
+    this.buttonText.setFontSize(pixelFontSize(Math.round(buttonHeight * 0.4))).setPosition(cx, buttonY);
   }
 
   /** Passe de mesure : pose les polices et les largeurs, rend les hauteurs qui en découlent. */
@@ -257,15 +274,15 @@ export default class CreditsScene extends Phaser.Scene {
     const heading = Math.round(body * 1.4);
     const gap = Math.round(body * 0.85);
 
-    this.titleText.setFontSize(heading);
+    this.titleText.setFontSize(pixelFontSize(heading));
     let contentHeight = this.titleText.height + gap;
 
     for (const row of this.rows) {
       if (row.title) {
-        row.title.setFontSize(Math.round(heading * 0.78));
+        row.title.setFontSize(pixelFontSize(Math.round(heading * 0.78)));
         contentHeight += row.title.height + gap * 0.4;
       }
-      row.body.setFontSize(body).setWordWrapWidth(innerWidth);
+      row.body.setFontSize(pixelFontSize(body)).setWordWrapWidth(innerWidth);
       contentHeight += row.body.height + gap;
     }
 

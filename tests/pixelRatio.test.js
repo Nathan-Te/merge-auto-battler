@@ -20,8 +20,8 @@ const CAP = juice.render.maxPixelRatio;
 describe('effectivePixelRatio', () => {
   it('rend le ratio de l’écran quand il tient sous le plafond', () => {
     expect(effectivePixelRatio(1, 2)).toBe(1);
-    expect(effectivePixelRatio(1.5, 2)).toBe(1.5);
     expect(effectivePixelRatio(2, 2)).toBe(2);
+    expect(effectivePixelRatio(3, 4)).toBe(3);
   });
 
   it('plafonne les écrans très denses — le coût de rendu est quadratique', () => {
@@ -46,9 +46,21 @@ describe('effectivePixelRatio', () => {
     expect(effectivePixelRatio(3, undefined)).toBe(DEFAULT_MAX_PIXEL_RATIO);
   });
 
-  it('n’arrondit pas à l’entier : les écrans en 1,5 gardent leur gain', () => {
-    expect(effectivePixelRatio(1.5, 3)).toBe(1.5);
-    expect(effectivePixelRatio(2.625, 3)).toBe(2.625);
+  /**
+   * **Tronqué à l'entier depuis la bascule en pixel art.** Le zoom des caméras *est* ce
+   * ratio : à 2,625, un sprite affiché à un multiple entier impeccable de sa taille native
+   * retombe entre deux pixels d'écran, et une colonne de pixels d'art sur trois s'étale plus
+   * large que ses voisines. Le sprite n'est pas flou, il est irrégulier — et c'est ça qui
+   * trahit le faux pixel art.
+   *
+   * Troncature et non arrondi : rendre dans une mémoire plus **grande** que l'écran physique
+   * ferait réduire l'image par le navigateur, c'est-à-dire jeter un pixel d'art sur deux.
+   */
+  it('tronque à l’entier — la netteté du pixel art prime sur la demi-résolution', () => {
+    expect(effectivePixelRatio(1.5, 3)).toBe(1);
+    expect(effectivePixelRatio(2.625, 3)).toBe(2);
+    expect(effectivePixelRatio(1.9, 3)).toBe(1);
+    expect(effectivePixelRatio(2.75, 2)).toBe(2);
   });
 });
 

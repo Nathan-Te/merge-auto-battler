@@ -1,7 +1,7 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "cf9b82ebe571c817a8990495f59371f3c4768ee2857c78c7e1d0ddbb90e5c89d",
-  "pipelineVersion": 1,
+  "inputHash": "21104dc709908109b0d236527031f0508ec2cbb7f4b402a36ef48e02cf6bdadd",
+  "pipelineVersion": 2,
   "outputs": [
     "public/assets/atlas-orbs.json",
     "public/assets/atlas-orbs.webp",
@@ -11,16 +11,16 @@
   "atlases": [
     {
       "name": "orbs",
-      "bytes": 102154,
-      "width": 512,
-      "height": 2048,
+      "bytes": 1616,
+      "width": 64,
+      "height": 128,
       "count": 11
     }
   ],
   "extras": [],
-  "totalBytes": 102154,
+  "totalBytes": 1616,
   "budgetKb": {
-    "target": 10240,
+    "target": 5120,
     "max": 20480
   },
   "missing": [

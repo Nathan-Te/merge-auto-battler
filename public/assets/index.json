@@ -7,6 +7,10 @@
       "json": "atlas-orbs.json"
     }
   ],
+  "pixel": {
+    "nativeSize": 16
+  },
+  "credits": [],
   "tierBands": {
     "orb": [
       [

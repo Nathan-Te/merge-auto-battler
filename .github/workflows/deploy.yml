@@ -103,6 +103,13 @@ jobs:
       - name: Référence à jour
         run: npm run docs -- --check
 
+      # La palette partagée doit correspondre au pack de référence. Elle n'est **pas**
+      # régénérée par le CI, à dessein : un changement de palette est une décision de
+      # direction artistique, il se prend et se relit dans un diff (cf. `assets-src/manifest.md`).
+      # Le CI se contente de refuser un pack de référence modifié sans que la palette suive.
+      - name: Palette à jour
+        run: npm run palette -- --check
+
       # Les sorties du pipeline doivent être à jour elles aussi : une planche déposée sans
       # que le pipeline ait tourné laisserait le jeu en greybox sans que personne ne le voie.
       - name: Assets à jour

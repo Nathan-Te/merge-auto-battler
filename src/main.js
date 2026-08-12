@@ -46,17 +46,29 @@ const config = {
   // Pas de moteur physique : la grille se joue aux tweens, et la bande de combat est
   // simulée par `BattleModel` à tick fixe — aucun besoin d'un moteur de collisions.
   render: {
-    // Tout le greybox est **vectoriel** (cercles, hexagones, croix) et du texte : sans
-    // lissage, chaque bord fait un escalier, et c'est l'écran de desktop en ratio 1 qui
-    // trinquerait le plus. Non négociable ici.
-    antialias: true,
-    // Désactivé depuis le passage en résolution physique (cf. README). Il servait à coller
-    // les objets à la grille de pixels quand un pixel de jeu valait un pixel d'écran. Ce
-    // n'est plus le cas : l'arrondi se ferait au pixel **de mémoire de rendu**, donc sur
-    // une fraction de pixel CSS, et Phaser le désactive de toute façon dès que le zoom
-    // n'est pas entier (écrans en 1,5 ou 2,625). Le laisser actif ferait bouger le jeu
-    // différemment selon le téléphone, pour un gain que personne ne voit.
-    roundPixels: false,
+    /**
+     * **Direction artistique pixel art** : aucun filtrage, aucune interpolation.
+     *
+     * `pixelArt` met l'échantillonnage des textures au plus proche voisin. C'est ce qui rend
+     * un sprite de 16 px affiché en ×4 net au pixel près plutôt que fondu ; sans lui, toute
+     * la chaîne de pixelisation du pipeline serait défaite à la dernière étape, par le
+     * filtrage bilinéaire du GPU.
+     *
+     * Il coupe aussi le lissage géométrique, et c'est le prix assumé : le greybox est
+     * vectoriel, donc ses cercles et ses hexagones font désormais un escalier. Deux raisons
+     * de ne pas s'en émouvoir — c'est un **repli** dont la place est de disparaître planche
+     * après planche, et un escalier de pixels sur fond de pixel art est bien moins étranger
+     * à l'écran qu'un cercle parfaitement lisse posé à côté d'un personnage de 16 px.
+     */
+    pixelArt: true,
+    /**
+     * Réactivé par la même décision. Il colle les objets à la grille de pixels de jeu, ce
+     * qui n'avait pas de sens quand le zoom pouvait valoir 2,625 — Phaser le débranchait de
+     * lui-même. Le ratio est maintenant **entier** (cf. `src/systems/pixelRatio.js`), donc
+     * un pixel de jeu vaut un nombre entier de pixels d'écran et l'arrondi retombe juste :
+     * un sprite en mouvement ne se met plus à osciller entre deux trames.
+     */
+    roundPixels: true,
   },
   // `BootScene` charge les atlas générés par `npm run assets` puis passe la main : elle est
   // première dans la liste, donc elle démarre. Les suivantes ne sont pas démarrées d'office.

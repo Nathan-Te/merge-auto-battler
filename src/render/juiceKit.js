@@ -70,9 +70,21 @@ export class JuiceKit {
     this.lastShakeAt = -Infinity;
   }
 
-  /** Redimensionne ce qui couvre l'écran. Appelé à chaque `resize`. */
-  layout(width, height) {
+  /**
+   * Redimensionne ce qui couvre l'écran. Appelé à chaque `resize`.
+   *
+   * `pixelSize` est la **trame de dessin** : le côté d'un pixel d'art en unités de jeu, tel
+   * que le layout courant le donne (cf. `src/systems/pixelScale.js`). Il transite par ici
+   * plutôt que d'être recalculé dans le champ de particules, parce que c'est la scène qui
+   * connaît la place accordée à la grille — et qu'il n'y a qu'un endroit où le dire.
+   *
+   * @param {number} width
+   * @param {number} height
+   * @param {{pixelSize?: number}} [options]
+   */
+  layout(width, height, { pixelSize } = {}) {
     this.vignette?.setDisplaySize(width, height);
+    if (pixelSize) this.particles.setPixelSize(pixelSize);
   }
 
   /**

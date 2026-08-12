@@ -30,19 +30,27 @@ function fakeScene(available = {}) {
       get: (key) => ({ has: (name) => textures.get(key)?.has(name) ?? false }),
     },
     add: {
+      // 16×8 pixels d'art : la résolution native du projet, sur un sprite plus large que
+      // haut pour vérifier que le rapport d'aspect survit à la mise à l'échelle entière.
       image: (x, y, key, frame) => ({
         key,
-        frame: { name: frame, width: 100, height: 50 },
-        displayWidth: 0,
-        displayHeight: 0,
-        setDisplaySize(width, height) {
-          this.displayWidth = width;
-          this.displayHeight = height;
+        frame: { name: frame, width: 16, height: 8 },
+        scaleX: 1,
+        scaleY: 1,
+        get displayWidth() {
+          return this.frame.width * this.scaleX;
+        },
+        get displayHeight() {
+          return this.frame.height * this.scaleY;
+        },
+        setScale(scale) {
+          this.scaleX = scale;
+          this.scaleY = scale;
           return this;
         },
         setTexture(nextKey, nextFrame) {
           this.key = nextKey;
-          this.frame = { name: nextFrame, width: 100, height: 50 };
+          this.frame = { name: nextFrame, width: 16, height: 8 };
           return this;
         },
         setFlipX() {
@@ -188,9 +196,27 @@ describe('Skin', () => {
   it('dimensionne sur le plus grand côté, sans écraser le sprite', () => {
     const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
     const image = skin.image('orb.1', 64);
-    // Source 100×50 ramenée à 64 de large : la hauteur suit, elle n'est pas forcée à 64.
+    // Source 16×8 portée à 64 de large : la hauteur suit, elle n'est pas forcée à 64.
     expect(image.displayWidth).toBe(64);
     expect(image.displayHeight).toBe(32);
+  });
+
+  it('n’affiche qu’à un multiple **entier** de la taille native', () => {
+    // La règle de la direction artistique pixel art : un sprite de 16 px dans une case de
+    // 60 s'affiche à 48, pas à 60. On perd douze pixels de remplissage, on garde une grille
+    // de pixels régulière — et c'est l'irrégularité, pas le flou, qui trahit le faux
+    // pixel art (cf. `src/systems/pixelScale.js`).
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
+    expect(skin.image('orb.1', 60).displayWidth).toBe(48);
+    expect(skin.image('orb.1', 47).displayWidth).toBe(32);
+    expect(skin.image('orb.1', 32).displayWidth).toBe(32);
+  });
+
+  it('ne descend jamais sous ×1, même dans une case plus petite que le sprite', () => {
+    // Mieux vaut un sprite qui déborde un peu — ça se voit et ça se corrige dans le layout —
+    // qu'un sprite réduit d'un facteur fractionnaire, qui serait illisible.
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
+    expect(skin.image('orb.1', 10).displayWidth).toBe(16);
   });
 
   it('repeint une image existante quand le palier change', () => {
@@ -230,7 +256,9 @@ describe('polices auto-hébergées', () => {
     const doc = fakeDocument();
     installFonts({ fonts: [] }, 'assets/', doc);
     expect(doc._head.children).toHaveLength(0);
-    expect(FONTS.body).toContain('system-ui');
+    // Le repli est monospace depuis la bascule en pixel art : une police de système
+    // d'exploitation est ce qu'on veut le moins voir sur un écran de pixel art.
+    expect(FONTS.body).toContain('monospace');
   });
 
   it('déclare une @font-face locale et garde le repli système derrière', () => {
@@ -244,7 +272,7 @@ describe('polices auto-hébergées', () => {
     expect(css).toContain('format(\'woff2\')');
     // `swap` : le texte s'affiche tout de suite en police système et se remplace à l'arrivée.
     expect(css).toContain('font-display:swap');
-    expect(fonts.body).toContain('system-ui');
+    expect(fonts.body).toContain('monospace');
   });
 
   it('déduit le rôle du nom de fichier, et ignore un fichier hors convention', () => {

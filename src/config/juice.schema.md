@@ -119,7 +119,8 @@ arbitrage à faire au playtest, pas au jugé.
   "recoilMs": 85,
   "unitPopMs": 200,           // éclosion d'une unité sur le champ
   "enemyPopMs": 165,          // éclosion d'un ennemi
-  "deathMs": 200,             // implosion à la mort
+  "deathMs": 200,             // durée de l'écrasement à la mort
+  "deathSquash": { "scaleX": 1.3, "scaleY": 0.12 },  // le corps s'étale et s'aplatit au sol
   "deathBurst": { "count": 8, "speedPx": 145, "lifeMs": 340, "sizePx": 4 }
 }
 ```
@@ -127,6 +128,13 @@ arbitrage à faire au playtest, pas au jugé.
 Le recul s'applique à la **forme dans son conteneur**, jamais au conteneur : la position de
 celui-ci est réécrite à chaque frame depuis le modèle, un recul posé dessus serait effacé à
 la frame suivante.
+
+`deathSquash` a remplacé un basculement à 45° au passage en pixel art. Ce n'est pas un
+changement de goût : **une rotation libre est interdite sur un sprite** (cf. `CLAUDE.md`) —
+elle rééchantillonne le dessin à chaque frame et fabrique des pixels qui n'existent dans
+aucune planche. L'écrasement raconte la même chose en ne touchant qu'aux deux axes d'échelle.
+Monter `scaleY` pour une mort moins brutale, monter `scaleX` pour un corps qui s'étale
+davantage.
 
 ## `base` — quand la base encaisse
 

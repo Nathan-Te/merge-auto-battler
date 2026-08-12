@@ -59,6 +59,10 @@
     "unitPopMs": 200,
     "enemyPopMs": 165,
     "deathMs": 200,
+    "deathSquash": {
+      "scaleX": 1.3,
+      "scaleY": 0.12
+    },
     "deathBurst": {
       "count": 8,
       "speedPx": 145,

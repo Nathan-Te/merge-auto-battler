@@ -8,6 +8,11 @@
  *
  *   - **fond en damier** derrière chaque sprite : c'est le seul moyen de voir qu'un
  *     détourage a laissé un halo blanc ou mangé un bord ;
+ *   - **chaque sprite deux fois, à ×1 et agrandi ×4** au plus-proche-voisin. C'est la revue
+ *     propre au pixel art, et elle ne se remplace pas : à ×1 un sprite de 16 px est trop
+ *     petit pour qu'on voie quoi que ce soit, et c'est pourtant à cette taille qu'on juge sa
+ *     lisibilité ; au zoom on voit les pixels sales — un bord en demi-transparence, une
+ *     diagonale en escalier irrégulier, une teinte isolée qui a échappé à la palette ;
  *   - **poids et dimensions sous chaque vignette**, parce qu'un sprite trop lourd se
  *     repère à l'œil dans une liste triée ;
  *   - **le budget en tête de page**, comparé au poids réel — la contrainte du seed doc n'a
@@ -97,6 +102,7 @@ figure {
   border-radius: .5rem;
   overflow: hidden;
 }
+.thumbs { display: flex; align-items: stretch; }
 .thumb {
   /* Damier : c'est lui qui rend un détourage raté visible d'un coup d'œil. */
   background-color: #20242f;
@@ -105,14 +111,32 @@ figure {
     linear-gradient(45deg, #2b3040 25%, transparent 25%, transparent 75%, #2b3040 75%);
   background-size: 16px 16px;
   background-position: 0 0, 8px 8px;
-  aspect-ratio: 1;
   position: relative;
   overflow: hidden;
+}
+/* La colonne de gauche montre le sprite à sa taille réelle : c'est là qu'on juge la lisibilité. */
+.thumb.x1 { width: 44px; flex: 0 0 44px; border-right: 1px solid var(--line); }
+/* Celle de droite l'agrandit : c'est là qu'on voit les pixels sales. */
+.thumb.zoom { flex: 1 1 auto; aspect-ratio: 1; }
+.thumb b {
+  position: absolute;
+  left: 2px;
+  bottom: 1px;
+  font: 600 9px/1 ui-monospace, monospace;
+  color: var(--dim);
+  background: rgba(18, 20, 28, .72);
+  padding: 1px 3px;
+  border-radius: 2px;
 }
 /*
  * Chaque vignette est une **fenêtre découpée dans l'atlas**, pas un fichier de plus : la
  * galerie est déployée avec le jeu, et réexporter 60 sprites à l'unité doublerait le poids
  * d'assets pour une page de revue. Le facteur d'échelle est calculé à la génération.
+ *
+ * La propriété image-rendering: pixelated est **le** réglage qui rend cette page utile en
+ * pixel art :
+ * sans lui, le navigateur interpole l'agrandissement et montre exactement ce qu'on cherche
+ * à éviter — un sprite flou, dont on ne peut plus juger ni les bords ni les couleurs.
  */
 .thumb i {
   position: absolute;
@@ -120,10 +144,17 @@ figure {
   top: 50%;
   background-repeat: no-repeat;
   transform-origin: center;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 figcaption { padding: .35rem .45rem .5rem; font-size: .68rem; line-height: 1.35; }
 .name { display: block; word-break: break-all; }
 .meta { color: var(--dim); }
+.tag { display: inline-block; margin-right: .25rem; padding: 0 .25rem; border-radius: 2px; font-size: .62rem; }
+.tag.pack { background: #22322a; color: #86c69a; }
+.tag.off { background: #3a2a22; color: var(--warn); }
+.swatches { display: flex; flex-wrap: wrap; gap: 2px; margin-top: .5rem; }
+.swatches i { width: 13px; height: 13px; border-radius: 2px; display: block; }
 .missing { color: var(--warn); }
 .orphan { color: var(--bad); }
 ul.notes { margin: .4rem 1rem 0; padding-left: 1.1rem; color: var(--dim); font-size: .8rem; }
@@ -143,6 +174,8 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
  * @param {{target: number, max: number}} model.budgetKb
  * @param {string[]} model.missing Sprites attendus par le jeu et absents
  * @param {string[]} model.orphans Sprites découpés que le jeu n'utilise pas
+ * @param {{nativeSize: number}} [model.pixel] Constantes de direction artistique
+ * @param {{colors: string[], sources: string[]}} [model.palette] Palette partagée
  * @returns {string} HTML complet
  */
 export function renderGallery(model) {
@@ -161,6 +194,12 @@ export function renderGallery(model) {
     `<span class="pill ${budgetClass}">total ${formatBytes(totalBytes)} — ${budgetWord}</span>`,
     `<span class="pill">cible ${formatBytes(targetBytes)}</span>`,
     `<span class="pill">limite ${formatBytes(maxBytes)}</span>`,
+    ...(model.pixel
+      ? [
+          `<span class="pill">natif ${model.pixel.nativeSize}×${model.pixel.nativeSize} px</span>`,
+          `<span class="pill">palette ${model.palette?.colors.length ?? 0} couleurs</span>`,
+        ]
+      : []),
     ...model.atlases.map(
       (atlas) =>
         `<span class="pill">${escapeHtml(atlas.name)} ${formatBytes(atlas.bytes)} · ` +
@@ -171,26 +210,41 @@ export function renderGallery(model) {
     ),
   ].join('\n      ');
 
+  /** Fenêtre sur l'atlas, agrandie d'un facteur donné. */
+  const window = (sprite, scale) =>
+    [
+      `width:${sprite.width}px`,
+      `height:${sprite.height}px`,
+      `background-image:url(${escapeHtml(sprite.atlas)})`,
+      `background-position:-${sprite.x}px -${sprite.y}px`,
+      `transform:translate(-50%,-50%) scale(${scale})`,
+    ].join(';');
+
   const sections = model.groups
     .filter((group) => group.sprites.length > 0)
     .map((group) => {
       const cards = group.sprites
         .map((sprite) => {
-          // La vignette occupe au plus 96 px : au-delà, trois colonnes ne tiennent plus
-          // sur un téléphone en portrait, qui est l'écran de revue.
-          const scale = Math.min(1, 96 / Math.max(sprite.width, sprite.height));
-          const style = [
-            `width:${sprite.width}px`,
-            `height:${sprite.height}px`,
-            `background-image:url(${escapeHtml(sprite.atlas)})`,
-            `background-position:-${sprite.x}px -${sprite.y}px`,
-            `transform:translate(-50%,-50%) scale(${scale.toFixed(3)})`,
-          ].join(';');
+          // Le zoom visé est ×4 — c'est à ce facteur que les pixels sales se voient. Un
+          // sprite trop grand pour tenir dans la vignette d'un téléphone en portrait
+          // descend au plus grand **entier** qui tient : un zoom fractionnaire
+          // réinterpolerait l'image et masquerait précisément ce qu'on vient regarder.
+          const longest = Math.max(sprite.width, sprite.height);
+          const zoom = Math.max(1, Math.min(4, Math.floor(112 / longest)));
+          const tags = [
+            sprite.native ? '<span class="tag pack">pack</span>' : '',
+            sprite.offPalette > 0
+              ? `<span class="tag off">${sprite.offPalette} hors palette</span>`
+              : '',
+          ].join('');
           return `        <figure>
-          <div class="thumb"><i style="${style}"></i></div>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="${window(sprite, 1)}"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="${window(sprite, zoom)}"></i><b>×${zoom}</b></div>
+          </div>
           <figcaption>
             <span class="name">${escapeHtml(sprite.name)}</span>
-            <span class="meta">${sprite.width}×${sprite.height} · ≈${formatBytes(sprite.bytes)}</span>
+            <span class="meta">${tags}${sprite.width}×${sprite.height} px d'art · ≈${formatBytes(sprite.bytes)}</span>
           </figcaption>
         </figure>`;
         })
@@ -201,6 +255,26 @@ ${cards}
       </div>`;
     })
     .join('\n');
+
+  /**
+   * La palette partagée, en toutes lettres et en couleurs.
+   *
+   * Elle est ici parce que c'est la seule page que quelqu'un ouvre pour juger des assets, et
+   * qu'une palette qu'on ne regarde jamais dérive sans que personne ne s'en aperçoive.
+   */
+  const paletteSection =
+    model.palette && model.palette.colors.length > 0
+      ? `      <h2>palette partagée · ${model.palette.colors.length}</h2>
+      <p class="sub" style="margin:0 1rem">
+        Extraite de ${model.palette.sources.map(escapeHtml).join(', ') || '—'} par
+        <code>npm run palette</code>. Toute source non native y est quantifiée.
+      </p>
+      <div class="swatches" style="padding:0 1rem">
+${model.palette.colors
+  .map((color) => `        <i style="background:${escapeHtml(color)}" title="${escapeHtml(color)}"></i>`)
+  .join('\n')}
+      </div>`
+      : '';
 
   const notes = [];
   if (model.missing.length > 0) {
@@ -248,10 +322,12 @@ ${notes.map((note) => `        ${note}`).join('\n')}
       </ul>
     </header>
 ${sections}
+${paletteSection}
     <footer>
       Tout problème d'asset se diagnostique ici avant de toucher au code : un sprite mal
-      détouré, mal cadré ou absent se voit sur cette page, et se corrige dans
-      <code>assets-src/manifest.json</code>.
+      détouré, mal cadré, mal pixelisé ou absent se voit sur cette page, et se corrige dans
+      <code>assets-src/manifest.json</code>. Le zoom ×4 est la vue qui compte : un bord en
+      demi-transparence ou une teinte hors palette n'y échappe pas.
     </footer>
   </body>
 </html>
