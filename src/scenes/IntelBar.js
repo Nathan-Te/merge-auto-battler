@@ -259,7 +259,7 @@ export class IntelBar {
 
     const signature = [
       countdown.wave,
-      countdown.pending ? seconds : 'x',
+      countdown.pending ? seconds : `r${countdown.total}`,
       countdown.description,
       hud.nextTypes.map((entry) => entry.type).join(','),
       hud.canSkip,
@@ -293,7 +293,10 @@ export class IntelBar {
       // sans texte, du coin de l'œil, pendant qu'on manipule la grille.
       this.countdownText.setColor(seconds <= 3 ? COLORS.urgent : COLORS.textWarn);
     } else {
-      this.countdownText.setText('en cours').setColor(COLORS.textDim);
+      // Pendant le combat, la barre est **la version compacte du bandeau** : elle ne dit
+      // plus ce qui arrive mais ce qui arrive **encore**, et elle reste là tout le temps
+      // que dure la vague.
+      this.countdownText.setText(`reste ${countdown.total}`).setColor(COLORS.textDim);
     }
 
     // Composition : les icônes des types d'ennemis et leur nombre. C'est **calculé par le

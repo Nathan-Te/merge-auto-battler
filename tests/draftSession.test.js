@@ -261,6 +261,36 @@ describe('annonce de vague', () => {
     }
   });
 
+  it('bascule sur ce qu’il **reste** dès que la vague est lancée', () => {
+    const session = makeSession().start();
+    while (session.battle.phase === PHASE.PAUSE) session.update(200);
+
+    const total = balance.waves.scripted[0].composition[0].count;
+    // Rien n'est encore apparu : tout reste à venir.
+    expect(session.hud().countdown).toMatchObject({ pending: false, wave: 1, total });
+
+    // Un ennemi apparu et vivant reste compté : il « arrive encore », il n'est pas passé.
+    while (session.battle.enemies.length === 0) session.update(200);
+    expect(session.battle.enemies.length).toBeGreaterThan(0);
+    expect(session.hud().countdown.total).toBe(total);
+
+    // Un ennemi tué disparaît du décompte, celui qui attend son tour non.
+    const killed = session.battle.enemies[0];
+    session.battle.killEnemy(killed);
+    expect(session.hud().countdown.total).toBe(total - 1);
+  });
+
+  it('garde l’ordre des icônes de la composition annoncée', () => {
+    const session = makeSession().start();
+    session.battle.startWave(3); // 5 basiques puis 4 rapides
+    session.battle.spawnEnemy('fast');
+
+    const types = session.battle.waveRemaining().composition.map((entry) => entry.type);
+    // Le rapide apparu ne remonte pas devant les basiques : un compteur qui se déplace en
+    // cours de vague ne se lit plus.
+    expect(types).toEqual(['basic', 'fast']);
+  });
+
   it('donne au HUD le temps qui reste, et le remet à zéro pendant la vague', () => {
     const session = makeSession().start();
     const total = balance.waves.firstWaveDelayMs;

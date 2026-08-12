@@ -80,9 +80,8 @@
     }
   },
   "ui": {
-    "bannerInMs": 200,
-    "bannerHoldMs": 1150,
-    "bannerOutMs": 240,
+    "bannerInMs": 220,
+    "bannerOutMs": 260,
     "hintMs": 1100,
     "gaugePulseMs": 260,
     "scoreCountMs": 900
@@ -93,6 +92,8 @@
     "pickMs": 300,
     "dismissMs": 190,
     "chipPopMs": 220,
+    "disabledAlpha": 0.45,
+    "armFadeMs": 180,
     "pickBurst": {
       "count": 22,
       "speedPx": 230,

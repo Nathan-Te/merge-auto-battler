@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import juiceConfig from '../config/juice.json';
 import { parseJuiceConfig } from '../systems/juice.js';
+import { OverlayGuard } from '../systems/overlayGuard.js';
 import { drawDraftIcon, iconColor } from '../render/draftIcons.js';
 import { DEPTH } from '../render/depths.js';
 
@@ -17,6 +18,13 @@ import { DEPTH } from '../render/depths.js';
  * **Le draft est un moment de plaisir, pas un menu** (prompt du Lot 3.5) : les cartes
  * entrent en cascade, la carte choisie se gonfle et éclate en particules, les deux autres
  * s'effacent. Toutes les durées viennent de `juice.json` — rien en dur ici.
+ *
+ * **Aucune carte ne peut être prise par accident** (playtest) : le draft s'ouvre pile quand
+ * le joueur est en train de fusionner, doigt posé. `OverlayGuard`
+ * (`src/systems/overlayGuard.js`) exige un appui **postérieur à l'ouverture** et attend un
+ * délai de grâce (`input.overlayGraceMs`) avant d'accepter quoi que ce soit ; pendant ce
+ * délai les cartes sont visiblement en attente. La logique est dans un module pur pour être
+ * testable sans navigateur — la scène ne fait que la brancher sur les pointeurs.
  *
  * La scène ne décide de rien : elle rend les cartes qu'on lui donne et rappelle
  * `onChoose(id)`, qui va à `GameSession.chooseDraft()`.
@@ -40,7 +48,8 @@ export default class DraftScene extends Phaser.Scene {
   }
 
   /**
-   * @param {{cards: object[], wave: number, onChoose: (id: string) => void,
+   * @param {{cards: object[], wave: number, graceMs: number,
+   *          onChoose: (id: string) => void,
    *          juice: import('../render/juiceKit.js').JuiceKit}} data
    */
   init(data) {
@@ -52,17 +61,25 @@ export default class DraftScene extends Phaser.Scene {
     // gaspillage exact du budget de performance du Lot 3.
     this.juice = data?.juice ?? null;
     this.juiceConfig = parseJuiceConfig(juiceConfig);
+    // Le délai vient de `balance.json` via `GameScene` : la scène ne lit aucune config
+    // elle-même, comme le reste du rendu.
+    this.guard = new OverlayGuard({ graceMs: data?.graceMs ?? 0 });
     this.chosen = false;
+    this.armed = false;
   }
 
   create() {
+    // Opaque, pas juste sombre : le playtest a montré qu'un voile transparent laissait
+    // croire que la grille restait jouable. Elle est gelée, ça doit se voir.
     this.veil = this.add
-      .rectangle(0, 0, 10, 10, COLORS.veil, 0.86)
+      .rectangle(0, 0, 10, 10, COLORS.veil, 0.94)
       .setOrigin(0, 0)
       .setDepth(DEPTH.banner)
       // Avale les gestes qui tombent à côté d'une carte : sans ça, un doigt maladroit
       // toucherait la grille derrière l'écran de draft.
       .setInteractive();
+
+    this.guard.open(this.now());
 
     this.titleText = this.add
       .text(0, 0, 'Renfort', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.title })
@@ -93,6 +110,19 @@ export default class DraftScene extends Phaser.Scene {
 
   textResolution() {
     return Math.min(window.devicePixelRatio || 1, 2);
+  }
+
+  /**
+   * Horloge du délai de grâce — celle de la **boucle de jeu**, pas celle de la scène.
+   *
+   * `this.time.now` vaut 0 tant que le premier `preUpdate` de la scène n'a pas eu lieu,
+   * c'est-à-dire pendant tout `create()` : ouvrir la garde là-dessus donnait une origine à
+   * zéro, donc un délai déjà écoulé et une protection inopérante. Vérifié au navigateur —
+   * c'est exactement le genre de bug qu'un test unitaire ne voit pas, puisqu'il porte sur
+   * l'horloge et non sur la logique.
+   */
+  now() {
+    return this.game.loop.time;
   }
 
   // ------------------------------------------------------------------ cartes
@@ -127,10 +157,45 @@ export default class DraftScene extends Phaser.Scene {
       .setResolution(this.textResolution());
 
     const view = { card, box, icon, label, description, level };
-    box.on('pointerover', () => box.setFillStyle(COLORS.cardHover, 1));
-    box.on('pointerout', () => box.setFillStyle(COLORS.card, 1));
-    box.on('pointerup', () => this.pick(view));
+
+    // Le geste doit être **complet et postérieur à l'ouverture** : un doigt déjà posé quand
+    // l'écran s'ouvre n'émet aucun `pointerdown` ici, donc son `pointerup` ne trouve rien
+    // et n'active rien. C'est le verrou principal, et il ne dépend d'aucun réglage.
+    box.on('pointerover', () => {
+      if (this.armed) box.setFillStyle(COLORS.cardHover, 1);
+    });
+    box.on('pointerout', (pointer) => {
+      box.setFillStyle(COLORS.card, 1);
+      // Doigt qui quitte la carte : le geste n'est plus délibéré, on l'oublie.
+      this.guard.cancel(pointer.id);
+    });
+    box.on('pointerdown', (pointer) => this.guard.press(pointer.id, view, this.now()));
+    box.on('pointerup', (pointer) => {
+      if (this.guard.release(pointer.id, view)) this.pick(view);
+    });
     return view;
+  }
+
+  /**
+   * Fin du délai de grâce : les cartes reprennent leur pleine opacité et deviennent
+   * choisissables. L'estompage est ce qui rend l'attente lisible — sans lui, le joueur
+   * croirait à des boutons cassés plutôt qu'à des boutons pas encore prêts.
+   */
+  armCards() {
+    if (this.armed) return;
+    this.armed = true;
+    for (const view of this.views) {
+      this.tweens.add({
+        targets: [view.box, view.icon, view.label, view.description, view.level],
+        alpha: 1,
+        duration: this.juiceConfig.draft.armFadeMs,
+        ease: 'Quad.easeOut',
+      });
+    }
+  }
+
+  update() {
+    if (!this.armed && this.guard.isArmed(this.now())) this.armCards();
   }
 
   /**
@@ -179,6 +244,7 @@ export default class DraftScene extends Phaser.Scene {
 
   /** Rend la main à la partie : le choix s'applique, puis la scène de jeu repart. */
   finish(id) {
+    this.guard.close();
     this.onChoose(id);
     this.scene.resume('GameScene');
     this.scene.stop();
@@ -207,7 +273,9 @@ export default class DraftScene extends Phaser.Scene {
       view.box.setScale(0.8);
       this.tweens.add({
         targets,
-        alpha: 1,
+        // Les cartes n'entrent qu'à demi-opacité : elles sont là, lisibles, mais
+        // visiblement pas encore prenables. `armCards()` les allume à la fin de la grâce.
+        alpha: draft.disabledAlpha,
         duration: draft.cardInMs,
         delay: index * draft.cardStaggerMs,
         ease: 'Quad.easeOut',

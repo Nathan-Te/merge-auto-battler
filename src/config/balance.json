@@ -1,8 +1,9 @@
 {
-  "version": 5,
+  "version": 6,
   "input": {
     "tapMaxDistancePx": 12,
-    "tapMaxDurationMs": 600
+    "tapMaxDurationMs": 600,
+    "overlayGraceMs": 400
   },
   "battle": {
     "tickMs": 100,
@@ -30,6 +31,7 @@
   "units": {
     "single": {
       "label": "Mono-cible",
+      "blurb": "Frappe une cible à la fois. Le généraliste : jamais le meilleur, jamais mauvais.",
       "role": "damage",
       "hp": 30,
       "speed": 70,
@@ -40,6 +42,7 @@
     },
     "aoe": {
       "label": "Zone",
+      "blurb": "Touche aussi les ennemis autour de sa cible. Redoutable contre les paquets serrés.",
       "role": "aoe",
       "hp": 26,
       "speed": 64,
@@ -51,6 +54,7 @@
     },
     "slow": {
       "label": "Ralentisseur",
+      "blurb": "Frappe une cible et ralentit toute la zone autour. Il achète du temps.",
       "role": "slow",
       "hp": 34,
       "speed": 64,
@@ -64,6 +68,7 @@
     },
     "support": {
       "label": "Soutien",
+      "blurb": "Ne frappe jamais : il multiplie les dégâts et la cadence des alliés autour de lui.",
       "role": "support",
       "hp": 42,
       "speed": 76,
@@ -295,9 +300,9 @@
     "maxTier": 11,
     "startingItems": 8,
     "firstSpawnDelayMs": 500,
-    "intervalMs": 1300,
-    "minIntervalMs": 860,
-    "intervalDecay": 0.985,
+    "intervalMs": 1900,
+    "minIntervalMs": 880,
+    "intervalDecay": 0.99,
     "gridFullRetryMs": 400,
     "spawnTierWeights": {
       "1": 85,

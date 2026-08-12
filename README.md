@@ -648,3 +648,89 @@ dessous du budget de 5 Mo, et de celui de 20 Mo du seed doc.
   contre 3,1 pour le joueur médian). Toujours un sujet de pédagogie, pas d'équilibrage.
 - **Les 60 fps sur mobile réel restent à confirmer au doigt.**
 - **La fusion d'unités ★** reste hors V1 (retirée au Lot 2.5).
+
+### Lot 3.5 — deuxième passe, après playtest
+
+Quatre retours du test sur téléphone, tous traités dans la même PR.
+
+**1. Le bandeau d'annonce était trop fugace.** Il apparaissait et disparaissait en une
+seconde, au moment précis où l'œil est sur la grille. Il **reste maintenant affiché pendant
+toute la préparation** (composition + compte à rebours qui décompte), et ne s'efface qu'au
+lancement de la vague. La barre de décision prend alors le relais en **version compacte
+persistante** : mêmes icônes, mais elle bascule sur ce qu'il **reste** à encaisser
+(`BattleModel.waveRemaining()`) — « qu'est-ce qui arrive encore ? » est la question qu'on se
+pose une fois la vague lancée, pas « qu'est-ce qui arrive ? ». `ui.bannerHoldMs` a disparu
+de `juice.json` : la durée d'affichage est désormais `waves.interWavePauseMs`.
+
+**2. On prenait des cartes de draft par accident**, parce que le draft s'ouvre pile quand on
+fusionne. Les trois correctifs demandés sont en place, portés par un module pur
+(`src/systems/overlayGuard.js`) pour être testables sans navigateur :
+
+- **un appui postérieur à l'ouverture est exigé** — un doigt déjà enfoncé n'a jamais émis de
+  `pointerdown` sur une carte, donc son `pointerup` n'active rien. Verrou absolu ;
+- **un délai de grâce** de `input.overlayGraceMs` (400 ms) pendant lequel les cartes sont
+  visibles mais à demi-opacité, puis s'allument ;
+- **un voile opaque** (0,94) : la grille est visiblement gelée, et `GameScene` **repose
+  l'item en main** avant de se mettre en pause plutôt que de le laisser figé sous le doigt.
+
+Vérifié en navigateur sur le scénario exact du playtest — drag en cours, draft qui s'ouvre,
+doigt relevé sur une carte : **aucune amélioration prise**, puis un clic délibéré la prend
+normalement. Ce test a d'ailleurs révélé un vrai bug que les tests unitaires ne pouvaient pas
+voir : `this.time.now` vaut 0 pendant tout le `create()` d'une scène neuve, donc la garde
+s'ouvrait sur une origine à zéro et le délai était déjà écoulé. Elle utilise maintenant
+`this.game.loop.time`.
+
+**3. Le spawner d'items était trop rapide, la grille se remplissait dès les premières
+vagues.** La courbe a été rallongée par les deux bouts :
+
+| valeur                        | avant | après     | effet                                          |
+| ----------------------------- | ----- | --------- | ---------------------------------------------- |
+| `itemSpawner.intervalMs`      | 1300  | **1900**  | le début de partie respire                     |
+| `itemSpawner.minIntervalMs`   | 860   | **880**   | la pression de fin de partie reste             |
+| `itemSpawner.intervalDecay`   | 0,985 | **0,99**  | la montée en pression est bien plus progressive |
+
+Concrètement : la grille met **30 s** à se remplir si le joueur ne fait rien (contre ~20 s),
+et le plancher n'est atteint qu'après **102 s de jeu**, soit vers la vague 5 — la grille
+n'est donc sous pression qu'en fin de partie, ce qui était la demande.
+
+Objectifs re-validés, 30 parties par politique :
+
+| politique      | vague moy. | σ    | durée moy. | drafts/partie |
+| -------------- | ---------- | ---- | ---------- | ------------- |
+| Spam tier 1    | 5,70       | 0,46 | 2:49       | 1,8           |
+| Mixte tier 3   | **9,80**   | 0,83 | **3:56**   | 3,1           |
+| Prépare tier 4 | 10,03      | 0,66 | 4:03       | 3,2           |
+
+✔ vagues 8-12 · ✔ durée 3-5 min · ✔ **merge bat spam ×1,76**
+
+Le ratio baisse de ×1,93 à ×1,76 : ralentir le débit d'items pénalise surtout le joueur qui
+prépare du tier 4 (8 items par envoi), et `prepare` se rapproche de `mixed`. C'est cohérent
+avec ce que le Lot 3 documentait déjà — le tier 4 n'est pas soutenable durablement — et
+l'invariant reste largement au-dessus du seuil de ×1,4. À surveiller si le débit devait
+encore baisser. Avant/après détaillés dans `docs/balance-notes.md`, section 7.7.
+
+**4. Rien ne permettait de suivre les unités et les améliorations.** Deux réponses, une par
+public :
+
+- **In-game** : un bouton **« ? »** discret dans l'en-tête, à côté du son, ouvre un panneau
+  d'aide par-dessus la partie gelée — les deux gestes, les quatre types d'unités (forme
+  greybox + rôle en une ligne), et le rythme (file de types, « passer », draft toutes les
+  N vagues). Les libellés et les nombres viennent de la session, donc de `balance.json` : le
+  panneau ne peut pas annoncer un draft toutes les 3 vagues si le fichier en dit 4. Les
+  descriptions des unités ont rejoint `balance.json` (`units.<id>.blurb`), au même titre que
+  celles des cartes de draft.
+- **Développeur** : **`npm run docs`** génère
+  [`docs/reference.md`](docs/reference.md) — stats de chaque type par tier, ennemis et leur
+  montée en puissance, table des vagues (scriptées **et** générées), pool d'améliorations
+  avec valeurs et niveaux, économie de la grille. Le fichier est **calculé par les formules
+  du jeu** (`unitStats`, `enemyStats`, `waveComposition`) : il ne réimplémente rien et ne
+  peut donc pas diverger. `npm run docs -- --check` échoue s'il est périmé, et un test le
+  vérifie aussi (`tests/reference.test.js`) — la règle « régénérer à chaque réglage » est
+  donc appliquée par la CI, pas par la mémoire.
+
+**Poids** : `dist/` passe à **1,31 Mo** (351 Ko gzip), +9 Ko pour le panneau d'aide, la garde
+d'inputs et le bandeau persistant. Aucun asset ajouté.
+
+**Tests** : **465** (438 avant cette passe), dont la garde d'overlay sur les scénarios de
+doigt du playtest, le décompte de ce qui reste dans une vague, et la fraîcheur de
+`docs/reference.md`.

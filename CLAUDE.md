@@ -49,6 +49,13 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   une seule fois pour toute l'application : une mutation ferait survivre les améliorations
   d'une partie à la suivante, exactement le bug que `GameSession.destroy()` rend impossible
   partout ailleurs. Un test le verrouille (`tests/draftSystem.test.js`).
+- **Toute livraison qui modifie `balance.json` régénère `docs/reference.md`** avec
+  `npm run docs`. Ce fichier est **généré, jamais édité à la main** : il liste les stats de
+  chaque type d'unité par tier, les ennemis, les vagues et le pool d'améliorations, calculés
+  par les **formules du jeu** (`unitStats`, `enemyStats`, `waveComposition`). C'est ce qui
+  l'empêche de mentir — une référence tenue à la main dérive dès la première retouche de
+  réglage, et sans prévenir. Un test échoue si le fichier commité est périmé
+  (`tests/reference.test.js`), et `npm run docs -- --check` répond à la même question en CI.
 - **Greybox jusqu'au Lot 3.** Formes colorées et texte, pas d'assets. Les sprites, sons et
   musique arrivent au Lot 4 — n'anticipe pas, le fun se valide sur les formes.
 - **Souris + tactile obligatoires sur toute interaction.** Chaque geste doit fonctionner au
@@ -121,8 +128,9 @@ input (pointeur)  ->  scène Phaser  ->  modèle pur  ->  bus d'événements  ->
 - **`src/scenes/` — rendu et orchestration.** `GameScene` crée la session, lui envoie les
   gestes du joueur (`session.applyTap`, `session.applyDrop`), et met en images ce qu'elle
   émet ; `BattleView` fait de même pour la moitié droite ; `IntelBar` porte la barre de
-  décision (annonce de vague × file de types × bouton « passer ») ; `DraftScene` et
-  `GameOverScene` sont lancées par-dessus la scène de jeu mise en pause. Une scène ne décide
+  décision (annonce de vague × file de types × bouton « passer ») ; `DraftScene`, `HelpScene`
+  (le « ? » de l'en-tête) et `GameOverScene` sont lancées par-dessus la scène de jeu mise en
+  pause. Une scène ne décide
   jamais si une fusion est légale, si un envoi est possible ni si une amélioration
   s'applique : elle demande.
 - **`src/render/` — greybox.** Formes et couleurs par tier (items) et par type (unités,
@@ -183,6 +191,28 @@ Un bug de rendu ne peut donc pas laisser filer la simulation.
 Tous les systèmes lisent les modificateurs par un accès injecté (`getModifiers`), jamais par
 une copie : une place gagnée au draft s'ouvre au tick suivant sans que personne n'ait à
 propager quoi que ce soit, et la file en cours n'est pas perdue.
+
+### Protection d'inputs des overlays — patron à réutiliser
+
+Le draft s'ouvre pile quand le joueur fusionne, doigt posé sur l'écran. Le playtest du
+Lot 3.5 a montré ce que ça donne : le doigt se relève une fraction de seconde plus tard, sur
+une carte, et l'amélioration est prise **sans avoir été lue** — pour toute la partie.
+
+`OverlayGuard` (`src/systems/overlayGuard.js`) est la réponse, et **tout écran qui s'ouvre
+par-dessus le jeu doit l'utiliser** (`DraftScene`, `HelpScene`, et les suivants) :
+
+1. **Un appui postérieur à l'ouverture est exigé.** Un doigt déjà enfoncé n'a jamais émis de
+   `pointerdown` sur le bouton : son `pointerup` ne trouve rien et n'active rien. Ce verrou
+   est absolu, aucun réglage ne le contourne.
+2. **Un délai de grâce** (`input.overlayGraceMs`, 400 ms) pendant lequel aucun appui n'est
+   enregistré, avec un état visuel « pas encore prêt » qui s'estompe. Il couvre ce que le
+   premier laisse passer : un **nouveau** doigt posé 30 ms après l'ouverture est un appui
+   parfaitement postérieur, et pourtant pas une décision.
+
+Deux détails qui ont coûté un aller-retour et qu'il ne faut pas refaire : la garde s'ouvre
+sur `this.game.loop.time` et **jamais** sur `this.time.now`, qui vaut 0 pendant tout le
+`create()` d'une scène neuve (le délai serait déjà écoulé) ; et `GameScene` repose l'item en
+main **avant** de se mettre en pause, sinon il reste figé au milieu de l'écran.
 
 ### La file de déploiement
 
@@ -277,6 +307,7 @@ ou deux contextes audio mangeraient le budget de performance en doublons.
 npm run dev      # serveur de dev Vite (exposé sur le réseau local pour le test téléphone)
 npm test         # vitest, une passe
 npm run sim      # harness d'équilibrage headless — rapport par politique
+npm run docs     # régénère docs/reference.md depuis balance.json (obligatoire après réglage)
 npm run build    # build de production dans dist/
 npm run preview  # sert le build de production en local
 ```
@@ -295,7 +326,7 @@ Le rapport est **reproductible** : mêmes graines + même `balance.json` = même
 
 ```
 src/scenes/       scènes Phaser + vues (jeu, champ de bataille, barre de décision, draft,
-                  game over, panneau debug)
+                  aide, game over, panneau debug)
 src/systems/      logique pure et testable (grille, file de déploiement, combat, session,
                   draft et modificateurs, gestes, vagues, spawner, layout, juice, sons,
                   rng, préférences)
@@ -303,11 +334,13 @@ src/render/       greybox : formes, couleurs, profondeurs, particules, icônes d
                   boîte à juice
 src/sim/          harness d'équilibrage headless (`npm run sim`) — politiques, bancs
                   d'essai, rapport, objectifs chiffrés
+src/tools/        générateur de `docs/reference.md` (`npm run docs`)
 src/config/       balance.json + juice.json, chacun avec son schéma documenté
 public/           fichiers copiés tels quels dans dist/
 tests/            tests vitest
 docs/seed.md      périmètre — source de vérité
 docs/balance-notes.md  valeurs retenues, raisonnement, résultats du harness
+docs/reference.md      référence **générée** (unités, ennemis, vagues, améliorations)
 ```
 
 Règle de découpage : tout ce qui peut être testé sans Phaser vit dans `src/systems/` en

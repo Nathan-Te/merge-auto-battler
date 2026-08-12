@@ -119,10 +119,17 @@ function parseUnits(raw) {
     if (typeof def.label !== 'string' || def.label.length === 0) {
       throw new Error(`balance.json : ${path}.label manquant`);
     }
+    // Texte destiné au **joueur** (panneau d'aide, référence générée). Il vit ici et non
+    // dans une scène pour la même raison que les descriptions de cartes de draft : c'est du
+    // contenu, et le code n'a pas à le connaître.
+    if (typeof def.blurb !== 'string' || def.blurb.length === 0) {
+      throw new Error(`balance.json : ${path}.blurb manquant`);
+    }
 
     const unit = {
       id,
       label: def.label,
+      blurb: def.blurb,
       role: def.role,
       hp: num(def, path, 'hp', { min: 1 }),
       /** Vitesse de marche, en unités de couloir par seconde. Ne dépend pas du tier. */

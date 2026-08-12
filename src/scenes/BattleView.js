@@ -82,6 +82,10 @@ export class BattleView {
     this.tracers = [];
     this.unsubscribes = [];
     this.layoutData = null;
+    /** Texte du bandeau d'annonce, sans sa ligne de compte à rebours. */
+    this.announceText = '';
+    this.announceSeconds = -1;
+    this.announceVisible = false;
     /** Vue d'unité créée par `unitSpawn` et attendue par `onDeployed` (le vol slot → couloir). */
     this.pendingDeploy = null;
 
@@ -224,11 +228,14 @@ export class BattleView {
     this.queueText.setFontSize(hudFont).setPosition(zone.hud.x + zone.hud.width, zone.hud.y);
 
     // Le bandeau se plie à la **largeur** du couloir : en portrait, celui-ci est une
-    // colonne étroite, et « en approche » déborderait sur la grille à pleine taille.
+    // colonne étroite, et une texture au nom long déborderait sur la grille à pleine taille.
+    // Il compte jusqu'à quatre lignes depuis le playtest (titre, texture, composition,
+    // compte à rebours) : l'épaisseur du couloir se divise donc par ce nombre de lignes,
+    // sinon l'annonce dépasse du couloir au lieu de tenir dedans.
     const bannerFont = Phaser.Math.Clamp(
-      Math.round(Math.min(zone.laneThickness * 0.4, zone.lane.width / 7)),
-      12,
-      34
+      Math.round(Math.min(zone.laneThickness * 0.19, zone.lane.width / 9)),
+      11,
+      30
     );
     const laneCenter = lanePoint(zone, 0.5);
     this.banner
@@ -309,7 +316,7 @@ export class BattleView {
     on('unitSpawn', ({ unit, origin }) => this.createUnitView(unit, origin));
     on('unitDeath', ({ unit }) => this.popUnitView(unit));
 
-    on('waveStart', ({ wave, label }) => this.onWaveStart(wave, label));
+    on('waveStart', () => this.onWaveStart());
     // **L'annonce de vague du Lot 3.5.** Le bandeau ne dit plus « en approche » mais *ce
     // qui* approche : c'est cette composition, croisée avec la file de types, qui doit
     // changer ce que le joueur envoie pendant la préparation.
@@ -796,12 +803,64 @@ export class BattleView {
   /**
    * Bandeau d'annonce, au début de chaque préparation.
    *
+   * Il **reste affiché pendant toute la préparation** (playtest du Lot 3.5 : un bandeau qui
+   * apparaît et disparaît en une seconde ne se lit pas, surtout au doigt sur un téléphone
+   * où l'œil est sur la grille). Il ne s'efface qu'au lancement de la vague, et ce qu'il
+   * disait continue de vivre dans la barre de décision — qui bascule alors sur ce qu'il
+   * **reste** à encaisser.
+   *
    * La vague 1 y a droit comme les autres : c'est la première chose que voit un joueur, et
    * lui montrer d'emblée que le jeu **prévient** est ce qui lui apprend à lire l'annonce.
    */
   onWaveCountdown({ wave, label, description }) {
     const title = label ? `Vague ${wave} · ${label}` : `Vague ${wave}`;
-    this.showBanner(`${title}\n${description}`);
+    this.announceText = `${title}\n${description}`;
+    this.announceSeconds = -1;
+    this.showAnnounce();
+  }
+
+  /** Fait entrer le bandeau d'annonce, et l'y laisse. */
+  showAnnounce() {
+    const ui = this.juiceConfig.ui;
+    this.announceVisible = true;
+    this.banner.setText(this.announceText).setAlpha(0).setScale(0.7);
+    this.scene.tweens.killTweensOf(this.banner);
+    this.scene.tweens.add({
+      targets: this.banner,
+      alpha: 1,
+      scale: 1,
+      duration: ui.bannerInMs,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  /**
+   * Réécrit la ligne de compte à rebours du bandeau, une fois par seconde.
+   *
+   * Appelé depuis la boucle : `setText` reconstruit une texture, le faire 60 fois par
+   * seconde pour un nombre qui change une fois par seconde serait du gaspillage pur.
+   */
+  refreshAnnounce(countdown) {
+    if (!this.announceVisible || !countdown.pending) return;
+    const seconds = Math.ceil(countdown.remainingMs / 1000);
+    if (seconds === this.announceSeconds) return;
+    this.announceSeconds = seconds;
+    this.banner.setText(`${this.announceText}\ndans ${seconds} s`);
+  }
+
+  /** Efface le bandeau : la vague commence, la lecture est finie. */
+  hideAnnounce() {
+    if (!this.announceVisible) return;
+    this.announceVisible = false;
+    const ui = this.juiceConfig.ui;
+    this.scene.tweens.killTweensOf(this.banner);
+    this.scene.tweens.add({
+      targets: this.banner,
+      alpha: 0,
+      scale: 1.15,
+      duration: ui.bannerOutMs,
+      ease: 'Quad.easeIn',
+    });
   }
 
   /** La base vient d'être renforcée par un draft : la jauge remonte, en vert. */
@@ -818,24 +877,13 @@ export class BattleView {
     );
   }
 
-  onWaveStart(wave, label) {
-    // La texture de la vague est annoncée avec son numéro : « Vague 4 / Rush » laisse une
-    // chance de préparer le bon type d'unité, ce qu'un simple numéro ne fait pas.
-    this.showBanner(label ? `Vague ${wave}\n${label}` : `Vague ${wave}`);
+  /**
+   * La vague part : le grand bandeau s'efface, et la barre de décision prend le relais avec
+   * la version compacte (icônes + décompte de ce qui reste), visible tout le combat.
+   */
+  onWaveStart() {
+    this.hideAnnounce();
     this.juice.play('wave');
-  }
-
-  showBanner(text) {
-    const ui = this.juiceConfig.ui;
-    this.banner.setText(text).setAlpha(0).setScale(0.7);
-    this.scene.tweens.killTweensOf(this.banner);
-    this.scene.tweens.chain({
-      targets: this.banner,
-      tweens: [
-        { alpha: 1, scale: 1, duration: ui.bannerInMs, ease: 'Back.easeOut' },
-        { alpha: 0, scale: 1.15, duration: ui.bannerOutMs, ease: 'Quad.easeIn', delay: ui.bannerHoldMs },
-      ],
-    });
   }
 
   /** Feedback du tap refusé : la file crie qu'elle est pleine — mais plus pour longtemps. */
@@ -891,6 +939,7 @@ export class BattleView {
     this.drawTracers(deltaMs);
     this.refreshBaseBar();
     this.refreshGauge();
+    this.refreshAnnounce(this.model.countdown());
     this.refreshHud();
   }
 

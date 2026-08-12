@@ -43,7 +43,8 @@ seuils, et **rien d'autre**. Ils sont ici pour être réglés au playtest sans t
 ```jsonc
 "input": {
   "tapMaxDistancePx": 12,     // au-delà, le doigt a traîné : c'est un glisser
-  "tapMaxDurationMs": 600     // au-delà, c'est un appui long : ni tap ni glisser
+  "tapMaxDurationMs": 600,    // au-delà, c'est un appui long : ni tap ni glisser
+  "overlayGraceMs": 400       // délai avant qu'un écran ouvert par-dessus le jeu réponde
 }
 ```
 
@@ -96,6 +97,7 @@ progression ; les tiers 2 à 11 sont **calculés par formule**, pas listés (4 t
 "units": {
   "single": {                 // id du type — référencé par `battle.unitTypePattern`
     "label": "Mono-cible",    // libellé affiché dans le HUD (« prochaine unité »)
+    "blurb": "Frappe une cible à la fois. …",  // une ligne, montrée au joueur (panneau « ? »)
     "role": "damage",         // damage | aoe | slow | support — pilote le comportement
     "hp": 30,                 // PV au tier 1 : les unités meurent (Lot 2.5)
     "speed": 70,              // vitesse de marche, en unités de couloir par seconde
@@ -112,6 +114,11 @@ progression ; les tiers 2 à 11 sont **calculés par formule**, pas listés (4 t
   }
 }
 ```
+
+`blurb` est du **contenu**, pas de l'équilibrage : c'est la ligne que lit le joueur dans le
+panneau d'aide et dans `docs/reference.md`. Elle vit ici pour la même raison que les
+descriptions des cartes de draft — une scène n'a pas à connaître le texte du jeu, et une
+seule source évite que l'aide et la référence se contredisent.
 
 **`speed` ne dépend pas du tier** : une unité de tier 11 qui sprinterait casserait la
 lecture du couloir, et la vitesse n'est pas ce qu'on achète en fusionnant.
@@ -311,9 +318,9 @@ absolue, et 22 PV sur 100 se lisent comme une bouée, pas comme un multiplicateu
   "maxTier": 11,              // tier maximum atteignable (cf. seed doc : 11 tiers)
   "startingItems": 8,         // items posés sur la grille au démarrage
   "firstSpawnDelayMs": 500,   // délai avant la première apparition automatique
-  "intervalMs": 1300,         // intervalle d'apparition initial
-  "minIntervalMs": 860,       // plancher : l'accélération ne descend jamais en dessous
-  "intervalDecay": 0.985,     // facteur appliqué à l'intervalle après chaque apparition
+  "intervalMs": 1900,         // intervalle d'apparition initial
+  "minIntervalMs": 880,       // plancher : l'accélération ne descend jamais en dessous
+  "intervalDecay": 0.99,      // facteur appliqué à l'intervalle après chaque apparition
   "gridFullRetryMs": 400,     // grille pleine : fréquence de re-vérification (spawn en pause)
   "spawnTierWeights": {       // poids relatifs du tier tiré à l'apparition
     "1": 85,                  // seuls les tiers listés apparaissent naturellement ;
@@ -324,9 +331,16 @@ absolue, et 22 PV sur 100 se lisent comme une bouée, pas comme un multiplicateu
 
 **Courbe d'accélération** : le délai avant la n-ième apparition vaut
 `max(minIntervalMs, intervalMs × intervalDecay^n)`, le tout multiplié par le modificateur
-`spawnInterval` du draft. Avec les valeurs ci-dessus, le rythme passe de 1,3 s à 860 ms en
-une trentaine d'items — soit environ quarante secondes de jeu. Baisser `intervalDecay`
-accélère la montée en pression ; le régler à `1` la supprime.
+`spawnInterval` du draft. Avec les valeurs ci-dessus, le rythme passe de 1,9 s à 880 ms en
+77 items — soit environ **102 secondes de jeu**, c'est-à-dire vers la vague 5. Baisser
+`intervalDecay` accélère la montée en pression ; le régler à `1` la supprime.
+
+**La mesure qui compte pour le confort** (playtest du Lot 3.5) : le temps que met la grille à
+se remplir **si le joueur ne fait rien**, soit la somme des 17 intervalles au-dessus des
+`startingItems`. À 30 s, la grille n'est sous pression qu'en fin de partie ; à 20 s, le jeu
+n'a plus qu'un régime — celui de l'urgence permanente, précisément le défaut que le Lot 3.5
+corrige. Le harness ne voit pas cette valeur (ses politiques consomment parfaitement), elle
+se calcule à la main depuis ce fichier.
 
 **`minIntervalMs` est le levier le plus violent de tout le fichier** (Lot 3). Le repère qui
 le cadre : un envoi de tier 3 coûte **4 items**, un envoi part toutes les

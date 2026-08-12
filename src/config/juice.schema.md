@@ -142,15 +142,19 @@ la vague 10 serait illisible. Le game over est le seul autorisé à couper la fi
 
 ```jsonc
 "ui": {
-  "bannerInMs": 200,          // entrée du bandeau de vague
-  "bannerHoldMs": 1150,       // temps de lecture — le bandeau annonce une composition
-                              // depuis le Lot 3.5, il y a plus à lire qu'un numéro
-  "bannerOutMs": 240,         // sortie
+  "bannerInMs": 220,          // entrée du bandeau d'annonce
+  "bannerOutMs": 260,         // sortie, au lancement de la vague
   "hintMs": 1100,             // « file pleine » sur un tap refusé
   "gaugePulseMs": 260,        // sursaut de la jauge de sortie
   "scoreCountMs": 900         // le score de game over compte de 0 à sa valeur
 }
 ```
+
+**Il n'y a pas de `bannerHoldMs`, et c'est volontaire** (playtest du Lot 3.5) : le bandeau
+d'annonce n'est plus une notification qui passe, il **reste affiché pendant toute la
+préparation** et ne s'efface qu'au lancement de la vague. Sa durée d'affichage est donc
+`waves.interWavePauseMs` — une valeur de `balance.json`, parce qu'elle décide aussi de la
+puissance du joueur. Ces deux durées-ci ne règlent que l'entrée et la sortie.
 
 ## `draft` — l'écran d'améliorations (Lot 3.5)
 
@@ -161,6 +165,8 @@ la vague 10 serait illisible. Le game over est le seul autorisé à couper la fi
   "pickMs": 300,              // la carte choisie se gonfle et disparaît
   "dismissMs": 190,           // les deux autres s'effacent
   "chipPopMs": 220,           // sursaut des chips de la file de types après un « passer »
+  "disabledAlpha": 0.45,      // opacité des cartes pendant le délai de grâce d'ouverture
+  "armFadeMs": 180,           // fondu quand elles deviennent prenables
   "pickBurst": {              // gerbe à la couleur de la carte prise
     "count": 22, "speedPx": 230, "lifeMs": 520, "sizePx": 6
   }

@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "sim": "node src/sim/cli.js",
+    "docs": "node src/tools/generateReference.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
