@@ -342,6 +342,13 @@ function economySection({ spawner, battle, input }) {
           'la vitesse à laquelle on passe de l’un à l’autre',
         ],
         [
+          'régulation de remplissage',
+          `${Math.round(spawner.fillPressure.startFill * 100)} % → ` +
+            `${Math.round(spawner.fillPressure.stopFill * 100)} %, ` +
+            `jusqu’à ×${spawner.fillPressure.maxFactor}`,
+          '**le curseur de la pression de grille** : la cadence s’étire quand la grille se remplit',
+        ],
+        [
           'tiers à l’apparition',
           spawner.tierWeights.map((entry) => `${entry.tier} (×${entry.weight})`).join(', '),
           'les tiers supérieurs ne s’obtiennent que par fusion',

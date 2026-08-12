@@ -7,7 +7,7 @@
 >
 > Toute livraison qui touche `balance.json` le régénère (cf. `CLAUDE.md`).
 
-Version de `balance.json` : **7**.
+Version de `balance.json` : **8**.
 
 ## En deux gestes
 
@@ -248,6 +248,7 @@ pas ×1,36) ; les quantités entières (places, PV, tiers) s’additionnent.
 | intervalle initial | 1900 ms | le rythme des premières vagues — la grille doit respirer |
 | plancher | 880 ms | le rythme de fin de partie, quand la pression doit monter |
 | décroissance | 0.99 | la vitesse à laquelle on passe de l’un à l’autre |
+| régulation de remplissage | 36 % → 80 %, jusqu’à ×14 | **le curseur de la pression de grille** : la cadence s’étire quand la grille se remplit |
 | tiers à l’apparition | 1 (×85), 2 (×15) | les tiers supérieurs ne s’obtiennent que par fusion |
 | cooldown de sortie | 3500 ms | **le métronome** : le débit d’unités, quoi que fasse le joueur |
 | places dans la file | 5 | combien d’unités peuvent attendre |

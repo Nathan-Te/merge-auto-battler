@@ -6,11 +6,27 @@
  *   - **quelle famille** apparaît — item d'unité ou pouvoir (Lot 4), tirage à une pièce
  *     pondérée par `powers.spawnChance` ;
  *   - **quel tier** apparaît (tirage pondéré sur `spawnTierWeights`) ;
- *   - **quand** il apparaît (intervalle initial qui décroît vers un plancher).
+ *   - **quand** il apparaît (intervalle initial qui décroît vers un plancher, **freiné par
+ *     le remplissage de la grille**).
  *
  * L'ordre des tirages compte pour le déterminisme du harness : **famille, puis type de
  * pouvoir le cas échéant, puis tier, puis case**. Le changer décale toutes les parties
  * simulées d'un coup — c'est légal, mais ça se paie d'une re-validation au harness.
+ *
+ * ## Le spawner est régulé par le remplissage (Lot 4.5)
+ *
+ * La cadence d'apparition n'est pas un intervalle fixe : c'est un intervalle **nominal**
+ * multiplié par un facteur qui dépend du taux de remplissage de la grille. En dessous de
+ * `startFill` la cadence est celle du réglage ; au-delà, elle s'étire jusqu'à un quasi-arrêt
+ * à `stopFill`. C'est une boucle de rétroaction, et elle remplace la pause binaire « grille
+ * pleine » du Lot 1 — qui ne se déclenchait qu'une fois la noyade consommée.
+ *
+ * La raison est structurelle et date du Lot 4 : depuis la seconde famille d'items, un item
+ * a **moins de partenaires de fusion valides**, donc il stagne plus longtemps. À débit
+ * constant, la grille sature donc plus vite qu'avant, et la ralentir globalement aurait
+ * affamé le joueur qui, lui, entretient sa grille. Un facteur asservi au remplissage règle
+ * les deux cas d'un coup : il ne coûte rien à qui fusionne, et il donne de l'air à qui
+ * suffoque.
  *
  * Aucune valeur n'est écrite en dur ici : `parseSpawnerConfig` refuse une config
  * incomplète plutôt que d'inventer un défaut (règle de `balance.schema.md`).
@@ -25,7 +41,7 @@ import { pickPowerType, powerSpawnChance } from './PowerSystem.js';
  * @param {object} balance Contenu de `balance.json`
  * @returns {{maxTier: number, startingItems: number, firstSpawnDelayMs: number,
  *           intervalMs: number, minIntervalMs: number, intervalDecay: number,
- *           gridFullRetryMs: number, tierWeights: {tier: number, weight: number}[]}}
+ *           fillPressure: object, tierWeights: {tier: number, weight: number}[]}}
  */
 export function parseSpawnerConfig(balance) {
   const raw = balance?.itemSpawner;
@@ -56,7 +72,7 @@ export function parseSpawnerConfig(balance) {
     minIntervalMs: number('minIntervalMs', { min: 1 }),
     // Facteur appliqué à l'intervalle après chaque apparition : < 1 = accélération.
     intervalDecay: number('intervalDecay', { min: 0.5, max: 1 }),
-    gridFullRetryMs: number('gridFullRetryMs', { min: 16 }),
+    fillPressure: parseFillPressure(raw.fillPressure),
     tierWeights: parseTierWeights(raw.spawnTierWeights, maxTier),
   };
 
@@ -64,6 +80,71 @@ export function parseSpawnerConfig(balance) {
     throw new Error('balance.json : itemSpawner.minIntervalMs doit être <= intervalMs');
   }
   return config;
+}
+
+/**
+ * Valide et normalise `itemSpawner.fillPressure` — la courbe de régulation.
+ *
+ * @returns {{startFill: number, stopFill: number, maxFactor: number, exponent: number}}
+ */
+export function parseFillPressure(raw) {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('balance.json : itemSpawner.fillPressure manquant');
+  }
+  const number = (key, { min, max }) => {
+    const value = raw[key];
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`balance.json : itemSpawner.fillPressure.${key} manquant ou non numérique`);
+    }
+    if (value < min || value > max) {
+      throw new Error(
+        `balance.json : itemSpawner.fillPressure.${key} hors bornes [${min}, ${max}]`
+      );
+    }
+    return value;
+  };
+
+  const curve = {
+    /** Remplissage en dessous duquel la cadence est celle du réglage, sans frein. */
+    startFill: number('startFill', { min: 0, max: 1 }),
+    /** Remplissage au-delà duquel le frein est à fond (quasi-arrêt). */
+    stopFill: number('stopFill', { min: 0, max: 1 }),
+    /** Multiplicateur d'intervalle au quasi-arrêt. */
+    maxFactor: number('maxFactor', { min: 1, max: 100 }),
+    /** Courbure entre les deux seuils : 1 = linéaire, > 1 = frein tardif puis brutal. */
+    exponent: number('exponent', { min: 0.1, max: 8 }),
+  };
+
+  if (curve.stopFill <= curve.startFill) {
+    throw new Error('balance.json : itemSpawner.fillPressure.stopFill doit être > startFill');
+  }
+  return curve;
+}
+
+/**
+ * Facteur de freinage appliqué à l'intervalle nominal, d'après le remplissage de la grille.
+ *
+ * ```
+ *   fill <= startFill          -> 1            (cadence nominale, la grille respire)
+ *   startFill < fill < stopFill -> 1 -> maxFactor, en puissance `exponent`
+ *   fill >= stopFill           -> maxFactor    (quasi-arrêt)
+ * ```
+ *
+ * La courbure existe pour que le frein soit **imperceptible tant qu'il n'est pas
+ * nécessaire** : à mi-chemin des deux seuils, un exposant 2 ne coûte que le quart du
+ * freinage total. Un frein linéaire, lui, se sentirait dès la première case au-dessus du
+ * seuil et donnerait l'impression d'un jeu qui retient ses items sans raison.
+ *
+ * @param {{startFill: number, stopFill: number, maxFactor: number, exponent: number}} curve
+ * @param {number} fill Taux de remplissage de la grille (0 -> 1)
+ * @returns {number} Multiplicateur d'intervalle (>= 1)
+ */
+export function fillPressureFactor(curve, fill) {
+  if (!Number.isFinite(fill) || fill <= curve.startFill) return 1;
+  if (fill >= curve.stopFill) return curve.maxFactor;
+
+  const t = (fill - curve.startFill) / (curve.stopFill - curve.startFill);
+  return 1 + (curve.maxFactor - 1) * t ** curve.exponent;
 }
 
 /**
@@ -157,8 +238,8 @@ export function shiftTierWeights(tierWeights, bonus, maxTier) {
 
 /**
  * Pilote les apparitions sur un `GridModel`. Ne connaît ni le temps réel ni Phaser :
- * la scène appelle `trySpawn()` quand son timer sonne, et lit `nextDelayMs()` pour
- * reprogrammer le suivant.
+ * `GameSession` lit `currentDelayMs()` à chaque pas pour avancer sa jauge, et appelle
+ * `trySpawn()` quand elle est pleine.
  */
 export class ItemSpawner {
   /**
@@ -184,10 +265,34 @@ export class ItemSpawner {
     this.spawnedByFamily = { [ITEM_FAMILY.UNIT]: 0, [ITEM_FAMILY.POWER]: 0 };
   }
 
-  /** Délai avant la prochaine apparition, grille pleine comprise. */
-  nextDelayMs() {
-    if (this.model.isFull()) return this.config.gridFullRetryMs;
+  /**
+   * Intervalle **nominal** en vigueur : la courbe de progression de la partie et les
+   * améliorations, sans la régulation de remplissage.
+   */
+  nominalDelayMs() {
     return spawnDelayMs(this.config, this.spawnCount, this.getModifiers?.()?.spawnInterval ?? 1);
+  }
+
+  /** Taux de remplissage de la grille, de 0 à 1. */
+  fillRatio() {
+    return this.model.count() / this.model.size;
+  }
+
+  /** Facteur de freinage en vigueur, d'après le remplissage courant. */
+  pressureFactor() {
+    return fillPressureFactor(this.config.fillPressure, this.fillRatio());
+  }
+
+  /**
+   * Intervalle **effectif** à cet instant : le nominal, freiné par le remplissage.
+   *
+   * À lire **en continu** et non une fois pour toutes au moment de programmer la prochaine
+   * apparition : c'est ce qui fait que le rythme reprend dès que le joueur vide sa grille,
+   * au lieu de rester bloqué sur un long délai décidé quand elle était pleine
+   * (cf. `GameSession.updateSpawner`).
+   */
+  currentDelayMs() {
+    return this.nominalDelayMs() * this.pressureFactor();
   }
 
   /** Poids de tirage en vigueur, décalés par « gisement riche » le cas échéant. */

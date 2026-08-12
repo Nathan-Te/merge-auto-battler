@@ -26,11 +26,17 @@ const SEED = 1;
 
 const run = runPolicies({
   balance,
-  policies: [POLICIES.spam, POLICIES.mixed, POLICIES.prepare, POLICIES.noPowers],
+  policies: [
+    POLICIES.spam,
+    POLICIES.mixed,
+    POLICIES.prepare,
+    POLICIES.noPowers,
+    POLICIES.slowHands,
+  ],
   games: GAMES,
   seed: SEED,
 });
-const [spam, mixed, prepare, noPowers] = run.policies;
+const [spam, mixed, prepare, noPowers, slowHands] = run.policies;
 
 describe('invariant d’équilibrage — merger bat spammer', () => {
   it('la politique « prépare » survit nettement plus longtemps que « spam »', () => {
@@ -108,11 +114,26 @@ describe('objectifs chiffrés du Lot 3', () => {
 });
 
 describe('économie de la grille', () => {
-  it('le spammeur sature sa grille — c’est la punition visible de son jeu', () => {
-    expect(spam.gridFullShare).toBeGreaterThan(0.3);
+  it('le spammeur charge sa grille — c’est la punition visible de son jeu', () => {
+    // Depuis le Lot 4.5, la grille ne **sature** plus : la régulation la tient sous son
+    // seuil haut. La punition du spammeur reste la même, mais elle se lit désormais à
+    // l'occupation moyenne et non au temps passé grille pleine.
+    expect(spam.gridItemsAvg).toBeGreaterThan(10);
+    expect(spam.gridFullShare).toBeLessThan(0.05);
   });
 
   it('le joueur qui fusionne, lui, garde une grille respirable', () => {
     expect(mixed.gridFullShare).toBeLessThan(0.1);
+    expect(mixed.gridItemsAvg).toBeLessThan(spam.gridItemsAvg / 2);
+  });
+
+  it('plus personne ne noie sa grille, pas même une main lente', () => {
+    // **L'invariant du Lot 4.5.** `slowHands` joue le même jeu que `mixed` à vitesse
+    // humaine ; avant la régulation elle passait un tiers de sa partie grille pleine. Si ce
+    // test retombe, c'est que la courbe de remplissage ne fait plus son travail.
+    expect(slowHands.gridFullShare).toBeLessThan(0.02);
+    expect(slowHands.gridItemsAvg / 25).toBeLessThan(
+      balance.itemSpawner.fillPressure.stopFill
+    );
   });
 });
