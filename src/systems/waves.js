@@ -74,36 +74,53 @@ export function waveSpawnGapMs(config, wave) {
 }
 
 /**
- * Libellé de texture d'une vague (« Rush », « Mur de tanks »…).
+ * Texture d'une vague, **sous forme de données et non de phrase**.
  *
- * Une vague scriptée porte le sien, écrit à la main dans `balance.json`. Les vagues
+ * Une vague scriptée porte un identifiant écrit dans `balance.json` (`labelId`). Les vagues
  * **générées** n'en ont pas — la formule empile, elle ne compose pas de texture — mais
- * l'annonce du Lot 3.5 ne doit pas s'éteindre à la vague 11 : on en dérive donc un depuis
- * la composition calculée, à partir du type **dominant**. Purement descriptif : aucune
- * règle ne lit cette chaîne, et rien ici ne décide de qui gagne.
+ * l'annonce du Lot 3.5 ne doit pas s'éteindre à la vague 11 : on en dérive donc une depuis
+ * la composition calculée, à partir du type **dominant**.
+ *
+ * Depuis le Lot 5, la fonction rend un **descripteur** (`{ kind, id }` ou
+ * `{ kind: 'tide', enemy }`) plutôt qu'une chaîne : la mise en mots appartient à
+ * `src/i18n/` (`waveLabelText`). Sans cette séparation, ce module — qui décide de *ce qui
+ * apparaît*, donc du gameplay — porterait du français, et traduire le jeu obligerait à
+ * toucher une règle. Purement descriptif dans les deux cas : aucune règle ne lit ce
+ * descripteur, et rien ici ne décide de qui gagne.
+ *
+ * @returns {{kind: 'scripted', id: string}|{kind: 'tide', enemy: string}|{kind: 'mixed'}|null}
  */
 export function waveLabel(config, wave) {
   const index = Math.max(1, Math.floor(wave)) - 1;
   const scripted = config.waves.scripted[index];
-  if (scripted) return scripted.label ?? '';
+  if (scripted) return scripted.labelId ? { kind: 'scripted', id: scripted.labelId } : null;
 
   const composition = waveComposition(config, wave);
   const total = composition.reduce((sum, entry) => sum + entry.count, 0);
-  if (total === 0) return '';
+  if (total === 0) return null;
 
   const dominant = composition.reduce((best, entry) => (entry.count > best.count ? entry : best));
   // Sans dominante nette, la vague est un mélange : le dire vaut mieux que de mettre en
   // avant un type qui ne représente qu'un tiers de ce qui arrive.
-  if (dominant.count / total < 0.45) return 'Vague mixte';
-  return `Marée de ${config.enemies[dominant.type].label.toLowerCase()}s`;
+  if (dominant.count / total < 0.45) return { kind: 'mixed' };
+  return { kind: 'tide', enemy: dominant.type };
 }
 
 /**
- * Libellé lisible d'une composition, pour le HUD de debug et les tests.
- * Exemple : `3× Basique, 2× Rapide`.
+ * Composition lisible d'une vague, pour le HUD de debug, la référence et les tests.
+ *
+ * Le nom de chaque type d'ennemi est fourni par l'appelant (`labelOf`) et non lu dans la
+ * config : les libellés ont quitté `balance.json` au Lot 5. Sans traducteur, la fonction
+ * rend les identifiants — c'est exactement ce que veut un test, qui n'a pas à dépendre
+ * d'une traduction.
+ *
+ * @param {object} config
+ * @param {number} wave
+ * @param {(type: string) => string} [labelOf]
+ * @returns {string} par exemple `3× Goblin, 2× Wolf`
  */
-export function describeWave(config, wave) {
+export function describeWave(config, wave, labelOf = (type) => type) {
   return waveComposition(config, wave)
-    .map((entry) => `${entry.count}× ${config.enemies[entry.type].label}`)
+    .map((entry) => `${entry.count}× ${labelOf(entry.type)}`)
     .join(', ');
 }

@@ -93,7 +93,7 @@ describe('parsePowersConfig', () => {
     };
     expect(broken((b) => delete b.powers.maxTier)).toThrow(/maxTier/);
     expect(broken((b) => delete b.powers.types.heal.amount)).toThrow(/amount/);
-    expect(broken((b) => delete b.powers.types.meteor.blurb)).toThrow(/blurb/);
+    expect(broken((b) => delete b.powers.types.meteor.telegraphMs)).toThrow(/telegraphMs/);
     expect(broken((b) => (b.powers.types.heal.kind = 'nawak'))).toThrow(/kind inconnu/);
     expect(broken((b) => (b.powers.types = {}))).toThrow(/vide/);
     // Un tirage sans aucun poids > 0 produirait des pouvoirs impossibles à faire apparaître.

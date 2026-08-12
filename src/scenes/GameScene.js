@@ -6,11 +6,15 @@ import { GameSession, SESSION_DROP, SESSION_TAP } from '../systems/GameSession.j
 import { computeLayout, cellCenterAt, nearestCellIndex } from '../systems/layout.js';
 import { isTap } from '../systems/tapGesture.js';
 import { parseJuiceConfig } from '../systems/juice.js';
-import { drawItemShape, itemColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { itemColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { JuiceKit } from '../render/juiceKit.js';
-import { isDebugEnabled } from '../systems/debug.js';
+import { isDebugEnabled, isScreenshotEnabled } from '../systems/debug.js';
+import { t } from '../i18n/index.js';
+import { Skin } from '../render/skin.js';
+import { createVisual, repaintVisual } from '../render/visuals.js';
+import { FONTS } from '../render/fonts.js';
 import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
 import { IntelBar } from './IntelBar.js';
@@ -61,9 +65,6 @@ const INPUT = {
   gameOverDelayMs: 650,
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
@@ -71,7 +72,14 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     this.debug = isDebugEnabled();
+    /** Mode capture (`?screenshot=1`) : l'écran se dégage, et la partie peut se figer. */
+    this.screenshot = isScreenshotEnabled();
+    /** Partie figée par le bouton du mode capture. Sans effet hors de ce mode. */
+    this.frozen = false;
     this.juiceConfig = parseJuiceConfig(juiceConfig);
+    // L'index vient de `BootScene`, qui l'a lu au démarrage. Sans assets livrés il vaut
+    // null, et tout le jeu retombe sur le greybox vectoriel — c'est un état normal.
+    this.skin = new Skin(this, this.registry.get('assetIndex'));
 
     this.session = new GameSession({ balance });
     this.model = this.session.grid;
@@ -118,8 +126,8 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.background);
 
     this.title = this.add
-      .text(0, 0, 'Merge Battler', {
-        fontFamily: FONT,
+      .text(0, 0, t('game.title'), {
+        fontFamily: FONTS.display,
         fontStyle: 'bold',
         color: COLORS.text,
       })
@@ -130,7 +138,7 @@ export default class GameScene extends Phaser.Scene {
     // Tout le diagnostic passe derrière `?debug=1` : l'écran par défaut est celui que
     // verra un joueur de Crazy Games.
     this.debugText = this.add
-      .text(0, 0, '', { fontFamily: MONO, color: COLORS.textDim })
+      .text(0, 0, '', { fontFamily: FONTS.mono, color: COLORS.textDim })
       .setOrigin(1, 0.5)
       .setDepth(DEPTH.hud)
       .setVisible(this.debug)
@@ -139,6 +147,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.buildSoundButton();
     this.buildHelpButton();
+    if (this.screenshot) this.buildFreezeButton();
 
     this.gridPanel = this.add
       .rectangle(0, 0, 10, 10, COLORS.gridPanel)
@@ -179,7 +188,7 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
     this.helpIcon = this.add
-      .text(0, 0, '?', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text })
+      .text(0, 0, '?', { fontFamily: FONTS.body, fontStyle: 'bold', color: COLORS.text })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud + 1)
       .setResolution(this.textResolution());
@@ -197,16 +206,10 @@ export default class GameScene extends Phaser.Scene {
     this.scene.launch('HelpScene', {
       // Le panneau ne connaît ni `balance.json` ni les règles : il affiche ce que la
       // session lui donne, comme tout le reste du rendu.
-      units: Object.values(this.session.battleConfig.units).map((def) => ({
-        type: def.id,
-        label: def.label,
-        role: def.blurb,
-      })),
-      powers: Object.values(this.session.powersConfig.types).map((def) => ({
-        type: def.id,
-        label: def.label,
-        role: def.blurb,
-      })),
+      // Des identifiants de type, pas des libellés : `HelpScene` va chercher les siens
+      // dans `src/i18n/`. La scène de jeu n'a pas à traduire pour une autre.
+      units: Object.values(this.session.battleConfig.units).map((def) => def.id),
+      powers: Object.values(this.session.powersConfig.types).map((def) => def.id),
       draftEveryWaves: this.session.draftConfig.everyWaves,
       skipCooldownMs: this.session.battleConfig.skipCooldownMs,
       graceMs: this.session.inputConfig.overlayGraceMs,
@@ -223,7 +226,7 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
     this.soundIcon = this.add
-      .text(0, 0, '♪', { fontFamily: FONT, fontStyle: 'bold', color: '#12141c' })
+      .text(0, 0, '♪', { fontFamily: FONTS.body, fontStyle: 'bold', color: '#12141c' })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud + 1)
       .setResolution(this.textResolution());
@@ -234,7 +237,7 @@ export default class GameScene extends Phaser.Scene {
       this.juice.sfx.unlock();
       this.juice.sfx.toggle();
       this.refreshSoundButton();
-      if (this.juice.sfx.enabled) this.juice.play('tap');
+      if (this.juice.sfx.enabled) this.juice.play('button');
     });
   }
 
@@ -258,6 +261,33 @@ export default class GameScene extends Phaser.Scene {
         battle.invincible = !battle.invincible;
         return battle.invincible;
       },
+    });
+  }
+
+  /**
+   * Bouton de gel du mode capture — il **remplace** les boutons son et aide, à leur place.
+   *
+   * Un bouton plutôt qu'un raccourci clavier : les captures se prennent aussi sur un
+   * téléphone, où il n'y a ni clavier ni console. Il n'existe que sous `?screenshot=1`, donc
+   * aucun joueur ne peut mettre la main dessus.
+   */
+  buildFreezeButton() {
+    this.freezeButton = this.add
+      .rectangle(0, 0, 10, 10, COLORS.helpButton, 1)
+      .setDepth(DEPTH.hud)
+      .setInteractive({ useHandCursor: true });
+    this.freezeIcon = this.add
+      .text(0, 0, '❚❚', { fontFamily: FONTS.body, fontStyle: 'bold', color: COLORS.text })
+      .setOrigin(0.5, 0.5)
+      .setDepth(DEPTH.hud + 1)
+      .setResolution(this.textResolution());
+
+    this.freezeButton.on('pointerup', () => {
+      this.frozen = !this.frozen;
+      this.freezeIcon.setText(this.frozen ? '▶' : '❚❚');
+      // Les tweens en cours se figent aussi : sinon un item en vol continuerait sa course
+      // pendant que la simulation est arrêtée, et la capture montrerait une scène impossible.
+      this.tweens.timeScale = this.frozen ? 0 : 1;
     });
   }
 
@@ -310,6 +340,19 @@ export default class GameScene extends Phaser.Scene {
     this.helpButton.setPosition(helpX, headerMiddle).setSize(soundSize, soundSize);
     this.helpButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
     this.helpIcon.setFontSize(Math.round(soundSize * 0.55)).setPosition(helpX, headerMiddle);
+
+    // Mode capture : tout ce qui n'est pas le jeu quitte l'écran, et le bouton de gel prend
+    // la place laissée par le bouton son.
+    if (this.screenshot) {
+      for (const object of [this.soundButton, this.soundIcon, this.helpButton, this.helpIcon]) {
+        object.setVisible(false);
+      }
+      this.soundButton.disableInteractive();
+      this.helpButton.disableInteractive();
+      this.freezeButton.setPosition(soundX, headerMiddle).setSize(soundSize, soundSize);
+      this.freezeButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
+      this.freezeIcon.setFontSize(Math.round(soundSize * 0.45)).setPosition(soundX, headerMiddle);
+    }
 
     // Plus petit que le titre : la ligne de debug est dense et partage la même rangée.
     this.debugText.setFontSize(Phaser.Math.Clamp(Math.round(headerFont * 0.78), 8, 14));
@@ -551,10 +594,10 @@ export default class GameScene extends Phaser.Scene {
     const layout = this.layoutData;
     const center = cellCenterAt(layout, index);
 
-    const shape = this.add.graphics();
+    const shape = createVisual(this, this.skin, { kind: 'item', item }, layout.itemSize);
     const label = this.add
       .text(0, 0, String(item.tier), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         fontStyle: 'bold',
         color: TIER_LABEL_COLOR,
       })
@@ -598,7 +641,7 @@ export default class GameScene extends Phaser.Scene {
     const shape = view.getData('shape');
     const label = view.getData('label');
 
-    drawItemShape(shape, view.getData('item'), itemSize);
+    repaintVisual(shape, this.skin, { kind: 'item', item: view.getData('item') }, itemSize);
     label.setFontSize(Math.max(9, Math.round(itemSize * 0.4)));
     view.setSize(cellSize, cellSize);
     // Phaser ajoute `displayOrigin` (= moitié de la taille du conteneur) aux
@@ -644,6 +687,9 @@ export default class GameScene extends Phaser.Scene {
    */
   onPointerDown() {
     this.juice.sfx.unlock();
+    // La musique attend ce geste-là : aucun navigateur ne laisse démarrer un son avant, et
+    // c'est aussi la politesse minimale envers quelqu'un qui vient d'ouvrir un onglet.
+    this.juice.startMusic();
   }
 
   // --------------------------------------------------------------- tap (envoi)
@@ -842,7 +888,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.input.enabled = false;
     this.juice.shake('gameOver');
-    this.juice.play('gameOver');
+    // Coupe la musique **puis** joue le sting : par-dessus la boucle, il ne s'entendrait pas,
+    // et c'est le seul son que le joueur écoute vraiment.
+    this.juice.playDefeat();
 
     const { best, isRecord } = submitScore(wavesCleared);
     // Depuis le Lot 3.5, le récap est **pour le joueur** : c'est lui qui donne l'idée du
@@ -864,8 +912,9 @@ export default class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     // Le multiplicateur de debug étire le temps du jeu, pas celui du navigateur : la
-    // simulation reste à tick fixe, elle défile simplement plus vite.
-    const scaled = delta * this.speed;
+    // simulation reste à tick fixe, elle défile simplement plus vite. Le gel du mode capture
+    // le met à zéro — l'affichage continue de tourner, mais plus rien n'avance.
+    const scaled = this.frozen ? 0 : delta * this.speed;
     this.session.update(scaled);
     this.battleView.update(scaled);
     this.intelBar.update();
@@ -922,6 +971,7 @@ export default class GameScene extends Phaser.Scene {
     this.dragState = null;
     this.tapCandidate = null;
     this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
 
     this.debugPanel?.destroy();
     this.intelBar?.destroy();

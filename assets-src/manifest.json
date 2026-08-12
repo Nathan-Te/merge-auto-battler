@@ -1,0 +1,24 @@
+{
+  "budgetKb": { "target": 10240, "max": 20480 },
+
+  "keying": { "color": [255, 255, 255], "tolerance": 24, "softness": 16 },
+
+  "atlas": { "maxSize": 2048, "padding": 2, "quality": 82 },
+
+  "sizes": {
+    "orbs": 192,
+    "powers": 192,
+    "units": 224,
+    "enemies": 224,
+    "projectiles": 96,
+    "decor": 640,
+    "ui": 256
+  },
+
+  "tierBands": {
+    "unit": [[1, 4], [5, 8], [9, 11]],
+    "power": [[1, 2], [3, 4], [5, 6]]
+  },
+
+  "sheets": []
+}

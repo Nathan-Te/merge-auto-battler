@@ -4,12 +4,30 @@ import juiceConfig from './config/juice.json';
 import { parseJuiceConfig } from './systems/juice.js';
 import { HiDpi } from './render/hiDpi.js';
 import { pixelRatioOverride } from './systems/debug.js';
+import { currentLocale, detectLocale, setLocale, t } from './i18n/index.js';
+import BootScene from './scenes/BootScene.js';
 import GameScene from './scenes/GameScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
 import DraftScene from './scenes/DraftScene.js';
 import HelpScene from './scenes/HelpScene.js';
+import CreditsScene from './scenes/CreditsScene.js';
 
 const juice = parseJuiceConfig(juiceConfig);
+
+/**
+ * La langue est choisie **une fois**, avant que la moindre scène ne se crée.
+ *
+ * Anglais par défaut, français si le navigateur l'est, `?lang=` pour forcer (cf. `src/i18n/`).
+ * Il n'y a pas de sélecteur en jeu : le seed doc impose un démarrage direct sans menu, et
+ * changer de langue en cours de partie obligerait chaque scène à se réécrire.
+ */
+setLocale(detectLocale({ search: window.location.search, languages: navigator.languages ?? [] }));
+
+// L'onglet et l'écran d'accueil du navigateur suivent la langue du joueur, comme le reste.
+// `lang` est réécrit et non complété : `index.html` doit bien porter une valeur, mais c'est
+// la langue **réellement choisie** qui compte pour les lecteurs d'écran et pour le portail.
+document.title = t('game.title');
+document.documentElement.lang = currentLocale();
 
 const config = {
   type: Phaser.AUTO,
@@ -40,10 +58,13 @@ const config = {
     // différemment selon le téléphone, pour un gain que personne ne voit.
     roundPixels: false,
   },
-  // `GameOverScene`, `DraftScene` et `HelpScene` sont lancées **par-dessus** `GameScene`
-  // mise en pause, pas à sa place : le champ de bataille reste visible derrière, et la
-  // partie ne peut pas avancer d'un tick pendant qu'un de ces écrans est ouvert.
-  scene: [GameScene, GameOverScene, DraftScene, HelpScene],
+  // `BootScene` charge les atlas générés par `npm run assets` puis passe la main : elle est
+  // première dans la liste, donc elle démarre. Les suivantes ne sont pas démarrées d'office.
+  //
+  // `GameOverScene`, `DraftScene`, `HelpScene` et `CreditsScene` sont lancées **par-dessus**
+  // `GameScene` mise en pause, pas à sa place : le champ de bataille reste visible derrière,
+  // et la partie ne peut pas avancer d'un tick pendant qu'un de ces écrans est ouvert.
+  scene: [BootScene, GameScene, GameOverScene, DraftScene, HelpScene, CreditsScene],
 };
 
 const game = new Phaser.Game(config);

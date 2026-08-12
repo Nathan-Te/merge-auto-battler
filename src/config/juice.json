@@ -2,7 +2,11 @@
   "version": 1,
   "sound": {
     "enabled": true,
-    "masterVolume": 0.32
+    "masterVolume": 0.32,
+    "categories": {
+      "sfx": 1.0,
+      "music": 0.45
+    }
   },
   "render": {
     "maxPixelRatio": 2
@@ -237,6 +241,42 @@
       "attackMs": 10,
       "volume": 0.6,
       "minIntervalMs": 1000
+    },
+    "slow": {
+      "wave": "sine",
+      "freqStart": 880,
+      "freqEnd": 340,
+      "durationMs": 180,
+      "attackMs": 6,
+      "volume": 0.22,
+      "minIntervalMs": 200
+    },
+    "draftOpen": {
+      "wave": "triangle",
+      "freqStart": 300,
+      "freqEnd": 900,
+      "durationMs": 320,
+      "attackMs": 12,
+      "volume": 0.5,
+      "minIntervalMs": 200
+    },
+    "draftPick": {
+      "wave": "square",
+      "freqStart": 520,
+      "freqEnd": 1040,
+      "durationMs": 220,
+      "attackMs": 4,
+      "volume": 0.5,
+      "minIntervalMs": 120
+    },
+    "button": {
+      "wave": "square",
+      "freqStart": 520,
+      "freqEnd": 700,
+      "durationMs": 70,
+      "attackMs": 3,
+      "volume": 0.3,
+      "minIntervalMs": 60
     }
   }
 }

@@ -487,10 +487,9 @@ export class GameSession {
     // Trois types annoncés depuis le Lot 3.5 : la tête (celle que le prochain tap
     // enverra) et les deux suivantes. C'est ce qui rend « passer » lisible — on voit ce
     // qu'on gagne en défaussant.
-    const nextTypes = this.unitQueue.preview(3).map((type) => ({
-      type,
-      label: this.battleConfig.units[type].label,
-    }));
+    // Des **types**, pas des libellés : le HUD va chercher `units.<type>.label` dans
+    // `src/i18n/`. La session ne connaît pas la langue de la partie.
+    const nextTypes = this.unitQueue.preview(3).map((type) => ({ type }));
     return {
       baseHp: this.battle.baseHp,
       maxBaseHp: this.battle.maxBaseHp,
@@ -498,8 +497,7 @@ export class GameSession {
       wavesCleared: this.battle.wavesCleared,
       phase: this.battle.phase,
       nextUnitType: nextTypes[0].type,
-      nextUnitLabel: nextTypes[0].label,
-      followingUnitLabel: nextTypes[1].label,
+      followingUnitType: nextTypes[1].type,
       /** Les trois prochains types, tête en premier. */
       nextTypes,
       /** Bouton « passer » : disponible et avancement de son cooldown. */
@@ -551,19 +549,11 @@ export class GameSession {
       powerDamage: stats.powerDamage,
       powerKills: stats.powerKills,
       powerHealing: stats.powerHealing,
-      /** Libellés des pouvoirs, pour que l'écran de fin n'ait pas à les connaître. */
-      powerLabels: Object.fromEntries(
-        Object.entries(this.powersConfig.types).map(([type, def]) => [type, def.label])
-      ),
       /** Le **build** de la partie : c'est ce qui donne envie d'en tenter un autre. */
       upgrades: this.draft.chosen(),
       skips: this.unitQueue.skipCount,
       damageByType: { ...stats.damageByType },
       killsByType: { ...stats.killsByType },
-      /** Libellés des types, pour que l'écran de fin n'ait pas à les connaître. */
-      unitLabels: Object.fromEntries(
-        Object.entries(this.battleConfig.units).map(([type, def]) => [type, def.label])
-      ),
       unitsDeployed: stats.unitsDeployed,
       unitsLost: stats.unitsLost,
       /** Part du temps où la grille était pleine (0 → 1). */

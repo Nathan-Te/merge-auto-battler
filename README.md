@@ -14,8 +14,11 @@ npm install
 npm run dev      # serveur de dev, exposé sur le réseau local (test téléphone)
 npm test         # vitest
 npm run sim      # harness d'équilibrage headless (voir Lot 3)
+npm run assets   # découpe assets-src/ → public/assets/ + galerie (voir Lot 5)
+npm run docs     # régénère docs/reference.md et docs/reference.en.md
 npm run build    # build de production dans dist/
 npm run preview  # sert le build de production en local
+npm run package  # zip de soumission Crazy Games, dans release/
 ```
 
 `npm run dev` affiche une URL réseau (`http://192.168.x.x:5173/`) : c'est celle à ouvrir sur
@@ -23,11 +26,17 @@ le téléphone quand il est sur le même Wi-Fi, sans passer par un déploiement.
 
 ## Déploiement
 
-Chaque push sur `main` déclenche `.github/workflows/deploy.yml` : install → `npm test` →
-`npm run build` → déploiement sur GitHub Pages. **Les tests sont bloquants** : s'ils
-échouent, rien n'est ni construit ni déployé. Le poids total de `dist/` est affiché dans
-les logs et dans le résumé du job, avec une alerte au-delà de 2 Mo (le budget du seed doc
-est de 20 Mo de téléchargement initial pour le jeu complet).
+Chaque push sur `main` déclenche `.github/workflows/deploy.yml` :
+**assets** (`npm run assets`, avec recommit des sorties) → install → `npm test` →
+référence et assets à jour → `npm run build` → zip de soumission → déploiement sur GitHub
+Pages. **Les tests sont bloquants** : s'ils échouent, rien n'est ni construit ni déployé.
+
+Le poids total de `dist/` est affiché dans le résumé du job, avec un **avertissement au-delà
+de 10 Mo** (la cible) et un **échec au-delà de 20 Mo** (la limite dure du seed doc). C'est le
+seul point d'application du budget, et il porte sur ce qui est réellement téléchargé.
+
+Le **zip de soumission** est déposé en artefact à chaque build, y compris sur une PR : il se
+récupère depuis un téléphone, sans machine de développement.
 
 Les pull requests passent les mêmes tests et le même build, sans déployer.
 
@@ -1164,3 +1173,272 @@ valides, et le rapport est **identique au centième** avant et après.
 
 **`dist/` : 1,33 Mo** (356 Ko gzip), **+2 Ko** par rapport au Lot 4 — une fonction de courbe,
 une horloge réécrite et un échange de deux cases.
+
+## Lot 5 — ce qui est livré
+
+Dernier lot de la V1 : **habillage, localisation, publication**. Aucune mécanique nouvelle —
+le périmètre gameplay est clos depuis le Lot 4, et les quatre objectifs chiffrés sont
+inchangés au centième.
+
+Le lot a été construit **avant** l'arrivée des assets, et c'est la contrainte qui en explique
+toute la forme : il fallait que le jeu soit prêt à recevoir des planches et des sons **par
+vagues**, sans jamais casser entre deux livraisons.
+
+### 1. Le pipeline d'assets — `npm run assets`
+
+```
+assets-src/*.png  →  découpe  →  détourage  →  rognage  →  normalisation  →  atlas WebP
+     + manifest.json                                                        + galerie
+```
+
+**Tout asset entre par `assets-src/`.** `public/assets/` est entièrement généré : le pipeline
+y écrit, y supprime ce qui n'a plus de source, et le CI recommitte le résultat. Un fichier
+posé directement là disparaîtrait au prochain passage.
+
+Trois décisions valent d'être expliquées.
+
+**Le détourage se propage depuis les bords, il ne seuille pas la couleur.** Un simple « tout
+ce qui est blanc devient transparent » troue le sprite : une armure éclairée, l'éclat d'une
+lame, le blanc d'un œil sont blancs eux aussi. On part donc des bords de la case et on ne
+propage qu'entre voisins de fond — ce qui est enfermé dans le dessin survit, quelle que soit
+sa couleur. Vérifié sur pixels réels : au centre d'un disque rouge à halo blanc interne,
+l'alpha vaut 255 après traitement, et 0 au coin de la case.
+
+**Le packing essaie toutes les largeurs et garde la moins coûteuse en pixels.** Huit sprites
+de 124 px rangés sur une colonne donnent un atlas 128×1024 ; en quatre colonnes, 256×256.
+**Quatre fois moins de pixels** à encoder, à télécharger et à téléverser sur le GPU. Prendre
+la première disposition qui tient aurait été plus simple et quatre fois plus lourd.
+
+**L'idempotence tient à une empreinte des entrées, pas au déterminisme de l'encodeur.** Le CI
+recommitte les sorties : si deux exécutions du même `assets-src/` produisaient des octets
+différents, chaque passage créerait un commit qui déclencherait le passage suivant. Or les
+octets d'un WebP dépendent de la version de libvips installée, donc de la machine. On compare
+donc une empreinte de (manifest + contenu de chaque source + version du pipeline) : inchangée,
+rien n'est réencodé. `PIPELINE_VERSION` est à incrémenter dès qu'un changement de code modifie
+les pixels produits.
+
+### 2. La galerie — l'outil de revue
+
+`npm run assets` génère aussi `public/gallery/index.html`, déployée avec le jeu sur `/gallery/`
+et hors de sa navigation. C'est **l'outil de diagnostic principal des assets**, et la règle est
+inscrite dans `CLAUDE.md` : tout problème d'asset se regarde là avant de toucher au code.
+
+Elle est faite pour un téléphone, parce que c'est là qu'on la consultera : trois colonnes en
+portrait, fond en **damier** derrière chaque sprite (le seul moyen de voir un halo blanc ou un
+bord mangé), dimensions et poids sous chaque vignette, budget en tête de page.
+
+Deux détails qui font le travail :
+
+- **les vignettes sont découpées dans l'atlas en CSS**, pas réexportées. La galerie est
+  déployée avec le jeu ; réexporter 60 sprites à l'unité doublerait le poids d'assets pour une
+  page de revue ;
+- **elle annonce les manques et les orphelins** — les sprites que le jeu attend et qui
+  n'existent pas, et ceux qui existent sans que le jeu les demande. Ce sont exactement les deux
+  fautes qu'on fait en remplissant un manifest au pouce, et la seconde est presque toujours une
+  faute de frappe.
+
+### 3. La boucle CI, opérable au téléphone
+
+```
+upload d'une planche (interface web GitHub)
+      ↓
+CI : npm run assets → recommit de public/assets/ + galerie
+      ↓
+build, tests, déploiement
+      ↓
+/gallery/ à jour  →  correction du manifest si besoin  →  retour au début
+```
+
+Rien à installer, rien à lancer. Le manifest est documenté dans
+[`assets-src/manifest.md`](assets-src/manifest.md), écrit pour être corrigé depuis l'éditeur
+web de GitHub par quelqu'un qui ne lira pas le pipeline — d'où des messages d'erreur qui citent
+le fichier, la clé, et ce qu'il faut écrire à la place :
+
+> planche 3 (« units.png ») : 4×3 = 12 cases découpées mais 10 noms donnés — ajuste cols/rows,
+> ou complète names avec des null
+
+### 4. La couche de skin — sprite si livré, greybox sinon
+
+`src/render/visuals.js` est **le seul endroit du jeu qui tranche entre un sprite et une
+forme**. Chaque chose affichable s'y demande sous forme de description
+(`{ kind: 'unit', type, tier }`) et repart en objet d'affichage. Sans ce point de passage, les
+six écrans porteraient chacun leur `if (le sprite existe)` et se désynchroniseraient à la
+première planche livrée à moitié.
+
+**Le repli n'est pas une précaution, c'est le mode de fonctionnement normal** pendant toute la
+production. Un sprite absent, un atlas illisible, un index inexistant : trois états normaux,
+aucun n'affiche d'erreur au joueur, et chaque planche livrée améliore l'écran sans jamais le
+casser.
+
+Les **paliers visuels** (11 tiers d'items → 3 dessins) sont définis dans le manifest et non
+dans le code : une marche mal placée se corrige depuis un téléphone. Aucune valeur de gameplay
+n'en dépend.
+
+`BootScene` lit `public/assets/index.json` **à l'exécution**. L'importer à la compilation
+figerait la liste des atlas dans le bundle, et il faudrait rebuilder le code pour ajouter un
+sprite — ce qui tuerait la promesse du lot.
+
+### 5. Localisation — anglais par défaut
+
+Crazy Games est un portail international : la V1 sort **en anglais**, en français si le
+navigateur l'est, et `?lang=fr` / `?lang=en` forcent l'un ou l'autre pour tester sur un
+téléphone sans toucher aux réglages du système.
+
+La règle est **« aucun texte affiché en dur »**, et elle vaut aussi pour `balance.json` : les
+libellés d'unités, d'ennemis, de pouvoirs, de cartes de draft et de textures de vague en sont
+sortis. Le fichier d'équilibrage ne garde que ce qui décide qui gagne la partie, plus des
+**identifiants**.
+
+Cela a une conséquence qui est le vrai contenu du chantier : **`waves.waveLabel()` rend
+désormais un descripteur** (`{ kind: 'tide', enemy: 'basic' }`) et non une phrase, et
+`BattleModel` n'émet plus de `description`. Mettre une composition en mots demande de connaître
+la langue, ce qui n'est pas le métier d'un modèle pur — sans cette séparation, le module qui
+décide de *ce qui apparaît* porterait du français, et traduire le jeu obligerait à toucher une
+règle de gameplay.
+
+La mécanique de traduction vit dans `src/i18n/format.js`, **sans dictionnaire**, pour que
+`npm run docs` l'utilise depuis Node : la référence générée traduit donc avec exactement le
+même moteur que l'interface, et ne peut pas en diverger. `npm run docs` produit maintenant
+`docs/reference.md` (français, doc de travail) **et** `docs/reference.en.md` (les libellés que
+voit le joueur) ; les deux sont vérifiés par un test.
+
+Deux garde-fous, parce que le risque est de découvrir un trou en jouant :
+
+- un test échoue si un identifiant de `balance.json` n'a pas son libellé dans les **deux**
+  langues, et si les deux dictionnaires ne couvrent pas exactement les mêmes clés ;
+- un test échoue si la référence générée contient une clé de traduction brute.
+
+Seule exception assumée à la règle : la **ligne de diagnostic de `?debug=1`**, un vidage
+d'identifiants dense lu par une seule personne.
+
+### 6. Audio définitif
+
+`AudioBank` cherche l'échantillon livré, et retombe sur le son synthétisé du Lot 3 s'il
+n'existe pas encore. Les sons peuvent donc arriver **un par un**, et chacun se juge en contexte
+dès qu'il est déposé. Le contrat est le nom de fichier, listé dans [`docs/audio.md`](docs/audio.md).
+
+Les échantillons sont décodés dans **le contexte audio que le synthétiseur possède déjà**,
+plutôt que confiés au gestionnaire de sons de Phaser : sinon ce seraient deux `AudioContext`,
+deux chaînes de gain et deux volumes à tenir d'accord, exactement le doublon que `CLAUDE.md`
+interdit pour les particules.
+
+Quatre sons ajoutés : `slow`, `draftOpen`, `draftPick`, `button`. `slow` manquait depuis le
+Lot 2.5 — le gel était la **seule attaque muette du jeu**, alors que c'est elle qui achète du
+temps ; l'entendre, c'est savoir qu'elle a pris.
+
+La musique attend le premier `pointerdown`. Ce n'est pas contournable (politique d'autoplay
+des navigateurs), et c'est aussi la politesse minimale envers un onglet qu'on vient d'ouvrir.
+
+### 7. Polices, marque, crédits, captures
+
+**Polices auto-hébergées.** Un `<link>` vers Google Fonts violerait la règle « aucune requête
+externe » de la checklist, ajouterait deux allers-retours DNS aux 3 s de chargement imposées,
+et rendrait l'affichage dépendant d'un tiers. Les `.woff2` passent donc par `assets-src/fonts/`,
+même porte d'entrée et même comptabilité de poids que le reste. Deux rôles, déduits du nom de
+fichier : `display-*` pour les titres, `body-*` pour tout ce qui se lit vraiment.
+
+**Le nom du jeu n'est écrit qu'une fois**, dans `src/i18n/en.json` → `game.title`. Un greffon
+Vite l'injecte dans la balise `<title>` d'`index.html`, et `main.js` la réécrit ensuite dans la
+langue choisie. Le jour où le nom définitif arrive, il y a **un** endroit à changer — et le
+favicon à redessiner.
+
+**Page de crédits**, atteinte depuis le panneau d'aide. Ce n'est pas une politesse : les icônes
+de game-icons.net sont sous CC BY 3.0, dont l'attribution est la condition d'usage, et le
+portail demande de déclarer l'origine des assets. Le contenu vient de
+[`src/config/credits.json`](src/config/credits.json) — ce sont des noms propres, ils ne se
+traduisent pas. Une section vide disparaît, pour que la page ne promette jamais des crédits qui
+n'existent pas encore.
+
+**Mode capture — `?screenshot=1`.** Il retire de l'écran ce qui n'est pas le jeu (boutons son
+et aide, ligne de diagnostic) et ajoute un bouton de **gel**. Une capture réussie demande une
+composition précise — une vague pleine, une météorite en vol, la ligne qui tient de justesse —
+et ces instants durent une demi-seconde. Un bouton plutôt qu'un raccourci clavier, parce que
+les captures se prennent aussi sur un téléphone. Le gel arrête aussi les tweens : sinon un item
+en vol continuerait sa course pendant que la simulation est figée, et la capture montrerait une
+scène impossible.
+
+### 8. Ce qui est testable
+
+- `npm test` : **661 tests** (+63) — manifest et messages d'erreur, découpe, détourage
+  (dont la préservation d'un blanc intérieur), rognage, packing (non-chevauchement, bornes,
+  déterminisme, minimisation de surface), galerie, i18n (couverture croisée des dictionnaires
+  et de `balance.json`, pluriels, replis, détection de langue), skin (paliers, repli, absence
+  d'index), polices, banque audio (repli, étranglement, musique, sting), drapeaux d'URL.
+- `npm run sim` : inchangé, et c'est le point — voir le tableau ci-dessous.
+- `npm run assets` puis `npm run assets` : le second passage n'écrit rien.
+- **Au navigateur** : démarrage sans erreur en 390×780 et 1280×800, en anglais et en français,
+  aide → crédits → retour, aucune requête sortante.
+- **`/gallery/`** sur le déploiement : la liste des 52 sprites attendus, tous manquants
+  aujourd'hui.
+
+### 9. Objectifs chiffrés — inchangés
+
+| objectif | seuil | Lot 4.5 | Lot 5 |
+| --- | --- | --- | --- |
+| première défaite | vagues 8-12 | 9,45 | **9,45** |
+| durée de partie | 3:00-5:00 | 3:53 | **3:53** |
+| « merger bat spammer » | ≥ ×1,4 | ×1,45 | **×1,45** |
+| « les pouvoirs se voient » | ≥ +0,5 vague | +1,20 | **+1,20** |
+
+Mesures : `npm run sim` par défaut (20 parties par politique, graine 1). L'identité n'est pas
+une affirmation mais une conséquence vérifiable : `balance.json` est **numériquement
+identique** au Lot 4.5 une fois les libellés retirés, et `juice.json` n'a fait que gagner des
+clés (quatre sons, deux volumes de catégorie) sans qu'aucune valeur existante ne bouge.
+
+Aucune valeur de gameplay n'a été touchée, et les seuils tactiles (`input.tapMaxDistancePx`,
+`tapMaxDurationMs`, `overlayGraceMs`) sont identiques. L'habillage ne modifie ni les
+proportions, ni les hitboxes, ni le seuil tap/glisser.
+
+### 10. Poids
+
+| poste | poids |
+| --- | --- |
+| bundle JavaScript (Phaser + jeu) | 1,29 Mo (356 Ko gzip) |
+| `index.html` + favicon | 2 Ko |
+| atlas d'assets | **0 o** — aucun asset livré |
+| audio | **0 o** — sons synthétisés à l'exécution |
+| polices | **0 o** — pile système |
+| **`dist/` total** | **1,30 Mo** |
+| **archive de soumission** | **356 Ko** |
+
+Cible 10 Mo, limite dure 20 Mo : il reste **8,7 Mo** avant la cible pour les planches, les
+sons et la musique. Repères pour dimensionner : un atlas de 20 sprites à 224 px pèse
+typiquement 150 à 400 Ko en WebP qualité 82, et la musique est de loin le plus gros fichier
+attendu (viser < 1,5 Mo).
+
+### 11. Publication — Basic Launch
+
+La checklist exécutée est dans [`docs/release-checklist.md`](docs/release-checklist.md).
+
+**Produire l'archive**
+
+```bash
+npm run build && npm run package   # → release/merge-battler.zip
+```
+
+ou la télécharger depuis l'artefact `merge-battler-submission` du dernier build du CI (c'est
+la voie utilisable depuis un téléphone).
+
+L'archive contient `index.html` **à la racine** — pas dans un sous-dossier. C'est la faute
+classique : `zip -r jeu.zip dist/` produit `dist/index.html`, et le portail refuse l'archive
+sans dire pourquoi. La galerie d'assets et les métadonnées internes du pipeline en sont
+exclues.
+
+**Sur le portail développeur** (https://developer.crazygames.com)
+
+1. **New game** → *HTML5* → **Basic Launch**.
+2. **Upload** de `merge-battler.zip`. Le portail détecte `index.html` à la racine et sert le
+   jeu depuis son propre domaine.
+3. **Titre** : celui de `src/i18n/en.json` → `game.title`.
+4. **Catégorie** : *Puzzle* en principal, *Strategy* en secondaire — le geste est un merge,
+   la décision est de la stratégie.
+5. **Description EN** : fournie par Nathan. `game.tagline` du dictionnaire anglais donne
+   l'accroche d'une ligne.
+6. **Contrôles** : « Tap an orb to summon · drag to merge » — souris et tactile, aucun clavier.
+7. **Vignette et captures** : à téléverser sur le portail. Le mode `?screenshot=1` sert
+   exactement à les produire.
+8. **Orientation** : les deux ; le layout est responsive par construction.
+9. **Soumettre.** La revue Crazy Games prend en général quelques jours ouvrés.
+
+**Ce qui reste à Nathan, et rien d'autre** : les assets, le nom définitif, la vignette, la
+description, et le clic final.

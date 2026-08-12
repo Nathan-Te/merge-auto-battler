@@ -7,7 +7,7 @@
 >
 > Toute livraison qui touche `balance.json` le régénère (cf. `CLAUDE.md`).
 
-Version de `balance.json` : **8**.
+Version de `balance.json` : **9**.
 
 ## En deux gestes
 
@@ -27,7 +27,7 @@ c’est ce qui rend le spam de petites unités perdant.
 Quatre types au périmètre V1. Les stats listées sont **calculées par les formules du
 jeu** (`unitStats`) : `stat(tier) = stat(1) × facteur^(tier-1)`.
 
-### Mono-cible — `single`
+### Archer — `single`
 
 Frappe une cible à la fois. Le généraliste : jamais le meilleur, jamais mauvais.
 
@@ -44,7 +44,7 @@ Rôle `damage` · vitesse de marche 70 unités de couloir/s (elle ne dépend pas
 | 8 | 10214.5 | 3064.3 | 566 | 237 |
 | 11 | 124279.5 | 37283.9 | 516 | 266 |
 
-### Zone — `aoe`
+### Pyromancien — `aoe`
 
 Touche aussi les ennemis autour de sa cible. Redoutable contre les paquets serrés.
 
@@ -61,9 +61,9 @@ Rôle `aoe` · vitesse de marche 64 unités de couloir/s (elle ne dépend pas du
 | 8 | 7590.2 | 1751.6 | 955 | 211 | 218 |
 | 11 | 86456.7 | 19951.5 | 899 | 237 | 290 |
 
-### Ralentisseur — `slow`
+### Mage de givre — `slow`
 
-Frappe une cible et ralentit toute la zone autour. Il achète du temps.
+Frappe une cible et gèle toute la zone autour. Il achète du temps.
 
 Rôle `slow` · vitesse de marche 64 unités de couloir/s (elle ne dépend pas du tier).
 
@@ -80,9 +80,9 @@ Rôle `slow` · vitesse de marche 64 unités de couloir/s (elle ne dépend pas d
 
 Le facteur de ralentissement vaut **0.38** à tous les tiers : c'est la durée et le rayon qui montent, sinon un ralentisseur de haut tier immobiliserait la vague.
 
-### Soutien — `support`
+### Porte-étendard — `support`
 
-Ne frappe jamais : il multiplie les dégâts et la cadence des alliés autour de lui.
+Ne frappe jamais : il augmente les dégâts et la cadence des alliés autour de lui.
 
 Rôle `support` · vitesse de marche 76 unités de couloir/s (elle ne dépend pas du tier).
 
@@ -167,9 +167,9 @@ est appliqué par-dessus (voir plus bas).
 
 | type | PV | vitesse | dégâts base | dégâts unités | cadence (ms) | portée |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Basique** (`basic`) | 24 | 44 | 6 | 18 | 800 | 40 |
-| **Rapide** (`fast`) | 13 | 106 | 5 | 10 | 500 | 34 |
-| **Tank** (`tank`) | 95 | 26 | 14 | 42 | 1200 | 50 |
+| **Gobelin** (`basic`) | 24 | 44 | 6 | 18 | 800 | 40 |
+| **Loup** (`fast`) | 13 | 106 | 5 | 10 | 500 | 34 |
+| **Ogre** (`tank`) | 95 | 26 | 14 | 42 | 1200 | 50 |
 
 ### Montée en puissance par vague
 
@@ -177,7 +177,7 @@ PV ×**1.66**, vitesse ×**1.02**, dégâts aux unités
 ×**1.28**, le tout à la puissance (vague − 1). Les dégâts à la base,
 eux, **ne montent pas** : la pression vient des PV, de la vitesse et du nombre.
 
-| vague | PV basique | PV rapide | PV tank |
+| vague | PV gobelin | PV loup | PV ogre |
 | --- | --- | --- | --- |
 | 1 | 24 | 13 | 95 |
 | 3 | 66 | 36 | 262 |
@@ -195,20 +195,20 @@ d'ennemis égal, un rush et un mur ne sont pas la même vague.
 
 | vague | texture | cadence | composition |
 | --- | --- | --- | --- |
-| 1 | Découverte | 900 ms | 3× Basique |
-| 2 | Découverte | 820 ms | 5× Basique |
-| 3 | Premiers rapides | 760 ms | 5× Basique, 4× Rapide |
-| 4 | Rush | 220 ms | 14× Rapide |
-| 5 | Mur de tanks | 1100 ms | 4× Tank, 6× Basique |
-| 6 | Marée mixte | 520 ms | 12× Basique, 9× Rapide |
-| 7 | Rush blindé | 200 ms | 20× Rapide, 5× Tank |
-| 8 | Marée | 480 ms | 16× Basique, 12× Rapide |
-| 9 | Mur épais | 1000 ms | 8× Tank, 12× Basique |
-| 10 | Tout à la fois | 200 ms | 26× Rapide, 12× Basique, 5× Tank |
-| 11 *(générée)* | Vague mixte | 670 ms | 12× Basique, 14× Rapide, 6× Tank |
-| 12 *(générée)* | Vague mixte | 657 ms | 15× Basique, 17× Rapide, 7× Tank |
-| 13 *(générée)* | Vague mixte | 643 ms | 18× Basique, 22× Rapide, 9× Tank |
-| 14 *(générée)* | Vague mixte | 631 ms | 23× Basique, 24× Rapide, 11× Tank |
+| 1 | Découverte | 900 ms | 3× Gobelin |
+| 2 | Découverte | 820 ms | 5× Gobelin |
+| 3 | Premiers rapides | 760 ms | 5× Gobelin, 4× Loup |
+| 4 | Rush | 220 ms | 14× Loup |
+| 5 | Mur d'ogres | 1100 ms | 4× Ogre, 6× Gobelin |
+| 6 | Marée mixte | 520 ms | 12× Gobelin, 9× Loup |
+| 7 | Rush blindé | 200 ms | 20× Loup, 5× Ogre |
+| 8 | Marée | 480 ms | 16× Gobelin, 12× Loup |
+| 9 | Mur épais | 1000 ms | 8× Ogre, 12× Gobelin |
+| 10 | Tout à la fois | 200 ms | 26× Loup, 12× Gobelin, 5× Ogre |
+| 11 *(générée)* | Vague mixte | 670 ms | 12× Gobelin, 14× Loup, 6× Ogre |
+| 12 *(générée)* | Vague mixte | 657 ms | 15× Gobelin, 17× Loup, 7× Ogre |
+| 13 *(générée)* | Vague mixte | 643 ms | 18× Gobelin, 22× Loup, 9× Ogre |
+| 14 *(générée)* | Vague mixte | 631 ms | 23× Gobelin, 24× Loup, 11× Ogre |
 
 Préparation avant la vague 1 : **9 s**.
 Pause entre deux vagues : **7 s** — c'est le
@@ -223,19 +223,19 @@ accumule un modificateur appliqué au moment de lire une stat.
 
 | carte | niveaux | effet par niveau | description |
 | --- | --- | --- | --- |
-| **Cadence** (`fireRate`) | 3 | `unitFireRate` ×0.88 (−12 %) | Toutes les unités frappent 12 % plus vite. |
-| **Puissance** (`power`) | 3 | `unitDamage` ×1.18 (+18 %) | +18 % de dégâts pour toutes les unités. |
-| **Portée** (`reach`) | 2 | `unitRange` ×1.14 (+14 %) | +14 % de portée : vos unités engagent plus tôt. |
-| **Blindage** (`plating`) | 2 | `unitHp` ×1.22 (+22 %) | +22 % de PV pour les unités à venir. |
-| **Sortie rapide** (`deploy`) | 3 | `deployCooldown` ×0.88 (−12 %) | −12 % sur le cooldown de sortie de la file. |
-| **File élargie** (`slot`) | 2 | `slotBonus` +1 | +1 place dans la file de déploiement. |
-| **Fortifications** (`fortify`) | 3 | `baseHpBonus` +22 | +22 PV de base, et autant de PV rendus tout de suite. |
-| **Gisement riche** (`richVein`) | 2 | `spawnTierBonus` +1 | Les items apparaissent un tier plus haut. |
-| **Extraction** (`extraction`) | 3 | `spawnInterval` ×0.86 (−14 %) | −14 % sur l'intervalle d'apparition des items. |
-| **Étendard** (`banner`) | 2 | `support` : effect ×1.35, range ×1.2 | Aura et bonus du soutien +35 %. |
-| **Réflexe** (`reflex`) | 2 | `skipCooldown` ×0.65 (−35 %) | −35 % sur le cooldown du bouton « passer ». |
+| **Cadence** (`fireRate`) | 3 | `unitFireRate` ×0.88 (−12 %) | Toutes les unités frappent 12 % plus vite. |
+| **Puissance** (`power`) | 3 | `unitDamage` ×1.18 (+18 %) | +18 % de dégâts pour toutes les unités. |
+| **Portée** (`reach`) | 2 | `unitRange` ×1.14 (+14 %) | +14 % de portée : vos unités engagent plus tôt. |
+| **Blindage** (`plating`) | 2 | `unitHp` ×1.22 (+22 %) | +22 % de PV pour les unités à venir. |
+| **Invocation rapide** (`deploy`) | 3 | `deployCooldown` ×0.88 (−12 %) | −12 % sur le cooldown d'invocation. |
+| **Cercle élargi** (`slot`) | 2 | `slotBonus` +1 | +1 place dans le cercle d'invocation. |
+| **Fortifications** (`fortify`) | 3 | `baseHpBonus` +22 | +22 PV de château, et autant de PV rendus tout de suite. |
+| **Gisement riche** (`richVein`) | 2 | `spawnTierBonus` +1 | Les orbes apparaissent un tier plus haut. |
+| **Extraction** (`extraction`) | 3 | `spawnInterval` ×0.86 (−14 %) | −14 % sur l'intervalle d'apparition des orbes. |
+| **Étendard** (`banner`) | 2 | `support` : effect ×1.35, range ×1.2 | Aura et bonus du porte-étendard +35 %. |
+| **Réflexe** (`reflex`) | 2 | `skipCooldown` ×0.65 (−35 %) | −35 % sur le cooldown du bouton « passer ». |
 | **Charge arcanique** (`arcane`) | 3 | `powerAmount` ×1.3 (+30 %) | +30 % de puissance pour les pouvoirs (soin et dégâts). |
-| **Résonance** (`resonance`) | 2 | `powerChance` ×1.45 (+45 %) | +45 % de chances qu'un item soit un pouvoir. |
+| **Résonance** (`resonance`) | 2 | `powerChance` ×1.45 (+45 %) | +45 % de chances qu'un orbe soit un pouvoir. |
 
 Les facteurs se composent **par produit** à chaque niveau (deux fois « +18 % » vaut ×1,39,
 pas ×1,36) ; les quantités entières (places, PV, tiers) s’additionnent.

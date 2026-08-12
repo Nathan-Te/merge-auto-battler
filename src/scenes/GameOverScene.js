@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 
 import juiceConfig from '../config/juice.json';
 import { DEPTH } from '../render/depths.js';
+import { FONTS } from '../render/fonts.js';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Écran de game over — greybox : vagues survécues, record local, bouton rejouer.
@@ -36,9 +38,6 @@ const COLORS = {
   record: '#ffd93d',
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
     super('GameOverScene');
@@ -68,10 +67,10 @@ export default class GameOverScene extends Phaser.Scene {
       .setStrokeStyle(2, COLORS.panelStroke, 0.9)
       .setDepth(DEPTH.banner + 1);
 
-    this.titleText = this.text('Game over', { fontStyle: 'bold', color: COLORS.text });
+    this.titleText = this.text(t('gameOver.title'), { fontStyle: 'bold', color: COLORS.text });
     this.scoreText = this.text(this.scoreLabel(0), { color: COLORS.text });
     this.bestText = this.text(
-      this.isRecord ? `Nouveau record !` : `Record : ${this.best}`,
+      this.isRecord ? t('gameOver.newRecord') : t('gameOver.best', { best: this.best }),
       { color: this.isRecord ? COLORS.record : COLORS.textDim }
     );
 
@@ -79,7 +78,7 @@ export default class GameOverScene extends Phaser.Scene {
       .rectangle(0, 0, 10, 10, COLORS.button, 1)
       .setDepth(DEPTH.banner + 2)
       .setInteractive({ useHandCursor: true });
-    this.buttonText = this.text('Rejouer', { fontStyle: 'bold', color: '#12141c' });
+    this.buttonText = this.text(t('gameOver.replay'), { fontStyle: 'bold', color: '#12141c' });
     this.buttonText.setDepth(DEPTH.banner + 3);
 
     // Le build, dans le panneau : c'est ce qu'on relit avant de rappuyer sur « rejouer ».
@@ -92,7 +91,7 @@ export default class GameOverScene extends Phaser.Scene {
       this.recap && this.debug
         ? this.add
             .text(0, 0, this.formatRecap(this.recap), {
-              fontFamily: MONO,
+              fontFamily: FONTS.mono,
               color: COLORS.textDim,
               align: 'left',
             })
@@ -120,8 +119,10 @@ export default class GameOverScene extends Phaser.Scene {
   }
 
   scoreLabel(value) {
-    const plural = value > 1 ? 's' : '';
-    return `${value} vague${plural} survécue${plural}`;
+    // Le pluriel est choisi par le dictionnaire (`{ one, other }`) et non recollé ici :
+    // toutes les langues ne l'accordent pas de la même façon, et l'anglais ne met pas de
+    // « s » au même endroit que le français.
+    return t('gameOver.score', { count: value });
   }
 
   /**
@@ -160,9 +161,17 @@ export default class GameOverScene extends Phaser.Scene {
    */
   formatBuild(recap) {
     const upgrades = recap.upgrades ?? [];
+    // Le récap reçoit des **identifiants** de carte : c'est ici qu'ils deviennent des noms.
     const build = upgrades.length
-      ? upgrades.map((entry) => (entry.level > 1 ? `${entry.label} ×${entry.level}` : entry.label)).join(' · ')
-      : 'aucune amélioration prise';
+      ? upgrades
+          .map((entry) => {
+            const label = t(`draft.upgrades.${entry.id}.label`);
+            return entry.level > 1
+              ? t('gameOver.upgradeLevel', { label, level: entry.level })
+              : label;
+          })
+          .join(' · ')
+      : t('gameOver.noUpgrades');
 
     const best = Object.entries(recap.damageByType)
       .filter(([, value]) => value > 0)
@@ -174,11 +183,11 @@ export default class GameOverScene extends Phaser.Scene {
     const topTier = tiers.length > 0 ? tiers[0][0] : '—';
 
     return [
-      `Build : ${build}`,
+      t('gameOver.build', { build }),
       best
-        ? `${recap.unitLabels?.[best[0]] ?? best[0]} a porté ${share} % des dégâts`
-        : 'aucun dégât infligé',
-      `${recap.sent} envois · ${recap.merges} fusions · meilleur tier ${topTier}` +
+        ? t('gameOver.damageShare', { unit: t(`units.${best[0]}.label`), share })
+        : t('gameOver.noDamage'),
+      t('gameOver.summary', { sent: recap.sent, merges: recap.merges, tier: topTier }) +
         this.formatPowers(recap),
     ].join('\n');
   }
@@ -191,8 +200,9 @@ export default class GameOverScene extends Phaser.Scene {
   formatPowers(recap) {
     if (!(recap.powersUsed > 0)) return '';
     const favourite = Object.entries(recap.powersByType ?? {}).sort((a, b) => b[1] - a[1])[0];
-    const label = favourite ? recap.powerLabels?.[favourite[0]] ?? favourite[0] : null;
-    return ` · ${recap.powersUsed} pouvoirs${label ? ` (surtout ${label})` : ''}`;
+    const count = recap.powersUsed;
+    if (!favourite) return t('gameOver.powers', { count });
+    return t('gameOver.powersFavourite', { count, label: t(`powers.${favourite[0]}.label`) });
   }
 
   /** Récap de réglage — lecture d'équilibrage, `?debug=1` seulement. */
@@ -236,7 +246,7 @@ export default class GameOverScene extends Phaser.Scene {
 
   text(content, style) {
     return this.add
-      .text(0, 0, content, { fontFamily: FONT, align: 'center', ...style })
+      .text(0, 0, content, { fontFamily: FONTS.body, align: 'center', ...style })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(sceneTextResolution(this));

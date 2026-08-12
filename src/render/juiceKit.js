@@ -1,8 +1,8 @@
 /**
  * `JuiceKit` — la boîte à outils de feedback partagée par la scène et la vue de combat.
  *
- * Particules, secousses, vignette de dégâts et sons vivent ici, en **un seul exemplaire**
- * par partie : `GameScene` la possède et la prête à `BattleView`. Sans ça, chaque vue
+ * Particules, secousses, vignette de dégâts, sons et musique vivent ici, en **un seul
+ * exemplaire** par partie : `GameScene` la possède et la prête à `BattleView`. Sans ça, chaque vue
  * gérerait son propre pool de particules et son propre contexte audio, et le budget de
  * performance du Lot 3 (60 fps mobile en charge) partirait en doublons.
  *
@@ -10,7 +10,7 @@
  */
 
 import { ParticleField } from './particles.js';
-import { Sfx } from '../systems/sfx.js';
+import { AudioBank, collectSamples } from '../systems/audio.js';
 import { DEPTH } from './depths.js';
 
 const VIGNETTE_KEY = 'juice-vignette';
@@ -55,7 +55,12 @@ export class JuiceKit {
       depth: DEPTH.particles,
     });
 
-    this.sfx = new Sfx(juice);
+    // `sfx` reste le nom historique : tout le jeu appelle `juice.sfx.unlock()` /
+    // `.toggle()`, et `AudioBank` expose la même surface. Ce qui change est dessous —
+    // un échantillon livré remplace sa version synthétisée, son par son.
+    this.sfx = new AudioBank(juice, {
+      samples: collectSamples(scene, scene.registry.get('assetIndex')),
+    });
 
     this.vignette = ensureVignetteTexture(scene)
       ? scene.add.image(0, 0, VIGNETTE_KEY).setOrigin(0, 0).setAlpha(0).setDepth(DEPTH.vignette)
@@ -121,6 +126,16 @@ export class JuiceKit {
   /** Un son, s'il est déverrouillé et hors étranglement. */
   play(name) {
     return this.sfx.play(name);
+  }
+
+  /** La boucle musicale — sans effet tant qu'aucune musique n'a été livrée. */
+  startMusic() {
+    return this.sfx.startMusic();
+  }
+
+  /** Le sting de défaite, dans le silence laissé par la musique coupée. */
+  playDefeat() {
+    return this.sfx.playDefeat();
   }
 
   update(deltaMs) {

@@ -3,10 +3,12 @@ import Phaser from 'phaser';
 import juiceConfig from '../config/juice.json';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
-import { drawUnitShape } from '../render/battleShapes.js';
-import { drawPowerShape } from '../render/powerShapes.js';
+import { createVisual, repaintVisual } from '../render/visuals.js';
+import { Skin } from '../render/skin.js';
+import { FONTS } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Panneau d'aide — le « ? » de l'en-tête. Lancé par-dessus `GameScene` **mise en pause**,
@@ -43,16 +45,13 @@ const COLORS = {
   accent: '#ffd93d',
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-
 export default class HelpScene extends Phaser.Scene {
   constructor() {
     super('HelpScene');
   }
 
   /**
-   * @param {{units: {type: string, label: string, role: string}[],
-   *          powers: {type: string, label: string, role: string}[], draftEveryWaves: number,
+   * @param {{units: string[], powers: string[], draftEveryWaves: number,
    *          skipCooldownMs: number, graceMs: number, onClose: () => void,
    *          juice: import('../render/juiceKit.js').JuiceKit}} data
    */
@@ -64,7 +63,8 @@ export default class HelpScene extends Phaser.Scene {
     this.onClose = data?.onClose ?? (() => {});
     this.juice = data?.juice ?? null;
     this.juiceConfig = parseJuiceConfig(juiceConfig);
-    this.guard = new OverlayGuard({ graceMs: data?.graceMs ?? 0 });
+    this.graceMs = data?.graceMs ?? 0;
+    this.guard = new OverlayGuard({ graceMs: this.graceMs });
     this.closing = false;
   }
 
@@ -79,6 +79,9 @@ export default class HelpScene extends Phaser.Scene {
 
   create() {
     this.guard.open(this.now());
+    // Le panneau est une scène à part : il construit son propre `Skin` sur le même index.
+    // Les textures, elles, sont globales — rien n'est chargé deux fois.
+    this.skin = new Skin(this, this.registry.get('assetIndex'));
 
     this.veil = this.add
       .rectangle(0, 0, 10, 10, COLORS.veil, 0.94)
@@ -95,34 +98,35 @@ export default class HelpScene extends Phaser.Scene {
     // bas et sa hauteur se déduit de son contenu. Ancrer au milieu ferait déborder les
     // textes multi-lignes par-dessus le bloc précédent — ce qui est exactement ce qui
     // arrivait avant.
-    this.titleText = this.label('Comment on joue', {
+    this.titleText = this.label(t('help.title'), {
       fontStyle: 'bold',
       color: COLORS.accent,
     }).setOrigin(0.5, 0);
 
-    this.gestureText = this.label(
-      'Taper un item → il part au combat, du type en tête de file.\n' +
-        'Glisser sur un item de la même sorte et du même tier → fusion.\n' +
-        'Sinon, les deux items échangent leur place : rangez votre grille.',
-      { color: COLORS.text, align: 'left' }
-    ).setOrigin(0, 0);
+    this.gestureText = this.label(t('help.gestures'), {
+      color: COLORS.text,
+      align: 'left',
+    }).setOrigin(0, 0);
 
-    this.unitsTitle = this.label('Les quatre unités', {
+    this.unitsTitle = this.label(t('help.unitsTitle'), {
       fontStyle: 'bold',
       color: COLORS.accent,
     }).setOrigin(0, 0);
 
-    /** Une ligne par type : forme greybox à gauche, rôle à droite. */
-    this.unitRows = this.units.map((unit) => ({
-      unit,
-      shape: this.add.graphics().setDepth(DEPTH.banner + 2),
-      text: this.label(`${unit.label} — ${unit.role}`, {
-        color: COLORS.text,
-        align: 'left',
-      }).setOrigin(0, 0),
+    /** Une ligne par type : forme à gauche, rôle à droite. Le panneau reçoit des
+     * identifiants de type et va chercher lui-même son texte : c'est la règle du Lot 5. */
+    this.unitRows = this.units.map((type) => ({
+      unit: { type },
+      shape: createVisual(this, this.skin, { kind: 'unit', type, tier: 1 }, 24).setDepth(
+        DEPTH.banner + 2
+      ),
+      text: this.label(
+        t('help.row', { label: t(`units.${type}.label`), role: t(`units.${type}.blurb`) }),
+        { color: COLORS.text, align: 'left' }
+      ).setOrigin(0, 0),
     }));
 
-    this.powersTitle = this.label('Les pouvoirs', {
+    this.powersTitle = this.label(t('help.powersTitle'), {
       fontStyle: 'bold',
       color: COLORS.accent,
     }).setOrigin(0, 0);
@@ -130,27 +134,25 @@ export default class HelpScene extends Phaser.Scene {
     // La règle avant les pouvoirs eux-mêmes : c'est la silhouette qui doit rester en tête,
     // pas la liste. Un joueur qui retient « rond = pouvoir » n'en dépensera pas un par
     // erreur, même s'il a oublié lequel fait quoi.
-    this.powersRule = this.label(
-      'Rond = pouvoir. Tap pour l’utiliser tout de suite : pas de file, pas d’attente.\n' +
-        'Un pouvoir ne fusionne qu’avec le même pouvoir — jamais avec un item d’unité.',
-      { color: COLORS.text, align: 'left' }
-    ).setOrigin(0, 0);
+    this.powersRule = this.label(t('help.powersRule'), {
+      color: COLORS.text,
+      align: 'left',
+    }).setOrigin(0, 0);
 
     /** Une ligne par pouvoir, même grammaire que les unités : forme puis rôle. */
-    this.powerRows = this.powers.map((power) => ({
-      power,
-      shape: this.add.graphics().setDepth(DEPTH.banner + 2),
-      text: this.label(`${power.label} — ${power.role}`, {
-        color: COLORS.text,
-        align: 'left',
-      }).setOrigin(0, 0),
+    this.powerRows = this.powers.map((type) => ({
+      power: { type },
+      shape: createVisual(this, this.skin, { kind: 'power', type, tier: 1 }, 24).setDepth(
+        DEPTH.banner + 2
+      ),
+      text: this.label(
+        t('help.row', { label: t(`powers.${type}.label`), role: t(`powers.${type}.blurb`) }),
+        { color: COLORS.text, align: 'left' }
+      ).setOrigin(0, 0),
     }));
 
     this.rhythmText = this.label(
-      `La file en haut annonce les 3 prochains types ; « passer » en défausse un ` +
-        `(${this.skipSeconds} s).\n` +
-        `Chaque pause annonce la vague à venir. Toutes les ${this.draftEveryWaves} vagues, ` +
-        'une amélioration au choix.',
+      t('help.rhythm', { seconds: this.skipSeconds, waves: this.draftEveryWaves }),
       { color: COLORS.textDim, align: 'left' }
     ).setOrigin(0, 0);
 
@@ -158,8 +160,21 @@ export default class HelpScene extends Phaser.Scene {
       .rectangle(0, 0, 10, 10, COLORS.button, 1)
       .setDepth(DEPTH.banner + 2)
       .setInteractive({ useHandCursor: true });
-    this.buttonText = this.label('Reprendre', { fontStyle: 'bold', color: '#12141c' });
+    this.buttonText = this.label(t('help.close'), { fontStyle: 'bold', color: '#12141c' });
     this.buttonText.setDepth(DEPTH.banner + 3);
+
+    // Les crédits sont **obligatoires** (icônes en CC BY, fiche du portail) : ils doivent
+    // être atteignables sans menu, et l'aide est le seul écran que le joueur ouvre de son
+    // plein gré. Discret à côté de « reprendre », pour ne pas concurrencer la sortie.
+    this.creditsText = this.label(t('help.credits'), { color: COLORS.textDim })
+      .setOrigin(0.5, 0.5)
+      .setInteractive({ useHandCursor: true });
+    this.creditsText.on('pointerdown', (pointer) =>
+      this.guard.press(pointer.id, this.creditsText, this.now())
+    );
+    this.creditsText.on('pointerup', (pointer) => {
+      if (this.guard.release(pointer.id, this.creditsText)) this.openCredits();
+    });
 
     this.button.on('pointerover', () => this.button.setFillStyle(COLORS.buttonHover, 1));
     this.button.on('pointerout', (pointer) => {
@@ -196,17 +211,33 @@ export default class HelpScene extends Phaser.Scene {
 
   label(content, style) {
     return this.add
-      .text(0, 0, content, { fontFamily: FONT, align: 'center', ...style })
+      .text(0, 0, content, { fontFamily: FONTS.body, align: 'center', ...style })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(this.textResolution());
+  }
+
+  /**
+   * Ouvre les crédits **par-dessus l'aide**, et met l'aide en pause.
+   *
+   * On empile plutôt qu'on ne remplace : fermer les crédits doit ramener au panneau d'aide,
+   * pas au jeu. Un joueur venu lire les crédits n'a pas demandé à reprendre la partie.
+   */
+  openCredits() {
+    this.juice?.play('button');
+    this.scene.launch('CreditsScene', {
+      graceMs: this.graceMs,
+      returnTo: 'HelpScene',
+      juice: this.juice,
+    });
+    this.scene.pause();
   }
 
   close() {
     if (this.closing) return;
     this.closing = true;
     this.guard.close();
-    this.juice?.play('tap');
+    this.juice?.play('button');
     this.onClose();
     this.scene.resume('GameScene');
     this.scene.stop();
@@ -244,6 +275,9 @@ export default class HelpScene extends Phaser.Scene {
     const rowHeights = this.unitRows.map((row) => Math.max(iconSize, row.text.height));
     const powerRowHeights = this.powerRows.map((row) => Math.max(iconSize, row.text.height));
     const buttonHeight = Math.max(34, Math.round(body * 2.8));
+    // Le lien des crédits vit **dans** le panneau, sous le bouton : sa hauteur entre donc
+    // dans le calcul, sinon il déborderait par le bas sur un écran court.
+    const creditsHeight = Math.round(body * 1.9);
     const contentHeight =
       this.titleText.height +
       gap +
@@ -261,7 +295,8 @@ export default class HelpScene extends Phaser.Scene {
       gap * 0.8 +
       this.rhythmText.height +
       gap * 1.2 +
-      buttonHeight;
+      buttonHeight +
+      creditsHeight;
 
     return {
       body,
@@ -272,6 +307,7 @@ export default class HelpScene extends Phaser.Scene {
       rowHeights,
       powerRowHeights,
       buttonHeight,
+      creditsHeight,
       contentHeight,
     };
   }
@@ -317,6 +353,7 @@ export default class HelpScene extends Phaser.Scene {
       rowHeights,
       powerRowHeights,
       buttonHeight,
+      creditsHeight,
       contentHeight,
     } = metrics;
     const panelHeight = Math.min(height * 0.94, contentHeight + pad * 2);
@@ -338,7 +375,7 @@ export default class HelpScene extends Phaser.Scene {
     y += this.unitsTitle.height + gap * 0.8;
 
     this.unitRows.forEach((row, index) => {
-      drawUnitShape(row.shape, row.unit.type, 1, iconSize);
+      repaintVisual(row.shape, this.skin, { kind: 'unit', type: row.unit.type, tier: 1 }, iconSize);
       // La forme s'aligne sur la **première ligne** du texte, pas sur son milieu : sur une
       // description de trois lignes, une icône centrée paraîtrait décrocher.
       row.shape.setPosition(left + iconSize / 2, y + body * 0.6);
@@ -355,7 +392,7 @@ export default class HelpScene extends Phaser.Scene {
 
     this.powerRows.forEach((row, index) => {
       // Le tier 1 comme pour les unités : le panneau parle des **types**, pas des tiers.
-      drawPowerShape(row.shape, row.power.type, 1, iconSize);
+      repaintVisual(row.shape, this.skin, { kind: 'power', type: row.power.type, tier: 1 }, iconSize);
       row.shape.setPosition(left + iconSize / 2, y + body * 0.6);
       row.text.setPosition(left + textLeftOffset, y);
       y += powerRowHeights[index] + gap * 0.7;
@@ -365,9 +402,22 @@ export default class HelpScene extends Phaser.Scene {
     this.rhythmText.setPosition(left, y);
 
     const buttonWidth = panelWidth * 0.5;
-    const buttonY = cy + panelHeight / 2 - buttonHeight / 2 - pad * 0.5;
+    const buttonY = cy + panelHeight / 2 - buttonHeight / 2 - pad * 0.5 - creditsHeight;
     this.button.setPosition(cx, buttonY).setSize(buttonWidth, buttonHeight);
     this.button.input?.hitArea?.setTo(0, 0, buttonWidth, buttonHeight);
     this.buttonText.setFontSize(Math.round(buttonHeight * 0.4)).setPosition(cx, buttonY);
+
+    // Le lien des crédits se range **dans** le panneau, sous le bouton : posé dessous, il
+    // tomberait hors du panneau sur un écran court, là où le panneau occupe déjà 94 % de la
+    // hauteur.
+    this.creditsText
+      .setFontSize(Math.max(9, Math.round(body * 0.85)))
+      .setPosition(cx, cy + panelHeight / 2 - pad * 0.5 - creditsHeight / 2);
+    this.creditsText.input?.hitArea?.setTo(
+      0,
+      0,
+      this.creditsText.width,
+      this.creditsText.height
+    );
   }
 }

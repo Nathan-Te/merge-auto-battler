@@ -233,7 +233,9 @@ describe('BattleModel — vagues', () => {
     expect(model.phase).toBe(PHASE.WAVE);
     expect(starts).toHaveLength(1);
     expect(starts[0].wave).toBe(1);
-    expect(starts[0].description).toBe('1× Basique');
+    // `description` a quitté le modèle au Lot 5 : mettre une composition en mots demande
+    // de connaître la langue, ce qui n'est pas le métier d'un modèle pur.
+    expect(starts[0].composition).toEqual([{ type: 'basic', count: 1 }]);
   });
 
   it('respecte le délai avant la première vague', () => {

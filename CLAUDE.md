@@ -89,14 +89,65 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   — la tienne, celle d'un playtest, celle d'un joueur — s'écrit dans `docs/v1-1-ideas.md` et
   ne s'implémente pas. La timebox est ferme : une idée notée ne coûte rien, une idée ajoutée
   se paie sur le fini du jeu.
-- **Greybox jusqu'au Lot 4.** Formes colorées et texte, pas d'assets. Les sprites, sons et
-  musique arrivent au Lot 5 — n'anticipe pas, le fun se valide sur les formes.
-- **Rond = pouvoir, et sans exception.** Les items de pouvoir sont les **seules** formes
-  rondes du jeu : les items d'unité sont des polygones puis des étoiles
+- **Tout asset entre par `assets-src/`, jamais directement dans `public/assets/`.** Le
+  pipeline (`npm run assets`, cf. `src/tools/assets/`) découpe les planches déposées dans
+  `assets-src/` selon `assets-src/manifest.json`, détoure le fond blanc **par propagation
+  depuis les bords** (un blanc enfermé dans le dessin survit — un seuil global troue le
+  sprite), rogne, normalise par catégorie, range en atlas WebP et publie dans
+  `public/assets/`. Ce dossier est **entièrement généré** : le pipeline y écrit, y supprime ce
+  qui n'a plus de source, et le CI recommitte le résultat. Un fichier posé là à la main
+  disparaîtrait au prochain passage, sans prévenir, et personne ne saurait d'où il venait.
+  Les sons (`assets-src/audio/`) et les polices (`assets-src/fonts/`) passent par la même
+  porte : ils sont recopiés tels quels, mais **comptés dans le budget de poids**.
+  L'idempotence tient à une **empreinte des entrées** et non au déterminisme de l'encodeur
+  WebP, qui dépend de la version de libvips installée : à `assets-src/` inchangé, rien n'est
+  réencodé, donc le CI ne boucle pas sur son propre commit. `PIPELINE_VERSION` est à
+  incrémenter dès qu'un changement de code modifie les pixels produits.
+- **Tout problème d'asset se diagnostique dans la galerie avant de toucher au code.**
+  `npm run assets` génère `public/gallery/index.html`, déployée sur `/gallery/` hors de la
+  navigation du jeu : chaque sprite y est sur fond en **damier** (le seul moyen de voir un
+  halo blanc ou un bord mangé), avec ses dimensions, son poids et le budget en tête de page.
+  Elle annonce aussi les **manques** (ce que le jeu attend et qui n'existe pas) et les
+  **orphelins** (ce qui existe sans que le jeu le demande — presque toujours une faute de
+  frappe dans `names`). La boucle visée est opérable à 100 % au téléphone : upload d'une
+  planche via l'interface web de GitHub → CI → galerie à jour → correction du manifest. Un
+  sprite qui sort mal se corrige dans `assets-src/manifest.json`, pas dans une scène.
+- **Un asset absent ne casse jamais rien.** `src/render/visuals.js` est le **seul** endroit
+  qui tranche entre un sprite et une forme greybox ; toute vue s'y demande sous forme de
+  description (`{ kind: 'unit', type, tier }`). Le repli n'est pas une précaution mais le mode
+  de fonctionnement normal pendant toute la production : les assets arrivent par vagues, et
+  sans repli la première livraison rendrait le jeu injouable jusqu'à la dernière. Ne jamais
+  écrire un `if (le sprite existe)` dans une scène — les six écrans se désynchroniseraient à
+  la première planche livrée à moitié.
+- **Aucun texte affiché en dur, nulle part** — ni dans une scène, ni dans `balance.json`.
+  Tout passe par une clé de `src/i18n/` (`t('hud.baseHp', { current, max })`). Le jeu sort
+  **en anglais**, en français si le navigateur l'est, `?lang=` force l'un ou l'autre.
+  `balance.json` ne garde que ce qui décide qui gagne la partie, plus des **identifiants** :
+  `labelId` pour une vague scriptée, `id` pour une carte de draft. Corollaire structurel à ne
+  pas défaire : `waves.waveLabel()` rend un **descripteur** (`{ kind: 'tide', enemy }`) et non
+  une phrase, et `BattleModel` n'émet aucune chaîne destinée à l'écran — mettre une
+  composition en mots demande de connaître la langue, ce qui n'est pas le métier d'un modèle
+  pur. La mécanique vit dans `i18n/format.js`, **sans dictionnaire**, pour que `npm run docs`
+  l'utilise depuis Node et que la référence ne puisse pas diverger de l'interface. Deux tests
+  verrouillent l'ensemble : les deux dictionnaires couvrent exactement les mêmes clés, et
+  chaque identifiant de `balance.json` a son libellé dans les deux langues. Seule exception,
+  assumée : la ligne de diagnostic de `?debug=1`, un vidage d'identifiants lu par une seule
+  personne.
+- **Le greybox n'a pas disparu au Lot 5 : il est devenu le repli.** Les formes colorées des
+  Lots 1 à 4 sont toujours là, et c'est elles qu'on voit tant qu'un sprite n'est pas livré.
+  Elles restent donc à entretenir : un nouveau type d'unité ou de pouvoir se dessine
+  **d'abord** en greybox (`src/render/`), et son sprite vient après. C'est ce qui a permis de
+  valider tout le fun du jeu sans une seule image, et ce qui permet aujourd'hui de recevoir
+  les planches une par une.
+- **Rond = pouvoir, et sans exception — y compris en sprites.** Les items de pouvoir sont les
+  **seules** formes rondes du jeu : les items d'unité sont des polygones puis des étoiles
   (`src/render/tierShapes.js`), et même le mono-cible du champ de bataille est un carré
   depuis le Lot 4. C'est cette silhouette, pas la couleur ni le numéro, qui empêche de
   confondre « j'envoie une unité » et « je dépense un pouvoir » au doigt. Une exception
-  suffirait à casser la règle : ne pas en introduire.
+  suffirait à casser la règle : ne pas en introduire. **L'habillage du Lot 5 ne l'assouplit
+  pas** — une fiole et un orbe de météore restent des silhouettes rondes, un orbe
+  d'invocation ne l'est jamais, et c'est le premier point à regarder dans la galerie quand
+  une planche de pouvoirs arrive.
 - **Souris + tactile obligatoires sur toute interaction.** Chaque geste doit fonctionner au
   doigt comme à la souris, dès son écriture. On passe par les événements de pointeur
   Phaser (`pointerdown` / `drag` / `pointerup`), jamais par des événements souris ou
@@ -405,9 +456,17 @@ ou deux contextes audio mangeraient le budget de performance en doublons.
 npm run dev      # serveur de dev Vite (exposé sur le réseau local pour le test téléphone)
 npm test         # vitest, une passe
 npm run sim      # harness d'équilibrage headless — rapport par politique
-npm run docs     # régénère docs/reference.md depuis balance.json (obligatoire après réglage)
+npm run assets   # découpe assets-src/ → public/assets/ + galerie (obligatoire après un asset)
+npm run docs     # régénère les deux références depuis balance.json (obligatoire après réglage)
 npm run build    # build de production dans dist/
 npm run preview  # sert le build de production en local
+npm run package  # zip de soumission Crazy Games (index.html à la racine), dans release/
+```
+
+```bash
+npm run assets -- --check   # échoue si les sorties sont périmées (utilisé par le CI)
+npm run assets -- --force   # réencode tout, même à empreinte inchangée
+npm run docs -- --check     # même question pour docs/reference.md et docs/reference.en.md
 ```
 
 ```bash
@@ -432,14 +491,20 @@ src/render/       greybox : formes d'items et de pouvoirs, couleurs, profondeurs
                   particules, icônes de draft, boîte à juice
 src/sim/          harness d'équilibrage headless (`npm run sim`) — politiques, bancs
                   d'essai, rapport, objectifs chiffrés
-src/tools/        générateur de `docs/reference.md` (`npm run docs`)
-src/config/       balance.json + juice.json, chacun avec son schéma documenté
-public/           fichiers copiés tels quels dans dist/
+src/i18n/         dictionnaires EN/FR + moteur de traduction (`format.js`, sans dictionnaire)
+src/tools/        générateur des références (`npm run docs`), pipeline d'assets
+                  (`npm run assets`), zip de soumission (`npm run package`)
+src/config/       balance.json + juice.json + credits.json, chacun avec son schéma documenté
+assets-src/       **entrée unique des assets** : planches, audio, polices + manifest de découpe
+public/           fichiers copiés tels quels dans dist/ — dont `assets/` et `gallery/`,
+                  **entièrement générés** par le pipeline
 tests/            tests vitest
 docs/seed.md      périmètre — source de vérité
 docs/balance-notes.md  valeurs retenues, raisonnement, résultats du harness
 docs/reference.md      référence **générée** (unités, pouvoirs, ennemis, vagues, améliorations)
 docs/v1-1-ideas.md     salle d'attente : ce qui n'entre pas en V1
+docs/audio.md          les 18 sons attendus, leurs noms de fichiers et leur format
+docs/release-checklist.md  checklist de release, exécutée et cochée
 ```
 
 Règle de découpage : tout ce qui peut être testé sans Phaser vit dans `src/systems/` en
@@ -487,4 +552,26 @@ fonctions pures ; les scènes orchestrent et affichent.
   dégâts du joueur médian, `hpPerWave` relevé de 1,62 à 1,66 en face, objectifs chiffrés
   re-validés sans les déplacer (9,63 vagues, 4:06, merge bat spam ×1,47, pouvoirs +1,33
   vague). Mesures : `docs/balance-notes.md`, section 8.
-- Lot 5 — Assets IA, vignette, soumission Basic Launch.
+- **Lot 5 — Habillage & publication** ✅ Dernier lot de la V1, construit **avant** l'arrivée
+  des assets : pipeline `npm run assets` (découpe manifestée, détourage par propagation depuis
+  les bords, atlas WebP, galerie de revue au damier, idempotence par empreinte des entrées) ;
+  boucle CI opérable à 100 % depuis un téléphone (upload d'une planche → découpe → recommit →
+  galerie) ; couche de skin où **un asset absent ne casse rien**, ce qui permet de livrer les
+  planches par vagues ; localisation EN par défaut / FR au navigateur, tous les libellés
+  sortis de `balance.json` ; banque audio à repli par son et musique respectant l'autoplay ;
+  polices auto-hébergées ; page de crédits (CC BY des icônes) ; mode capture `?screenshot=1`
+  avec gel de la scène ; zip de soumission produit et déposé en artefact de CI. Aucune valeur
+  de gameplay touchée — les quatre objectifs chiffrés sont identiques au centième.
+
+## Après la V1
+
+**La V1 est close et part en Basic Launch.** Le périmètre gameplay l'était depuis le Lot 4 ;
+depuis le Lot 5, le périmètre tout court l'est aussi. Il ne reste que des assets à déposer,
+un nom à écrire à un seul endroit (`src/i18n/en.json` → `game.title`) et un clic sur le
+portail.
+
+Toute idée ultérieure — la tienne, celle d'un playtest, celle d'un joueur — s'écrit dans
+`docs/v1-1-ideas.md` et **attend les métriques**. C'est le point important : la V1 n'a encore
+été jouée par personne d'autre que nous, et les chiffres du portail (taux de reprise, durée de
+session, vague médiane) diront ce qui manque bien mieux qu'une intuition d'avant sortie.
+Implémenter maintenant, c'est parier ; attendre trois semaines de données, c'est choisir.

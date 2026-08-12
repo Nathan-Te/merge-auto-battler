@@ -223,8 +223,8 @@ describe('GameSession — HUD', () => {
       cooldownRatio: 1,
       blocked: false,
     });
-    expect(hud.nextUnitLabel).toBe(balance.units[PATTERN[0]].label);
-    expect(hud.followingUnitLabel).toBe(balance.units[PATTERN[1]].label);
+    expect(hud.nextUnitType).toBe(PATTERN[0]);
+    expect(hud.followingUnitType).toBe(PATTERN[1]);
   });
 
   it('suit la partie : vague en cours et vagues survécues', () => {
@@ -595,7 +595,9 @@ describe('GameSession — le tap sur un pouvoir (Lot 4)', () => {
     const recap = session.recap();
     expect(recap.powersUsed).toBe(1);
     expect(recap.powersByType).toEqual({ heal: 1 });
-    expect(recap.powerLabels.heal).toBe(balance.powers.types.heal.label);
+    // Plus de libellés dans le récap depuis le Lot 5 : l'écran de fin traduit lui-même les
+    // identifiants qu'il reçoit, dans la langue de la partie.
+    expect(recap.powerLabels).toBeUndefined();
   });
 
   it('ne survit pas à une partie : la seconde repart sans pouvoir en vol', () => {

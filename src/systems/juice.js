@@ -122,6 +122,15 @@ export const SFX_NAMES = [
   'powerCast',
   'powerBlast',
   'powerHeal',
+  /**
+   * Lot 5. `slow` manquait : le gel était la seule attaque muette du jeu, ce qui la rendait
+   * invisible à l'oreille alors que c'est elle qui achète du temps. Les deux temps du draft
+   * et le clic de bouton complètent la liste demandée au périmètre audio.
+   */
+  'slow',
+  'draftOpen',
+  'draftPick',
+  'button',
 ];
 
 /** Formes d'onde reconnues par le synthétiseur (`src/systems/sfx.js`). */
@@ -154,6 +163,15 @@ export function parseJuiceConfig(raw) {
 
   if (typeof raw.sound?.enabled !== 'boolean') {
     throw new Error('juice.json : sound.enabled manquant');
+  }
+
+  // Volumes par catégorie (Lot 5) : c'est le **rapport** entre effets et musique qu'on règle
+  // au casque, et il n'a de sens que si les deux existent.
+  for (const category of ['sfx', 'music']) {
+    const value = raw.sound?.categories?.[category];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw new Error(`juice.json : sound.categories.${category} manquant ou invalide`);
+    }
   }
 
   for (const name of SFX_NAMES) {

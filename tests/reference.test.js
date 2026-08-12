@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import balance from '../src/config/balance.json';
 import { generateReference, describeEffect } from '../src/tools/reference.js';
+import { createTranslator } from '../src/i18n/index.js';
 import { unitStats } from '../src/systems/battleConfig.js';
 import { parseBattleConfig } from '../src/systems/battleConfig.js';
 
@@ -12,7 +13,11 @@ import { parseBattleConfig } from '../src/systems/battleConfig.js';
  */
 
 const REFERENCE_PATH = new URL('../docs/reference.md', import.meta.url);
-const generated = generateReference(balance);
+const ENGLISH_PATH = new URL('../docs/reference.en.md', import.meta.url);
+// La référence de travail est en français ; le jeu, lui, sort en anglais. Les deux fichiers
+// portent exactement les mêmes nombres, et les deux sont vérifiés.
+const generated = generateReference(balance, { t: createTranslator('fr') });
+const generatedEnglish = generateReference(balance, { t: createTranslator('en') });
 
 describe('docs/reference.md — le fichier commité', () => {
   it('est à jour : `npm run docs` ne le changerait pas', () => {
@@ -20,6 +25,11 @@ describe('docs/reference.md — le fichier commité', () => {
     // régénère la référence »), appliquée par la CI plutôt que par la mémoire.
     const committed = readFileSync(REFERENCE_PATH, 'utf8');
     expect(committed).toBe(`${generated.trimEnd()}\n`);
+  });
+
+  it('a son jumeau anglais à jour, avec les libellés que voit le joueur', () => {
+    const committed = readFileSync(ENGLISH_PATH, 'utf8');
+    expect(committed).toBe(`${generatedEnglish.trimEnd()}\n`);
   });
 
   it('se présente comme généré, pour que personne ne l’édite', () => {
@@ -42,18 +52,29 @@ describe('generateReference — contenu', () => {
   });
 
   it('liste tous les types d’unités et d’ennemis de balance.json', () => {
-    for (const [id, def] of Object.entries(balance.units)) {
-      expect(generated).toContain(`${def.label} — \`${id}\``);
+    // Les libellés viennent des dictionnaires de `src/i18n/` depuis le Lot 5, mais les
+    // **identifiants** viennent toujours de `balance.json` : c'est lui qui décide de ce qui
+    // existe, et la référence doit tout couvrir.
+    const fr = createTranslator('fr');
+    for (const id of Object.keys(balance.units)) {
+      expect(generated).toContain(`${fr(`units.${id}.label`)} — \`${id}\``);
     }
-    for (const def of Object.values(balance.enemies)) {
-      expect(generated).toContain(def.label);
+    for (const id of Object.keys(balance.enemies)) {
+      expect(generated).toContain(fr(`enemies.${id}.label`));
     }
   });
 
   it('liste toutes les améliorations, avec leurs niveaux et leurs valeurs', () => {
+    const fr = createTranslator('fr');
     for (const upgrade of balance.draft.upgrades) {
-      expect(generated).toContain(`**${upgrade.label}** (\`${upgrade.id}\`)`);
-      expect(generated).toContain(upgrade.description);
+      expect(generated).toContain(`**${fr(`draft.upgrades.${upgrade.id}.label`)}** (\`${upgrade.id}\`)`);
+      expect(generated).toContain(fr(`draft.upgrades.${upgrade.id}.description`));
+    }
+  });
+
+  it('n’écrit jamais une clé de traduction brute — signe d’un libellé oublié', () => {
+    for (const rendered of [generated, generatedEnglish]) {
+      expect(rendered).not.toMatch(/\b(units|powers|enemies|draft\.upgrades|waves\.labels)\.[a-z]+\.(label|blurb|description)\b/i);
     }
   });
 

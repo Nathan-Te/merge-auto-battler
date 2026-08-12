@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 
+import { t } from '../i18n/index.js';
+
 import { DEPTH } from '../render/depths.js';
+import { FONTS } from '../render/fonts.js';
 import { DEBUG_SPEEDS } from '../systems/debug.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 
@@ -26,8 +29,6 @@ const COLORS = {
   textActive: '#12141c',
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-
 export class DebugPanel {
   /**
    * @param {Phaser.Scene} scene
@@ -43,14 +44,14 @@ export class DebugPanel {
 
     this.buttons = [
       ...DEBUG_SPEEDS.map((speed) =>
-        this.makeButton(`×${speed}`, () => {
+        this.makeButton(t('debug.speed', { speed }), () => {
           this.speed = speed;
           onSpeed(speed);
           this.refresh();
         })
       ),
-      this.makeButton('vague +', () => onSkipWave()),
-      this.makeButton('base ∞', () => {
+      this.makeButton(t('debug.nextWave'), () => onSkipWave()),
+      this.makeButton(t('debug.invincible'), () => {
         this.invincible = onToggleInvincible();
         this.refresh();
       }),
@@ -67,7 +68,7 @@ export class DebugPanel {
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
     const text = scene.add
-      .text(0, 0, label, { fontFamily: FONT, color: COLORS.text })
+      .text(0, 0, label, { fontFamily: FONTS.body, color: COLORS.text })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud + 1)
       .setResolution(sceneTextResolution(this));
@@ -105,8 +106,8 @@ export class DebugPanel {
     this.buttons.forEach((button) => {
       const isSpeed = button.label.startsWith('×');
       const active = isSpeed
-        ? button.label === `×${this.speed}`
-        : button.label === 'base ∞' && this.invincible;
+        ? button.label === t('debug.speed', { speed: this.speed })
+        : button.label === t('debug.invincible') && this.invincible;
       button.box.setFillStyle(active ? COLORS.buttonActive : COLORS.button, 1);
       button.text.setColor(active ? COLORS.textActive : COLORS.text);
     });
