@@ -64,6 +64,11 @@ export function formatReport(run, { targets } = {}) {
       `  grille : ${round(entry.gridItemsAvg, 1)} items en moyenne, ` +
         `pleine ${Math.round(entry.gridFullShare * 100)}% du temps`
     );
+    const drafts = Object.entries(entry.draftCounts ?? {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([id, count]) => `${id}×${count}`)
+      .join(' ');
+    lines.push(`  draft : ${round(entry.draftsPerGame ?? 0, 1)} par partie — ${drafts || '—'}`);
     if (entry.timedOut > 0) {
       lines.push(`  ⚠ ${entry.timedOut} partie(s) arrêtée(s) sur la limite de temps (survie infinie)`);
     }
@@ -72,7 +77,7 @@ export function formatReport(run, { targets } = {}) {
   const checks = evaluateTargets(run, targets);
   if (checks.length > 0) {
     lines.push('');
-    lines.push('Objectifs du Lot 3');
+    lines.push('Objectifs chiffrés');
     for (const check of checks) lines.push(`  ${check.ok ? '✔' : '✘'} ${check.label}`);
   }
 

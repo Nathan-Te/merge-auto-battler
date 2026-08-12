@@ -26,7 +26,8 @@
  *
  * ## Événements émis
  *
- *   - `waveCountdown` { wave, delayMs }        pause avant la vague à venir
+ *   - `waveCountdown` { wave, delayMs, composition, label, description, spawnGapMs, total }
+ *                                              pause avant la vague à venir, **annoncée**
  *   - `waveStart`     { wave, composition, description }
  *   - `waveCleared`   { wave, wavesCleared }
  *   - `enemySpawn`    { enemy }
@@ -34,6 +35,7 @@
  *   - `enemyLeak`     { enemy, damage }        a atteint la base
  *   - `enemyAttack`   { enemy, unit, damage, killed }
  *   - `baseDamage`    { amount, blocked, baseHp, maxBaseHp }  `blocked` = base invincible (debug)
+ *   - `baseHeal`      { amount, baseHp, maxBaseHp }  amélioration « Fortifications »
  *   - `unitSpawn`     { unit, origin }         une unité entre sur le champ de bataille
  *   - `unitAttack`    { unit, from, target, hits, role, splashRadius }
  *   - `unitDeath`     { unit }
@@ -71,10 +73,16 @@ export class BattleModel {
    * @param {object} options.config Config normalisée (`parseBattleConfig`)
    * @param {EventBus} [options.bus] Bus partagé ; sinon le modèle en crée un
    */
-  constructor({ config, bus } = {}) {
+  constructor({ config, bus, getModifiers = null } = {}) {
     if (!config) throw new Error('BattleModel attend une config');
     this.config = config;
     this.events = bus ?? new EventBus();
+    /**
+     * Modificateurs de draft, lus **à chaque calcul de stat**. Injectés plutôt que
+     * possédés : le modèle ne connaît pas le draft, il applique ce que la session lui
+     * donne — et `null` (le défaut) veut dire « valeurs de `balance.json` telles quelles ».
+     */
+    this.getModifiers = getModifiers;
     this.reset();
 
     // Contrat du Lot 2.5 : une unité n'entre en jeu que par `deployUnit`.
@@ -92,6 +100,13 @@ export class BattleModel {
      * jeu : il sert à observer une vague de bout en bout sans mourir pendant le réglage.
      */
     this.invincible = false;
+    /**
+     * Tick suspendu — c'est le draft (Lot 3.5) qui le lève et le baisse, via `GameSession`.
+     * Le drapeau vit ici plutôt que dans la session parce que l'arrêt doit être **franc** :
+     * une frame peut couvrir plusieurs ticks, et sans ce test la vague suivante avancerait
+     * d'un demi-pas pendant que le joueur choisit sa carte.
+     */
+    this.paused = false;
     /**
      * Comptabilité de fin de partie : c'est ce que lit le récap de debug et le rapport du
      * harness (`npm run sim`). Aucun effet sur les règles — on ne fait qu'observer.
@@ -131,6 +146,8 @@ export class BattleModel {
     this.spawnQueue = [];
     this.spawnTimerMs = 0;
     this.spawnGapMs = config.waves.spawnGapMs;
+    /** Durée du compte à rebours en cours — le HUD en fait une jauge. */
+    this.countdownTotalMs = config.waves.firstWaveDelayMs;
 
     this.accumulatorMs = 0;
     this.tickCount = 0;
@@ -142,8 +159,55 @@ export class BattleModel {
   /** Démarre la partie : compte à rebours avant la vague 1. */
   start() {
     this.phase = PHASE.PAUSE;
-    this.phaseTimerMs = this.config.waves.firstWaveDelayMs;
-    this.events.emit('waveCountdown', { wave: 1, delayMs: this.phaseTimerMs });
+    this.openCountdown(1, this.config.waves.firstWaveDelayMs);
+  }
+
+  /**
+   * Ouvre un compte à rebours de préparation et **annonce la vague à venir**.
+   *
+   * L'annonce porte la composition, pas seulement le numéro : c'est ce qui permet au joueur
+   * de croiser « ce qui arrive » et « ce que la file de types propose » — la décision
+   * centrale posée au Lot 3.5. La composition vient de `waveComposition()`, qui la calcule
+   * aussi bien pour les vagues scriptées que pour celles de la **formule infinie**.
+   */
+  openCountdown(wave, delayMs) {
+    this.phaseTimerMs = delayMs;
+    this.countdownTotalMs = delayMs;
+    this.events.emit('waveCountdown', { wave, delayMs, ...this.wavePreview(wave) });
+  }
+
+  /**
+   * Fiche d'une vague : composition, libellé de texture, cadence. Purement descriptif —
+   * c'est ce que lisent le bandeau d'annonce et le HUD.
+   *
+   * @param {number} wave
+   * @returns {{wave: number, composition: {type: string, count: number}[], label: string,
+   *            description: string, spawnGapMs: number, total: number}}
+   */
+  wavePreview(wave) {
+    const composition = waveComposition(this.config, wave);
+    return {
+      wave,
+      composition,
+      label: waveLabel(this.config, wave),
+      description: describeWave(this.config, wave),
+      spawnGapMs: waveSpawnGapMs(this.config, wave),
+      total: composition.reduce((sum, entry) => sum + entry.count, 0),
+    };
+  }
+
+  /**
+   * Ce que le HUD affiche pendant une pause : la vague à venir et le temps qui reste.
+   * Pendant une vague, `remainingMs` vaut 0 — il n'y a plus rien à préparer.
+   */
+  countdown() {
+    const pending = this.phase === PHASE.PAUSE;
+    return {
+      pending,
+      remainingMs: pending ? Math.max(0, this.phaseTimerMs) : 0,
+      totalMs: this.countdownTotalMs,
+      ...this.wavePreview(pending ? this.wave + 1 : this.wave),
+    };
   }
 
   /** Retire l'abonnement au bus. Appelé par `GameSession.destroy()`. */
@@ -161,7 +225,7 @@ export class BattleModel {
    * @returns {number} Nombre de ticks exécutés
    */
   update(dtMs) {
-    if (this.over || this.phase === PHASE.IDLE) return 0;
+    if (this.over || this.paused || this.phase === PHASE.IDLE) return 0;
     if (!Number.isFinite(dtMs) || dtMs <= 0) return 0;
 
     this.accumulatorMs += dtMs;
@@ -171,7 +235,9 @@ export class BattleModel {
       this.accumulatorMs -= this.config.tickMs;
       this.tick();
       steps += 1;
-      if (this.over) break;
+      // Un tick peut vider une vague et ouvrir un draft : les ticks suivants de la frame
+      // ne doivent pas passer quand même.
+      if (this.over || this.paused) break;
     }
 
     // Onglet masqué, gel du GPU, point d'arrêt : plutôt que de rattraper des minutes de
@@ -244,8 +310,7 @@ export class BattleModel {
     this.events.emit('waveCleared', { wave: this.wave, wavesCleared: this.wavesCleared });
 
     this.phase = PHASE.PAUSE;
-    this.phaseTimerMs = this.config.waves.interWavePauseMs;
-    this.events.emit('waveCountdown', { wave: this.wave + 1, delayMs: this.phaseTimerMs });
+    this.openCountdown(this.wave + 1, this.config.waves.interWavePauseMs);
   }
 
   // ------------------------------------------------------------------ unités
@@ -276,7 +341,9 @@ export class BattleModel {
       return null;
     }
 
-    const maxHp = unitStats(this.config, type, tier).hp;
+    // Les PV sont figés **à l'entrée** : une amélioration de blindage prise plus tard ne
+    // soigne pas rétroactivement une unité déjà au combat.
+    const maxHp = unitStats(this.config, type, tier, { modifiers: this.modifiers() }).hp;
     const unit = {
       id: this.nextUnitId++,
       type,
@@ -302,27 +369,34 @@ export class BattleModel {
    * @returns {{damage: number, fireRate: number}}
    */
   supportBonusFor(unit) {
+    const modifiers = this.modifiers();
     let damage = 0;
     let fireRate = 0;
     for (const other of this.units) {
       if (other === unit) continue;
       const def = this.config.units[other.type];
       if (!def || def.role !== 'support') continue;
-      const radius = unitStats(this.config, other.type, other.tier).auraRadius;
+      const radius = unitStats(this.config, other.type, other.tier, { modifiers }).auraRadius;
       if (Math.abs(other.progress - unit.progress) > radius) continue;
-      const bonus = supportBonus(this.config, other.type, other.tier);
+      const bonus = supportBonus(this.config, other.type, other.tier, modifiers);
       damage += bonus.damage;
       fireRate += bonus.fireRate;
     }
     return { damage, fireRate };
   }
 
-  /** Stats effectives d'une unité sur le champ, auras comprises. */
+  /** Modificateurs de draft en vigueur, ou null si la partie n'en a aucun. */
+  modifiers() {
+    return this.getModifiers?.() ?? null;
+  }
+
+  /** Stats effectives d'une unité sur le champ, auras et améliorations comprises. */
   statsFor(unit) {
     const bonus = this.supportBonusFor(unit);
     return unitStats(this.config, unit.type, unit.tier, {
       supportDamage: bonus.damage,
       supportFireRate: bonus.fireRate,
+      modifiers: this.modifiers(),
     });
   }
 
@@ -599,6 +673,29 @@ export class BattleModel {
       maxBaseHp: this.maxBaseHp,
     });
     if (this.baseHp <= 0) this.endGame();
+  }
+
+  /**
+   * Renforce la base : le maximum monte, et **autant de PV sont rendus**.
+   *
+   * C'est l'effet immédiat de l'amélioration « Fortifications » : une carte qui ne ferait
+   * que monter le plafond serait presque sans valeur quand on la prend à 20 PV, c'est-à-dire
+   * exactement au moment où on la choisit.
+   *
+   * @param {number} amount
+   * @returns {number} PV effectivement rendus
+   */
+  grantBaseHp(amount) {
+    if (!(amount > 0) || this.over) return 0;
+    this.maxBaseHp += amount;
+    const before = this.baseHp;
+    this.baseHp = Math.min(this.maxBaseHp, this.baseHp + amount);
+    this.events.emit('baseHeal', {
+      amount: this.baseHp - before,
+      baseHp: this.baseHp,
+      maxBaseHp: this.maxBaseHp,
+    });
+    return this.baseHp - before;
   }
 
   endGame() {

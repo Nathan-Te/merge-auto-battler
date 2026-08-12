@@ -113,10 +113,37 @@ export function pickSpawnTier(tierWeights, rng = Math.random) {
  * @param {number} spawnCount Nombre d'items déjà apparus
  * @returns {number} Délai en millisecondes
  */
-export function spawnDelayMs(config, spawnCount) {
+export function spawnDelayMs(config, spawnCount, intervalFactor = 1) {
   const steps = Math.max(0, spawnCount);
   const raw = config.intervalMs * config.intervalDecay ** steps;
-  return Math.max(config.minIntervalMs, raw);
+  // Le facteur d'amélioration s'applique **aussi au plancher** : sinon « Extraction »
+  // n'aurait aucun effet passé la trentaine d'items, c'est-à-dire dès la vague 3, donc
+  // pile au moment où la carte devient prenable.
+  return Math.max(config.minIntervalMs * intervalFactor, raw * intervalFactor);
+}
+
+/**
+ * Décale les tiers d'apparition d'un cran par niveau de « gisement riche », sans dépasser
+ * le tier maximum. Les **poids** ne bougent pas : c'est la même distribution, plus haut.
+ *
+ * @param {{tier: number, weight: number}[]} tierWeights
+ * @param {number} bonus Décalage (0 = inchangé)
+ * @param {number} maxTier
+ * @returns {{tier: number, weight: number}[]}
+ */
+export function shiftTierWeights(tierWeights, bonus, maxTier) {
+  if (!(bonus > 0)) return tierWeights;
+
+  // Deux entrées peuvent retomber sur le même tier une fois plafonnées : on les fusionne
+  // plutôt que de laisser deux lignes du même tier fausser le tirage pondéré.
+  const merged = new Map();
+  for (const entry of tierWeights) {
+    const tier = Math.min(maxTier, entry.tier + bonus);
+    merged.set(tier, (merged.get(tier) ?? 0) + entry.weight);
+  }
+  return [...merged.entries()]
+    .map(([tier, weight]) => ({ tier, weight }))
+    .sort((a, b) => a.tier - b.tier);
 }
 
 /**
@@ -131,10 +158,12 @@ export class ItemSpawner {
    * @param {import('./GridModel.js').GridModel} options.model
    * @param {() => number} [options.rng]
    */
-  constructor({ config, model, rng = Math.random }) {
+  constructor({ config, model, rng = Math.random, getModifiers = null }) {
     this.config = config;
     this.model = model;
     this.rng = rng;
+    /** Modificateurs de draft (cadence, tier d'apparition), ou null. */
+    this.getModifiers = getModifiers;
     /** Nombre d'items effectivement apparus depuis le début de la partie. */
     this.spawnCount = 0;
   }
@@ -142,7 +171,16 @@ export class ItemSpawner {
   /** Délai avant la prochaine apparition, grille pleine comprise. */
   nextDelayMs() {
     if (this.model.isFull()) return this.config.gridFullRetryMs;
-    return spawnDelayMs(this.config, this.spawnCount);
+    return spawnDelayMs(this.config, this.spawnCount, this.getModifiers?.()?.spawnInterval ?? 1);
+  }
+
+  /** Poids de tirage en vigueur, décalés par « gisement riche » le cas échéant. */
+  tierWeights() {
+    return shiftTierWeights(
+      this.config.tierWeights,
+      this.getModifiers?.()?.spawnTierBonus ?? 0,
+      this.config.maxTier
+    );
   }
 
   /** Délai avant la toute première apparition. */
@@ -157,7 +195,7 @@ export class ItemSpawner {
    */
   trySpawn() {
     if (this.model.isFull()) return null;
-    const tier = pickSpawnTier(this.config.tierWeights, this.rng);
+    const tier = pickSpawnTier(this.tierWeights(), this.rng);
     const result = this.model.spawn(tier, this.rng);
     if (result !== null) this.spawnCount += 1;
     return result;

@@ -29,8 +29,22 @@ describe('computeBattleZone', () => {
           rect.y + rect.height <= battle.y + battle.height + 0.001;
 
         expect(inside(zone.hud)).toBe(true);
+        expect(inside(zone.intel)).toBe(true);
         expect(inside(zone.lane)).toBe(true);
         expect(inside(zone.base)).toBe(true);
+      });
+
+      it('réserve une barre de décision tapable, juste sous le HUD', () => {
+        // 34 px est le seuil sous lequel le bouton « passer » cesse d'être atteignable au
+        // doigt : la barre le garantit sur **tous** les écrans du parc, pas seulement les
+        // confortables.
+        expect(zone.intel.height).toBeGreaterThanOrEqual(34);
+        expect(zone.intel.y).toBeCloseTo(zone.hud.y + zone.hud.height, 6);
+        expect(zone.intel.width).toBe(zone.hud.width);
+      });
+
+      it('ne laisse pas la barre de décision recouvrir le couloir', () => {
+        expect(zone.lane.y).toBeGreaterThanOrEqual(zone.intel.y + zone.intel.height);
       });
 
       it('donne un couloir et une base non dégénérés', () => {

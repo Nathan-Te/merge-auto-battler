@@ -5,6 +5,7 @@ import {
   parseTierWeights,
   pickSpawnTier,
   spawnDelayMs,
+  shiftTierWeights,
 } from '../src/systems/itemSpawner.js';
 import { GridModel } from '../src/systems/GridModel.js';
 import balance from '../src/config/balance.json';
@@ -157,3 +158,42 @@ describe('ItemSpawner', () => {
     expect(model.isFull()).toBe(true);
   });
 });
+
+describe('shiftTierWeights — « Gisement riche » (Lot 3.5)', () => {
+  const weights = [
+    { tier: 1, weight: 85 },
+    { tier: 2, weight: 15 },
+  ];
+
+  it('rend la liste inchangée sans bonus', () => {
+    expect(shiftTierWeights(weights, 0, 11)).toBe(weights);
+  });
+
+  it('décale les tiers d’un cran par niveau, en gardant les poids', () => {
+    expect(shiftTierWeights(weights, 1, 11)).toEqual([
+      { tier: 2, weight: 85 },
+      { tier: 3, weight: 15 },
+    ]);
+    expect(shiftTierWeights(weights, 3, 11)).toEqual([
+      { tier: 4, weight: 85 },
+      { tier: 5, weight: 15 },
+    ]);
+  });
+
+  it('fusionne les entrées qui retombent sur le même tier au plafond', () => {
+    // Sans la fusion, deux lignes du même tier fausseraient le tirage pondéré.
+    expect(shiftTierWeights(weights, 20, 3)).toEqual([{ tier: 3, weight: 100 }]);
+  });
+});
+
+describe('spawnDelayMs — facteur d’amélioration', () => {
+  const config = parseSpawnerConfig(balance);
+
+  it('accélère aussi le plancher : « Extraction » doit servir en fin de partie', () => {
+    // Le plancher est atteint dès la trentaine d'items, soit avant le premier draft. Un
+    // facteur qui ne s'appliquerait qu'à la courbe ne ferait donc jamais rien.
+    expect(spawnDelayMs(config, 5000, 1)).toBe(config.minIntervalMs);
+    expect(spawnDelayMs(config, 5000, 0.5)).toBeCloseTo(config.minIntervalMs * 0.5, 6);
+  });
+});
+

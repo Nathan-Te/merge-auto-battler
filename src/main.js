@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import GameScene from './scenes/GameScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
+import DraftScene from './scenes/DraftScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -22,8 +23,10 @@ const config = {
     antialias: true,
     roundPixels: true,
   },
-  // `GameOverScene` est lancée par-dessus `GameScene` mise en pause, pas à sa place.
-  scene: [GameScene, GameOverScene],
+  // `GameOverScene` et `DraftScene` sont lancées **par-dessus** `GameScene` mise en pause,
+  // pas à sa place : le champ de bataille reste visible derrière, et la partie ne peut pas
+  // avancer d'un tick pendant qu'un de ces écrans est ouvert.
+  scene: [GameScene, GameOverScene, DraftScene],
 };
 
 const game = new Phaser.Game(config);

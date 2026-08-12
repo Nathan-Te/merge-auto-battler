@@ -143,13 +143,38 @@ la vague 10 serait illisible. Le game over est le seul autorisé à couper la fi
 ```jsonc
 "ui": {
   "bannerInMs": 200,          // entrée du bandeau de vague
-  "bannerHoldMs": 850,        // temps de lecture
+  "bannerHoldMs": 1150,       // temps de lecture — le bandeau annonce une composition
+                              // depuis le Lot 3.5, il y a plus à lire qu'un numéro
   "bannerOutMs": 240,         // sortie
   "hintMs": 1100,             // « file pleine » sur un tap refusé
   "gaugePulseMs": 260,        // sursaut de la jauge de sortie
   "scoreCountMs": 900         // le score de game over compte de 0 à sa valeur
 }
 ```
+
+## `draft` — l'écran d'améliorations (Lot 3.5)
+
+```jsonc
+"draft": {
+  "cardInMs": 260,            // entrée d'une carte
+  "cardStaggerMs": 90,        // décalage entre deux cartes — voir plus bas
+  "pickMs": 300,              // la carte choisie se gonfle et disparaît
+  "dismissMs": 190,           // les deux autres s'effacent
+  "chipPopMs": 220,           // sursaut des chips de la file de types après un « passer »
+  "pickBurst": {              // gerbe à la couleur de la carte prise
+    "count": 22, "speedPx": 230, "lifeMs": 520, "sizePx": 6
+  }
+}
+```
+
+**`cardStaggerMs` est la valeur qui décide si le draft est un plaisir ou un menu.** À 0, les
+trois cartes apparaissent d'un bloc : un formulaire. À 90 ms, elles se posent l'une après
+l'autre, et l'écran *propose* au lieu d'afficher. Au-delà de ~150 ms, l'attente devient
+sensible et le draft ralentit la partie — c'est le premier réglage à revoir si les drafts
+paraissent longs.
+
+`pickBurst` est volontairement la plus grosse gerbe du jeu (22 particules contre 12 pour une
+fusion) : c'est le seul moment de la partie où le joueur gagne quelque chose de permanent.
 
 ## `sfx` — sons synthétisés
 

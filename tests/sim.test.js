@@ -59,6 +59,51 @@ describe('simulateGame — déterminisme', () => {
   });
 });
 
+describe('simulateGame — drafts (Lot 3.5)', () => {
+  /**
+   * La partie **gèle** sur un draft : si le harness ne choisissait pas, il tournerait
+   * jusqu'à son garde-fou de durée en croyant mesurer une survie infinie. C'est le piège
+   * numéro un de ce lot, et il vaut un test à lui seul.
+   */
+  it('choisit des cartes et ne se bloque jamais sur un draft', () => {
+    const result = simulateGame({ balance, policy: POLICIES.mixed, seed: 11 });
+    expect(result.timedOut).toBe(false);
+    expect(result.drafted.length).toBeGreaterThan(0);
+    expect(result.recap.upgrades.length).toBeGreaterThan(0);
+  });
+
+  it('prend une amélioration toutes les `everyWaves` vagues, pas davantage', () => {
+    const result = simulateGame({ balance, policy: POLICIES.mixed, seed: 11 });
+    const expected = Math.floor(result.wavesCleared / balance.draft.everyWaves);
+    // La dernière vague peut tomber avant que son draft ne s'ouvre : on borne, sans exiger
+    // l'égalité stricte.
+    expect(result.drafted.length).toBeLessThanOrEqual(expected);
+    expect(result.drafted.length).toBeGreaterThanOrEqual(expected - 1);
+  });
+
+  it('rejoue les mêmes choix de draft à graine égale', () => {
+    const options = { balance, policy: POLICIES.prepare, seed: 77 };
+    expect(simulateGame(options).drafted).toEqual(simulateGame(options).drafted);
+  });
+
+  it('agrège les drafts dans le rapport de politique', () => {
+    const run = runPolicy({ balance, policy: POLICIES.mixed, games: 3, seed: 21 });
+    expect(run.draftsPerGame).toBeGreaterThan(0);
+    const total = Object.values(run.draftCounts).reduce((sum, value) => sum + value, 0);
+    expect(total).toBeCloseTo(run.draftsPerGame * run.games, 6);
+  });
+
+  it('respecte le choix d’une politique qui sait drafter', () => {
+    // Une politique peut imposer son build : le tirage aléatoire n'est qu'un défaut.
+    const stubborn = {
+      ...POLICIES.mixed,
+      draft: (cards) => cards[cards.length - 1].id,
+    };
+    const result = simulateGame({ balance, policy: stubborn, seed: 31 });
+    expect(result.drafted.length).toBeGreaterThan(0);
+  });
+});
+
 describe('politiques', () => {
   const gridWith = (tiers) => {
     const grid = new GridModel({ maxTier: balance.itemSpawner.maxTier });

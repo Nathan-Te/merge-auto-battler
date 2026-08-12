@@ -8,7 +8,8 @@ lieu de documentation du format.
 Toutes les sections sont actives : `itemSpawner` est lue par `parseSpawnerConfig()`
 (`src/systems/itemSpawner.js`), `battle` / `units` / `enemies` / `waves` par
 `parseBattleConfig()` (`src/systems/battleConfig.js`), `input` par `parseInputConfig()`
-(`src/systems/tapGesture.js`). Toutes refusent une config incomplète plutôt que d'inventer
+(`src/systems/tapGesture.js`), `draft` par `parseDraftConfig()`
+(`src/systems/DraftSystem.js`). Toutes refusent une config incomplète plutôt que d'inventer
 un défaut.
 
 ## Règles générales
@@ -61,6 +62,7 @@ possible.
   "laneLength": 1000,         // longueur du couloir en unités de couloir
   "slotCount": 5,             // places de la file de déploiement
   "deployCooldownMs": 3500,   // rythme de sortie : une unité quitte la file tous les N ms
+  "skipCooldownMs": 10000,    // recharge du bouton « passer » de la file de types
   "maxFieldUnits": 20,        // garde-fou de perf : unités simultanées sur le champ
   "baseHp": 100,              // PV de la base
   "unitTypePattern": [        // file déterministe des types, parcourue en boucle. Le type
@@ -77,6 +79,12 @@ entrent à `laneLength` et marchent vers 0 ; les ennemis font l'inverse.
 qu'il fasse, et c'est ce qui rend le spam de petites unités perdant. `maxFieldUnits` n'est
 **pas** un levier d'équilibrage mais un garde-fou de performance : il doit rester large
 devant `slotCount`, sinon il bloquerait la file au lieu de la protéger.
+
+`skipCooldownMs` (Lot 3.5) est le prix du bouton **passer**, qui défausse le type en tête de
+la file de types. Trop court, il annule la contrainte de la file — le joueur choisit
+librement son type et l'annonce de vague n'impose plus rien ; trop long, le bouton n'est
+qu'une décoration. À 10 s pour un cooldown de sortie de 3,5 s, passer coûte environ **trois
+créneaux de déploiement** : assez pour que ce soit une décision.
 
 ## `units` — unités du joueur
 
@@ -171,8 +179,8 @@ scaling, sans limite.
 
 ```jsonc
 "waves": {
-  "firstWaveDelayMs": 7000,   // temps laissé au joueur avant la vague 1 (≈ 2 sorties d'unité)
-  "interWavePauseMs": 4000,   // pause entre deux vagues (bandeau « Vague N »)
+  "firstWaveDelayMs": 9000,   // temps laissé au joueur avant la vague 1 (≈ 2,5 sorties d'unité)
+  "interWavePauseMs": 7000,   // pause entre deux vagues : c'est le **temps de merge légitime**
   "spawnGapMs": 820,          // cadence par défaut des vagues **générées**
   "scripted": [               // scripted[0] = vague 1, scripted[1] = vague 2…
     {
@@ -188,7 +196,7 @@ scaling, sans limite.
     { "type": "tank", "count": 6 }
   ],
   "scaling": {
-    "hpPerWave": 1.48,        // hp(vague) = hp × hpPerWave^(vague - 1)
+    "hpPerWave": 1.54,        // hp(vague) = hp × hpPerWave^(vague - 1)
     "speedPerWave": 1.02,
     "damagePerWave": 1.28,    // dégâts aux unités ; `damageToBase`, lui, ne scale pas
     "countPerWave": 1.24,     // ne s'applique qu'aux vagues générées (au-delà de `scripted`)
@@ -199,10 +207,16 @@ scaling, sans limite.
 }
 ```
 
-`firstWaveDelayMs` se lit en nombre de sorties : à 3,5 s de cooldown, 7 s laissent au
-joueur le temps de poser deux unités avant le premier contact. C'est le premier réglage à
-revoir si le début de partie paraît brutal. `interWavePauseMs` est un levier de puissance
-sous-estimé : une pause vaut un déploiement gratuit (cf. `docs/balance-notes.md`).
+`firstWaveDelayMs` se lit en nombre de sorties : à 3,5 s de cooldown, 9 s laissent au
+joueur le temps de poser deux unités et de lire l'annonce avant le premier contact. C'est le
+premier réglage à revoir si le début de partie paraît brutal.
+
+**`interWavePauseMs` est le curseur de respiration du Lot 3.5.** C'est le temps pendant
+lequel il ne se passe rien sur le couloir : celui où l'on regarde la bataille, où l'on lit
+l'annonce de la vague à venir, et où l'on fusionne sans urgence. C'est aussi un levier de
+puissance sous-estimé — une pause vaut un déploiement gratuit — donc l'allonger oblige à
+relever la difficulté en face (cf. `docs/balance-notes.md`). Il est passé de 4 000 à 7 000 ms
+au Lot 3.5, contre `hpPerWave` 1,48 → 1,54.
 
 **Textures de vagues (Lot 3).** Une vague scriptée s'écrit sous deux formes :
 
@@ -233,6 +247,63 @@ Une vague est terminée quand tous ses ennemis sont apparus **et** que plus aucu
 vie — un ennemi qui atteint la base compte comme retiré, la partie ne peut donc pas se
 bloquer sur un tank increvable.
 
+## `draft` — améliorations roguelite (Lot 3.5)
+
+Toutes les `everyWaves` vagues, la partie **gèle** et propose `cardsPerOffer` améliorations
+distinctes ; le joueur en prend une, elle vaut pour le reste de la partie.
+
+```jsonc
+"draft": {
+  "everyWaves": 3,            // un draft toutes les N vagues tenues
+  "cardsPerOffer": 3,         // cartes proposées (doit tenir dans le pool)
+  "upgrades": [
+    {
+      "id": "power",          // identifiant stable — le code et le récap le référencent
+      "label": "Puissance",   // titre de la carte
+      "description": "+18 % de dégâts pour toutes les unités.",
+      "icon": "damage",       // clé de forme greybox (`src/render/draftIcons.js`)
+      "maxLevel": 3,          // prises possibles ; au-delà, la carte sort du pool
+      "effect": { "unitDamage": 1.18 }   // voir la table ci-dessous
+    }
+  ]
+}
+```
+
+**Une amélioration est un modificateur, jamais une valeur réécrite.** `balance.json` est
+importé une seule fois pour toute l'application : muter une de ses valeurs ferait survivre
+les améliorations d'une partie à la suivante. Les effets sont donc **accumulés**
+(`src/systems/modifiers.js`) et appliqués au moment de **lire** une stat — ils meurent avec
+la session, comme tout le reste (cf. `CLAUDE.md`).
+
+Clés d'effet reconnues. Toute autre clé est une **erreur au chargement**, pas une carte
+sans effet :
+
+| clé               | type          | neutre | effet                                                     |
+| ----------------- | ------------- | ------ | --------------------------------------------------------- |
+| `unitDamage`      | multiplicatif | 1      | dégâts de toutes les unités                               |
+| `unitFireRate`    | multiplicatif | 1      | délai entre deux frappes — **< 1 = plus rapide**          |
+| `unitRange`       | multiplicatif | 1      | portée, **et rayon d'aura du soutien** (c'est une distance) |
+| `unitHp`          | multiplicatif | 1      | PV des unités **à leur entrée** (pas de soin rétroactif)  |
+| `unitEffect`      | multiplicatif | 1      | rayons et durées d'effet (zone, ralentissement, buff)     |
+| `deployCooldown`  | multiplicatif | 1      | cooldown de sortie de la file de déploiement              |
+| `spawnInterval`   | multiplicatif | 1      | intervalle d'apparition des items, **plancher compris**   |
+| `skipCooldown`    | multiplicatif | 1      | cooldown du bouton « passer »                             |
+| `slotBonus`       | additif       | 0      | places en plus dans la file de déploiement                |
+| `baseHpBonus`     | additif       | 0      | PV de base gagnés **et rendus** à la prise                |
+| `spawnTierBonus`  | additif       | 0      | décalage du tier des items qui apparaissent               |
+| `byType`          | objet         | —      | les mêmes facteurs (`damage`, `fireRate`, `range`, `hp`, `effect`) pour **un seul type d'unité** |
+
+Les multiplicatifs se composent **par produit** à chaque niveau (deux fois « +18 % » vaut
+×1,39, pas ×1,36), les additifs par somme. Un `byType` se cumule **par-dessus** le bonus
+global : `unitRange: 1.14` puis `byType.support.range: 1.2` donnent ×1,368 au soutien et
+×1,14 aux autres.
+
+**Doser une carte** : elle doit se sentir sans retourner la partie. Le repère du lot est
+« +12 à +22 % par niveau, 2 ou 3 niveaux » — au-delà, un joueur qui empile la même carte
+sort de la fenêtre de vagues visée, ce que le harness voit tout de suite
+(`npm run sim`, colonne `draft`). `baseHpBonus` est l'exception assumée : c'est une valeur
+absolue, et 22 PV sur 100 se lisent comme une bouée, pas comme un multiplicateur.
+
 ## `itemSpawner` — apparition des items sur la grille
 
 ```jsonc
@@ -240,8 +311,8 @@ bloquer sur un tank increvable.
   "maxTier": 11,              // tier maximum atteignable (cf. seed doc : 11 tiers)
   "startingItems": 8,         // items posés sur la grille au démarrage
   "firstSpawnDelayMs": 500,   // délai avant la première apparition automatique
-  "intervalMs": 1200,         // intervalle d'apparition initial
-  "minIntervalMs": 780,       // plancher : l'accélération ne descend jamais en dessous
+  "intervalMs": 1300,         // intervalle d'apparition initial
+  "minIntervalMs": 860,       // plancher : l'accélération ne descend jamais en dessous
   "intervalDecay": 0.985,     // facteur appliqué à l'intervalle après chaque apparition
   "gridFullRetryMs": 400,     // grille pleine : fréquence de re-vérification (spawn en pause)
   "spawnTierWeights": {       // poids relatifs du tier tiré à l'apparition
@@ -252,18 +323,23 @@ bloquer sur un tank increvable.
 ```
 
 **Courbe d'accélération** : le délai avant la n-ième apparition vaut
-`max(minIntervalMs, intervalMs × intervalDecay^n)`. Avec les valeurs ci-dessus, le rythme
-passe de 1,2 s à 780 ms en une trentaine d'items — soit environ quarante secondes de jeu.
-Baisser `intervalDecay` accélère la montée en pression ; le régler à `1` la supprime.
+`max(minIntervalMs, intervalMs × intervalDecay^n)`, le tout multiplié par le modificateur
+`spawnInterval` du draft. Avec les valeurs ci-dessus, le rythme passe de 1,3 s à 860 ms en
+une trentaine d'items — soit environ quarante secondes de jeu. Baisser `intervalDecay`
+accélère la montée en pression ; le régler à `1` la supprime.
 
 **`minIntervalMs` est le levier le plus violent de tout le fichier** (Lot 3). Le repère qui
 le cadre : un envoi de tier 3 coûte **4 items**, un envoi part toutes les
 `battle.deployCooldownMs`, donc suivre le rythme demande `4 / deployCooldownMs` items par
-seconde — soit un item toutes les **875 ms** aux valeurs actuelles. Le plancher est réglé
-**juste en dessous** (780 ms), pour que le goulot d'étranglement reste le cooldown de sortie
-— le métronome du jeu — et non la grille. Descendre nettement plus bas donne au joueur un
-surplus qui monte en tiers sans limite, et la difficulté s'effondre : mesuré à 650 ms, la
-partie moyenne passait de 10 à 29 vagues. Ces deux valeurs se règlent **ensemble**.
+seconde — soit un item toutes les **875 ms** aux valeurs actuelles.
+
+Le Lot 3.5 a déplacé ce plancher de 780 à **860 ms**, c'est-à-dire **à l'équilibre** au lieu
+de 12 % au-dessus. C'est un choix de régime, pas un rééquilibrage : à 780 ms la grille
+débordait en permanence et le jeu n'avait qu'une urgence, celle de la grille. À l'équilibre,
+suivre le rythme reste possible mais le surplus n'est plus donné — il se **choisit** au
+draft (« Extraction », « Gisement riche »). Descendre nettement plus bas reste dangereux :
+mesuré à 650 ms au Lot 3, la partie moyenne passait de 10 à 29 vagues. Ces deux valeurs se
+règlent **ensemble**.
 
 **Grille pleine** : ce n'est pas un game over — le spawn se met simplement en pause
 (feedback : bordure de grille qui pulse) et reprend dès qu'une case se libère.

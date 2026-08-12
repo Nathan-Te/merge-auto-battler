@@ -81,11 +81,24 @@
   },
   "ui": {
     "bannerInMs": 200,
-    "bannerHoldMs": 850,
+    "bannerHoldMs": 1150,
     "bannerOutMs": 240,
     "hintMs": 1100,
     "gaugePulseMs": 260,
     "scoreCountMs": 900
+  },
+  "draft": {
+    "cardInMs": 260,
+    "cardStaggerMs": 90,
+    "pickMs": 300,
+    "dismissMs": 190,
+    "chipPopMs": 220,
+    "pickBurst": {
+      "count": 22,
+      "speedPx": 230,
+      "lifeMs": 520,
+      "sizePx": 6
+    }
   },
   "sfx": {
     "merge": {

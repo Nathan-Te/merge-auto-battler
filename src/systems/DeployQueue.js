@@ -41,11 +41,13 @@ export class DeployQueue {
    * @param {EventBus} [options.bus] Bus partagé ; sinon la file en crée un
    * @param {() => boolean} [options.canDeploy] Feu vert du champ de bataille
    */
-  constructor({ config, bus, canDeploy = () => true } = {}) {
+  constructor({ config, bus, canDeploy = () => true, getModifiers = null } = {}) {
     if (!config) throw new Error('DeployQueue attend une config');
     this.config = config;
     this.events = bus ?? new EventBus();
     this.canDeploy = canDeploy;
+    /** Modificateurs de draft (places en plus, cooldown raccourci), ou null. */
+    this.getModifiers = getModifiers;
     this.reset();
 
     this.unsubscribe = this.events.on('enqueueUnit', ({ tier, type, origin }) =>
@@ -69,14 +71,29 @@ export class DeployQueue {
 
   // ------------------------------------------------------------------ lecture
 
+  /**
+   * Places de la file, améliorations comprises.
+   *
+   * Lu à chaque appel plutôt que figé au démarrage : une place gagnée au draft doit
+   * s'ouvrir **immédiatement**, sans reconstruire la file ni perdre ce qu'elle contient.
+   */
+  slotCount() {
+    return this.config.slotCount + (this.getModifiers?.()?.slotBonus ?? 0);
+  }
+
+  /** Durée du cooldown de sortie, améliorations comprises. */
+  cooldownDurationMs() {
+    return this.config.deployCooldownMs * (this.getModifiers?.()?.deployCooldown ?? 1);
+  }
+
   /** Nombre de places libres. */
   freeSlots() {
-    return this.config.slotCount - this.slots.length;
+    return this.slotCount() - this.slots.length;
   }
 
   /** Vrai si une unité de plus peut prendre place dans la file. */
   canAccept() {
-    return this.slots.length < this.config.slotCount;
+    return this.slots.length < this.slotCount();
   }
 
   /** Unité en tête de file (la prochaine à partir), ou null. */
@@ -89,7 +106,7 @@ export class DeployQueue {
    * C'est ce que la vue affiche sur le slot de tête.
    */
   cooldownRatio() {
-    const total = this.config.deployCooldownMs;
+    const total = this.cooldownDurationMs();
     if (total <= 0) return 1;
     return Math.min(1, Math.max(0, 1 - this.cooldownMs / total));
   }
@@ -141,7 +158,7 @@ export class DeployQueue {
     if (!this.canDeploy()) return null;
 
     const unit = this.slots.shift();
-    this.cooldownMs = this.config.deployCooldownMs;
+    this.cooldownMs = this.cooldownDurationMs();
     this.events.emit('deployUnit', {
       tier: unit.tier,
       type: unit.type,
