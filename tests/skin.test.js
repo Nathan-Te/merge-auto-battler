@@ -90,11 +90,48 @@ describe('paliers visuels', () => {
     expect(orbSprite(1, bands)).toBe('orb.1');
     expect(orbSprite(2, bands)).toBe('orb.2');
   });
+
+  /**
+   * Les orbes et les unités ont le même nombre de tiers mais **pas le même coût de dessin** :
+   * onze orbes se déclinent, onze personnages par type ne se dessinent pas. Leurs tables sont
+   * donc séparées — les avoir fait partager une seule table imposait un faux choix, et a coûté
+   * un aller-retour au premier lot d'assets livré.
+   */
+  it('sépare la table des orbes de celle des unités', () => {
+    const bands = {
+      orb: Array.from({ length: 11 }, (_, i) => [i + 1, i + 1]),
+      unit: DEFAULT_TIER_BANDS.unit,
+    };
+    expect(orbSprite(7, bands.orb)).toBe('orb.7');
+    // La même valeur de tier ne donne pas le même palier des deux côtés, et c'est le but.
+    expect(unitSprite('single', 7, bands.unit)).toBe('unit.single.2');
+  });
 });
 
 describe('expectedSprites', () => {
   const sprites = expectedSprites({ balance });
   const names = sprites.map((entry) => entry.name);
+
+  it('demande autant d’orbes que la table des orbes en déclare', () => {
+    const eleven = Array.from({ length: 11 }, (_, i) => [i + 1, i + 1]);
+    const withEleven = expectedSprites({
+      balance,
+      bands: { ...DEFAULT_TIER_BANDS, orb: eleven },
+    }).map((entry) => entry.name);
+
+    expect(withEleven.filter((name) => name.startsWith('orb.'))).toHaveLength(11);
+    // …sans que les unités suivent : elles gardent leurs trois paliers.
+    expect(withEleven.filter((name) => name.startsWith('unit.single.'))).toHaveLength(3);
+  });
+
+  it('fait hériter les orbes de la table des unités quand elle n’est pas donnée', () => {
+    // Compatibilité : un manifest écrit avant la séparation se comporte à l'identique.
+    const inherited = expectedSprites({
+      balance,
+      bands: { unit: [[1, 11]], power: DEFAULT_TIER_BANDS.power },
+    }).map((entry) => entry.name);
+    expect(inherited.filter((name) => name.startsWith('orb.'))).toEqual(['orb.1']);
+  });
 
   it('dérive la liste de balance.json plutôt que de la tenir à la main', () => {
     // Une liste écrite à la main mentirait dès le premier type ajouté, exactement comme une
@@ -140,6 +177,12 @@ describe('Skin', () => {
     expect(skin.image('orb.1', 64)).toBeNull();
     // Les plages retombent sur celles du code : le jeu reste cohérent sans aucun asset.
     expect(skin.bands.unit).toEqual(DEFAULT_TIER_BANDS.unit);
+    expect(skin.bands.orb).toEqual(DEFAULT_TIER_BANDS.orb);
+  });
+
+  it('fait hériter `orb` de `unit` quand l’index ne le donne pas', () => {
+    const skin = new Skin(fakeScene({}), { tierBands: { unit: [[1, 11]] } });
+    expect(skin.bands.orb).toEqual([[1, 11]]);
   });
 
   it('dimensionne sur le plus grand côté, sans écraser le sprite', () => {

@@ -1,6 +1,6 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "56e8c74c6e3bad393036ec5e18809926a37d996c7c61099c84d2a26f3e8a1373",
+  "inputHash": "39f1181289d0e3659a1687cb2fff29e36a0c2ea64b7154e0168eebe206e41fec",
   "pipelineVersion": 1,
   "outputs": [
     "public/assets/atlas-orbs.json",
@@ -74,14 +74,5 @@
     "icon.draft.power",
     "icon.draft.orb"
   ],
-  "orphans": [
-    "orb.10",
-    "orb.11",
-    "orb.4",
-    "orb.5",
-    "orb.6",
-    "orb.7",
-    "orb.8",
-    "orb.9"
-  ]
+  "orphans": []
 }

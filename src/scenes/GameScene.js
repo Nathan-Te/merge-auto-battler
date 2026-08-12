@@ -6,7 +6,7 @@ import { GameSession, SESSION_DROP, SESSION_TAP } from '../systems/GameSession.j
 import { computeLayout, cellCenterAt, nearestCellIndex } from '../systems/layout.js';
 import { isTap } from '../systems/tapGesture.js';
 import { parseJuiceConfig } from '../systems/juice.js';
-import { itemColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { itemColor, styleTierLabel, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { JuiceKit } from '../render/juiceKit.js';
@@ -642,7 +642,10 @@ export default class GameScene extends Phaser.Scene {
     const label = view.getData('label');
 
     repaintVisual(shape, this.skin, { kind: 'item', item: view.getData('item') }, itemSize);
-    label.setFontSize(Math.max(9, Math.round(itemSize * 0.4)));
+    const fontSize = Math.max(9, Math.round(itemSize * 0.4));
+    label.setFontSize(fontSize);
+    // Le liseré est réappliqué à chaque redimensionnement : son épaisseur suit la police.
+    styleTierLabel(label, fontSize);
     view.setSize(cellSize, cellSize);
     // Phaser ajoute `displayOrigin` (= moitié de la taille du conteneur) aux
     // coordonnées avant de tester la zone de saisie : celle-ci se décrit donc

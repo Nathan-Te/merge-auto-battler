@@ -98,7 +98,11 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   qui n'a plus de source, et le CI recommitte le résultat. Un fichier posé là à la main
   disparaîtrait au prochain passage, sans prévenir, et personne ne saurait d'où il venait.
   Les sons (`assets-src/audio/`) et les polices (`assets-src/fonts/`) passent par la même
-  porte : ils sont recopiés tels quels, mais **comptés dans le budget de poids**.
+  porte : ils sont recopiés tels quels, mais **comptés dans le budget de poids**. Les
+  **paliers visuels** (`tierBands`) sont réglés là aussi, et il y en a **trois tables
+  distinctes** — `orb`, `unit`, `power` : un orbe est une icône qui se décline onze fois sans
+  effort, une unité est un personnage. Les faire partager une table imposerait de choisir
+  entre onze orbes et trois personnages, ce qui n'est pas un choix.
   L'idempotence tient à une **empreinte des entrées** et non au déterminisme de l'encodeur
   WebP, qui dépend de la version de libvips installée : à `assets-src/` inchangé, rien n'est
   réencodé, donc le CI ne boucle pas sur son propre commit. `PIPELINE_VERSION` est à

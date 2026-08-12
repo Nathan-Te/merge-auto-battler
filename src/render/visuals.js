@@ -41,7 +41,7 @@ export function spriteNameFor(spec, skin) {
     case 'item':
       return spec.item?.family === ITEM_FAMILY.POWER
         ? powerItemSprite(spec.item.power, spec.item.tier, skin.bands.power)
-        : orbSprite(spec.item.tier, skin.bands.unit);
+        : orbSprite(spec.item.tier, skin.bands.orb);
     case 'power':
       return powerItemSprite(spec.type, spec.tier, skin.bands.power);
     case 'unit':

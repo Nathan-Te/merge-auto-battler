@@ -82,20 +82,44 @@ blanc d'un œil). Deux boutons, globaux ou planche par planche :
 
 ## Paliers visuels
 
-Le jeu a 11 tiers d'items et 6 tiers de pouvoir, mais les planches n'en dessinent que
-**trois** par famille — au-delà, on repeint onze fois le même orbe. `tierBands` dit quel
-tier porte quel dessin :
+Le jeu a 11 tiers d'items et 6 tiers de pouvoir. Les planches n'en dessinent pas forcément
+autant : `tierBands` dit **quel tier porte quel dessin**.
+
+Il y a **trois tables séparées**, et c'est le point important :
 
 ```json
 "tierBands": {
+  "orb":   [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6],
+            [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]],
   "unit":  [[1, 4], [5, 8], [9, 11]],
   "power": [[1, 2], [3, 4], [5, 6]]
 }
 ```
 
-Avec ça, un item de tier 6 affiche `orb.2`, une unité de tier 9 affiche `unit.single.3`.
+| table | ce qu'elle habille | combien de dessins |
+| --- | --- | --- |
+| `orb` | les items de la **grille** | autant qu'on veut, jusqu'à 11 |
+| `unit` | les **combattants** sur le champ de bataille | 3 par type, en général |
+| `power` | les fioles et orbes de météore | 3 par pouvoir, en général |
+
+**Pourquoi trois et pas une** : un orbe est une icône, qui se décline onze fois sans y passer
+la semaine ; une unité est un personnage. Une table commune imposerait de choisir entre
+« onze orbes, donc onze personnages par type » et « trois personnages, donc trois orbes » —
+un faux choix. Avec la table ci-dessus, un item de tier 7 affiche `orb.7` pendant qu'une
+unité de tier 7 affiche `unit.single.2`.
+
+Si `orb` n'est pas donné, il **hérite** de `unit` : un manifest écrit avant cette séparation
+se comporte exactement comme avant.
+
 **Aucune valeur de jeu n'en dépend** : changer les plages change ce qu'on voit, jamais qui
 gagne la partie.
+
+### Comment savoir laquelle ajuster
+
+La galerie le dit. Si elle annonce des **orphelins** nommés `orb.4`, `orb.5`… c'est que tu as
+dessiné plus d'orbes que la table `orb` n'en réclame : allonge-la, une plage par tier. Si
+elle annonce des **manques** `unit.single.3`, c'est l'inverse — il manque un dessin, ou la
+table `unit` en demande plus que la planche n'en fournit.
 
 ## Audio et polices
 
