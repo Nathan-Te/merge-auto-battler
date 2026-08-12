@@ -28,7 +28,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 import { generateReference } from './reference.js';
-import { makeTranslator } from '../i18n/format.js';
+import { PLURAL_RULES, makeTranslator } from '../i18n/format.js';
 
 const BALANCE_URL = new URL('../config/balance.json', import.meta.url);
 const LOCALE_URLS = {
@@ -61,7 +61,11 @@ export function main(argv = []) {
   for (const output of OUTPUTS) {
     // Repli sur l'anglais, comme en jeu : une clé oubliée en français produit la phrase
     // anglaise plutôt qu'un trou dans la référence.
-    const t = makeTranslator(dictionaries[output.locale], dictionaries.en);
+    const t = makeTranslator(
+      dictionaries[output.locale],
+      dictionaries.en,
+      PLURAL_RULES[output.locale]
+    );
     const content = `${generateReference(balance, { t }).trimEnd()}\n`;
 
     if (check) {

@@ -11,7 +11,12 @@ import {
   setLocale,
   t,
 } from '../src/i18n/index.js';
-import { compositionText, makeTranslator, waveLabelText } from '../src/i18n/format.js';
+import {
+  PLURAL_RULES,
+  compositionText,
+  makeTranslator,
+  waveLabelText,
+} from '../src/i18n/format.js';
 import { parseBattleConfig } from '../src/systems/battleConfig.js';
 import { parseDraftConfig } from '../src/systems/DraftSystem.js';
 import { parsePowersConfig } from '../src/systems/PowerSystem.js';
@@ -140,6 +145,19 @@ describe('traduction', () => {
     const french = createTranslator('fr');
     expect(french('gameOver.score', { count: 1 })).toBe('1 vague survécue');
     expect(french('gameOver.score', { count: 12 })).toBe('12 vagues survécues');
+  });
+
+  it('accorde **zéro** selon la langue, pas selon une règle commune', () => {
+    // « 0 waves survived » mais « 0 vague survécue » : en français, le nom qui suit zéro
+    // reste au singulier. Ce n'est pas un détail théorique — c'est la phrase qu'on lit à
+    // chaque partie perdue avant la première vague, donc à la toute première partie.
+    expect(createTranslator('en')('gameOver.score', { count: 0 })).toBe('0 waves survived');
+    expect(createTranslator('fr')('gameOver.score', { count: 0 })).toBe('0 vague survécue');
+  });
+
+  it('garde la règle anglaise quand le repli sert — une phrase anglaise s’accorde en anglais', () => {
+    const partial = makeTranslator({ hud: { skip: 'passer' } }, en, PLURAL_RULES.fr);
+    expect(partial('gameOver.score', { count: 0 })).toBe('0 waves survived');
   });
 
   it('retombe sur l’anglais quand une clé manque dans la langue active', () => {

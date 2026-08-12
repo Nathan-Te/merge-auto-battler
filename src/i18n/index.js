@@ -33,7 +33,12 @@
 
 import en from './en.json';
 import fr from './fr.json';
-import { compositionText as formatComposition, makeTranslator, waveLabelText as formatWaveLabel } from './format.js';
+import {
+  PLURAL_RULES,
+  compositionText as formatComposition,
+  makeTranslator,
+  waveLabelText as formatWaveLabel,
+} from './format.js';
 
 /** Dictionnaires disponibles. L'anglais fait référence : c'est lui qui doit être complet. */
 export const LOCALES = { en, fr };
@@ -72,7 +77,11 @@ export function detectLocale({ search = '', languages = [] } = {}) {
  * @returns {(key: string, params?: object) => string}
  */
 export function createTranslator(locale) {
-  return makeTranslator(LOCALES[locale] ?? LOCALES[DEFAULT_LOCALE], LOCALES[DEFAULT_LOCALE]);
+  return makeTranslator(
+    LOCALES[locale] ?? LOCALES[DEFAULT_LOCALE],
+    LOCALES[DEFAULT_LOCALE],
+    PLURAL_RULES[locale] ?? PLURAL_RULES[DEFAULT_LOCALE]
+  );
 }
 
 // --------------------------------------------------------------------- état global
