@@ -5,6 +5,7 @@ import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
 import { drawDraftIcon, iconColor } from '../render/draftIcons.js';
 import { DEPTH } from '../render/depths.js';
+import { sceneTextResolution } from '../render/hiDpi.js';
 
 /**
  * Écran de draft — trois cartes, un choix, effet permanent pour la partie.
@@ -109,7 +110,7 @@ export default class DraftScene extends Phaser.Scene {
   }
 
   textResolution() {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    return sceneTextResolution(this);
   }
 
   /**

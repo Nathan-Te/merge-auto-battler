@@ -33,6 +33,26 @@ partie, elle est dans le mauvais fichier.
 Le choix du joueur est mémorisé en `localStorage` (`src/systems/settings.js`) : couper le
 son ne doit pas se défaire au « rejouer » ni au rechargement.
 
+## `render` — résolution de rendu
+
+```jsonc
+"render": {
+  "maxPixelRatio": 2         // plafond du `devicePixelRatio` utilisé pour rendre
+}
+```
+
+Le canvas est rendu à la **résolution physique** de l'écran (taille CSS × ratio), sinon le
+navigateur étire une image basse définition sur un écran dense et tout paraît flou — le
+texte le premier. Les coordonnées de jeu, elles, ne bougent pas : c'est le zoom des caméras
+qui absorbe le facteur (`src/render/hiDpi.js`).
+
+**Ce plafond est le seul curseur de netteté et de performance du rendu.** Le coût est
+quadratique : à 2 il y a 4 fois plus de pixels à remplir, à 3 il y en a 9. Au-delà de 2 le
+gain visuel est marginal alors que le budget de fill-rate d'un téléphone d'entrée de gamme
+est bien réel. Si le jeu rame sur un appareil, c'est **ici** qu'on descend — jamais en
+réduisant des tailles dans les scènes. `?dpr=N` force la valeur le temps d'une comparaison
+sur un vrai téléphone.
+
 ## `particles`
 
 ```jsonc

@@ -98,6 +98,16 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   testable, ce qui reste ouvert). Une branche par lot.
 - **Tests unitaires sur la logique**, pas sur le feel : règles de merge, spawn d'items,
   logique de vagues sont couverts par vitest. Le feel se valide à la main sur téléphone.
+- **Le jeu rend à la résolution physique de l'écran, et le plafond est le seul curseur.**
+  `src/render/hiDpi.js` porte la mémoire de rendu du canvas à `taille CSS × devicePixelRatio`
+  et laisse le style CSS à la taille logique ; les coordonnées de jeu ne bougent pas, c'est
+  le **zoom des caméras** qui absorbe le facteur. Aucune scène n'a à savoir que le ratio
+  existe. Le plafond vit dans `juice.json` (`render.maxPixelRatio`, 2 par défaut) parce que
+  le coût est **quadratique** — ×2 = 4 fois plus de pixels à remplir. **Tout ajustement de
+  netteté ou de performance passe par ce plafond**, jamais par des tailles en dur dans une
+  scène : baisser une police ou un rayon pour gagner des images par seconde casserait la
+  lisibilité au doigt sans rien régler du vrai coût, qui est du remplissage. `?dpr=N` force
+  la valeur pour comparer sur un téléphone sans reconstruire.
 - **Le layout est responsive par construction.** Le canvas est en `Scale.RESIZE` : chaque
   scène se relayoute dans un `layout(width, height)` appelé au `create` et sur l'événement
   `resize`. Pas de positions absolues calculées une seule fois au démarrage.

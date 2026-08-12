@@ -21,6 +21,7 @@
  */
 const REQUIRED_NUMBERS = [
   'sound.masterVolume',
+  'render.maxPixelRatio',
   'particles.poolSize',
   'particles.gravityPx',
   'particles.dragPerSecond',

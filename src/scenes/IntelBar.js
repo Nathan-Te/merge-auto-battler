@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { drawEnemyShape, drawUnitShape, unitColor } from '../render/battleShapes.js';
 import { DEPTH } from '../render/depths.js';
+import { sceneTextResolution } from '../render/hiDpi.js';
 
 /**
  * Barre de décision — **le cœur d'interface du Lot 3.5**. Aucune règle de gameplay.
@@ -67,7 +68,7 @@ export class IntelBar {
   }
 
   textResolution() {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    return sceneTextResolution(this);
   }
 
   // ------------------------------------------------------------------ construction

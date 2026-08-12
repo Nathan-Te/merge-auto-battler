@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { DEPTH } from '../render/depths.js';
 import { DEBUG_SPEEDS } from '../systems/debug.js';
+import { sceneTextResolution } from '../render/hiDpi.js';
 
 /**
  * Panneau d'outils d'équilibrage — **visible uniquement sous `?debug=1`**.
@@ -69,7 +70,7 @@ export class DebugPanel {
       .text(0, 0, label, { fontFamily: FONT, color: COLORS.text })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud + 1)
-      .setResolution(Math.min(window.devicePixelRatio || 1, 2));
+      .setResolution(sceneTextResolution(this));
 
     box.on('pointerup', onPress);
     return { box, text, label };

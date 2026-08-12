@@ -5,6 +5,7 @@ import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
 import { drawUnitShape } from '../render/battleShapes.js';
 import { DEPTH } from '../render/depths.js';
+import { sceneTextResolution } from '../render/hiDpi.js';
 
 /**
  * Panneau d'aide — le « ? » de l'en-tête. Lancé par-dessus `GameScene` **mise en pause**,
@@ -67,7 +68,7 @@ export default class HelpScene extends Phaser.Scene {
   }
 
   textResolution() {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    return sceneTextResolution(this);
   }
 
   create() {

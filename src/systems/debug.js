@@ -14,6 +14,24 @@ export function isDebugEnabled(search = globalThis.location?.search ?? '') {
 }
 
 /**
+ * Plafond de résolution forcé par l'URL (`?dpr=1`, `?dpr=3`), ou `null`.
+ *
+ * Outil de mesure, pas de réglage : il sert à comparer netteté et coût de rendu sur un vrai
+ * téléphone sans reconstruire le jeu. La valeur qui fait foi reste `render.maxPixelRatio`
+ * dans `juice.json` (cf. `src/systems/pixelRatio.js`).
+ *
+ * @param {string} [search]
+ * @returns {number|null}
+ */
+export function pixelRatioOverride(search = globalThis.location?.search ?? '') {
+  if (typeof search !== 'string' || search.length === 0) return null;
+  const raw = new URLSearchParams(search).get('dpr');
+  if (raw === null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 1 ? value : null;
+}
+
+/**
  * Vitesses de jeu proposées par le panneau de debug.
  *
  * Multiplier le temps plutôt que de toucher aux valeurs : la simulation reste identique
