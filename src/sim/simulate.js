@@ -64,6 +64,10 @@ export function simulateGame({
   const draftRng = makeRng(seed * 7919 + 13);
   const session = new GameSession({ balance, rng: makeRng(seed), draftRng }).start();
 
+  // Une politique peut imposer sa **vitesse de main** — c'est ce qui distingue `slowHands`
+  // de `mixed`, qui jouent par ailleurs exactement le même jeu.
+  const actionEveryMs = policy.actionIntervalMs ?? actionIntervalMs;
+
   const actions = { tap: 0, merge: 0, power: 0 };
   const drafted = [];
   let elapsedMs = 0;
@@ -86,8 +90,8 @@ export function simulateGame({
     elapsedMs += stepMs;
 
     actionAccMs += stepMs;
-    while (actionAccMs >= actionIntervalMs) {
-      actionAccMs -= actionIntervalMs;
+    while (actionAccMs >= actionEveryMs) {
+      actionAccMs -= actionEveryMs;
       if (session.over || session.draftPending) break;
       const played = policy.act(session);
       if (played) actions[played] += 1;

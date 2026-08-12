@@ -377,7 +377,7 @@ describe('GameSession — horloge d’apparition des items', () => {
     expect(session.grid.count()).toBe(count);
   });
 
-  it('met le spawn en pause sur grille pleine, et le reprend dès qu’une case se libère', () => {
+  it('n’ajoute rien sur grille pleine, et reprend quand elle a vraiment de la place', () => {
     const session = makeSession().start();
     for (let i = 0; i < session.grid.size; i += 1) {
       session.grid.placeItem(i, 1, { silent: true });
@@ -387,9 +387,67 @@ describe('GameSession — horloge d’apparition des items', () => {
     session.update(10_000);
     expect(session.grid.count()).toBe(session.grid.size);
 
+    // Une seule case libérée ne relance rien : à 96 % de remplissage, la régulation du
+    // Lot 4.5 est encore à fond. C'est le comportement voulu — rendre une case ne doit pas
+    // suffire à rouvrir les vannes.
     session.grid.removeItem(0);
-    session.update(SPAWNER.gridFullRetryMs + SPAWNER.intervalMs);
-    expect(session.grid.isFull()).toBe(true);
+    session.update(SPAWNER.intervalMs * 2);
+    expect(session.grid.count()).toBe(session.grid.size - 1);
+
+    // Vidée pour de bon, la grille retrouve la cadence nominale.
+    for (let i = 1; i < session.grid.size - 4; i += 1) session.grid.removeItem(i);
+    session.update(SPAWNER.intervalMs);
+    expect(session.grid.count()).toBeGreaterThan(4);
+  });
+
+  it('ralentit à mesure que la grille se remplit, sans jamais la saturer', () => {
+    // Un joueur qui ne touche à rien pendant une minute : la régulation doit tenir la
+    // grille sous son seuil haut, là où l'ancien intervalle fixe la noyait.
+    const session = makeSession().start();
+    const stopFill = session.spawnerConfig.fillPressure.stopFill;
+
+    for (let step = 0; step < 600; step += 1) session.update(100);
+
+    expect(session.grid.isFull()).toBe(false);
+    expect(session.grid.count() / session.grid.size).toBeLessThanOrEqual(stopFill + 0.05);
+  });
+
+  it('ne met rien en réserve pendant que la grille est pleine', () => {
+    // Sans cette remise à zéro, le temps passé bloqué serait capitalisé et le premier merge
+    // ferait tomber un item **instantanément** — la punition arriverait pile au moment où le
+    // joueur vient de se dégager de la place.
+    const session = makeSession().start();
+    for (let i = 0; i < session.grid.size; i += 1) {
+      session.grid.placeItem(i, 1, { silent: true });
+    }
+
+    session.update(60_000);
+    expect(session.spawnProgress).toBe(0);
+
+    // Une case se libère : le décompte démarre **maintenant**, à zéro.
+    session.grid.removeItem(0);
+    session.update(1);
+    expect(session.grid.count()).toBe(session.grid.size - 1);
+    expect(session.spawnProgress).toBeLessThan(0.05);
+  });
+
+  it('reprend le rythme quand le joueur vide sa grille', () => {
+    const session = makeSession().start();
+    // Grille chargée : la cadence est freinée, presque rien n'apparaît.
+    for (let i = session.grid.count(); i < session.grid.size - 2; i += 1) {
+      session.grid.placeItem(i, 1, { silent: true });
+    }
+    const chargedBefore = session.grid.count();
+    session.update(SPAWNER.intervalMs * 2);
+    const chargedGain = session.grid.count() - chargedBefore;
+
+    // La même durée, grille vidée : le débit revient sans attendre la fin d'un long délai
+    // décidé quand elle était pleine. C'est ce que la jauge d'avancement garantit.
+    for (let i = 0; i < session.grid.size; i += 1) session.grid.removeItem(i);
+    session.update(SPAWNER.intervalMs * 2);
+
+    expect(session.grid.count()).toBeGreaterThan(chargedGain);
+    expect(session.grid.count()).toBeGreaterThanOrEqual(2);
   });
 });
 

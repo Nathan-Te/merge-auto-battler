@@ -545,3 +545,137 @@ cohérent : plus les unités sont chères, plus les garder en vie paie.
 - Le poids des deux pouvoirs est à **50/50**. Rien ne dit que c'est le bon partage : la
   météorite est plus spectaculaire, le soin plus discret mais plus régulier. À revoir si le
   playtest montre qu'un des deux ne se garde jamais.
+
+---
+
+## 9. Lot 4.5 — régulation de la pression de grille
+
+Demi-lot correctif. Le playtest du Lot 4 remonte un défaut déjà signalé au Lot 3.5 : **les
+items submergent la grille**, le jeu devient nerveux et sans stratégie. La récidive avait une
+cause structurelle, et c'est elle qui a dicté le correctif.
+
+### 9.1 Pourquoi ça a récidivé
+
+Depuis le Lot 4, la grille produit **deux familles d'items**. Un item a donc **moins de
+partenaires de fusion valides** qu'avant : un item d'unité de tier 1 ne fusionne plus avec
+tout ce qui porte un 1, et les pouvoirs de types différents ne fusionnent pas entre eux. À
+débit d'apparition constant, un item **stagne plus longtemps** — donc la grille sature plus
+vite, sans qu'aucune valeur de cadence ait bougé.
+
+Le Lot 3.5 avait traité le symptôme en ralentissant le débit (plancher 780 → 860 ms). C'est
+ce qu'il ne fallait pas refaire.
+
+### 9.2 Le harness ne voyait pas le problème — il a fallu un instrument
+
+Toutes les politiques jouent **trois gestes par seconde** (`actionIntervalMs` 300 ms). À
+cette cadence elles entretiennent une grille impeccable : `mixed` flotte à 4,2 items sur 25.
+Le harness ne pouvait donc mesurer ni le défaut ni sa correction.
+
+D'où **`slowHands`** : exactement le jeu de `mixed`, à **un geste toutes les 1,1 s** — le
+pouce d'un joueur qui regarde la bataille entre deux fusions. Ce n'est pas une stratégie,
+c'est une **vitesse de main**, et c'est la seule ligne du rapport qui parle de confort de
+grille. Elle chiffre le playtest : **15,0 items sur 25 en moyenne, 31 % du temps grille
+pleine**.
+
+### 9.3 Le ralentissement global, mesuré puis écarté
+
+Le prompt du lot demandait un intervalle de base ralenti. Mesuré, il **retourne l'invariant
+central** :
+
+| réglage                     | `prepare` | `spam` | ratio     | grille `slowHands` |
+| --------------------------- | --------- | ------ | --------- | ------------------ |
+| 1 900 / 880 (référence)     | 9,17      | 6,23   | **×1,49** | 15,0 · 31 % pleine |
+| 2 300 / 1 000               | 7,69      | 6,31   | ✘ ×1,21   | 8,2 · 3 % pleine   |
+| 2 100 / 950 + cooldown 3 800 | 8,83     | 6,04   | ×1,46 ✘¹  | 7,7 · 0 % pleine   |
+
+¹ ratio de moyennes tenu, mais `prepare.min` retombe au niveau de `spam.max` : l'écart ne
+vaut plus « pour la pire des parties », et le test le refuse.
+
+La raison est structurelle, et elle mérite d'être retenue :
+
+> **Un ralentissement global pénalise d'abord celui qui prépare.** Un envoi de tier 4 coûte
+> 8 items : le préparateur est limité par **les items**. Le spammeur, lui, est limité par
+> `deployCooldownMs` — il a déjà plus d'items qu'il ne peut en envoyer, et lui en retirer ne
+> lui coûte rien. Ralentir le débit soigne donc le symptôme en inversant le design.
+
+Tenter de compenser en allongeant `deployCooldownMs` (pour re-pénaliser le spammeur) ne suffit
+pas : ça marche sur les moyennes et pas sur les pires parties, et ça ralentit tout le jeu pour
+corriger un problème de grille.
+
+### 9.4 Le correctif retenu : une boucle de rétroaction
+
+L'intervalle effectif devient le **nominal multiplié par un facteur asservi au remplissage** :
+
+```
+  remplissage <= 36 %          -> ×1      (cadence nominale, la grille respire)
+  36 % < remplissage < 80 %    -> ×1 -> ×14, en puissance 2
+  remplissage >= 80 %          -> ×14     (quasi-arrêt)
+```
+
+Trois détails de conception qui comptent :
+
+- **la courbure (exposant 2) retarde le freinage.** À mi-chemin des deux seuils, seul le quart
+  du freinage est appliqué. Un frein linéaire se sentirait dès la première case au-dessus du
+  seuil, et le jeu paraîtrait retenir ses items sans raison ;
+- **l'horloge d'apparition est passée du compte à rebours à une jauge d'avancement**
+  (`GameSession.spawnProgress`). Un compte à rebours fige l'intervalle au moment où il est
+  armé : une grille pleine programmerait vingt secondes d'attente, et le joueur qui la vide
+  juste après les subirait quand même. La jauge relit l'intervalle **à chaque pas**, donc la
+  régulation est réversible instantanément ;
+- **la pause « grille pleine » disparaît en tant que cas particulier** : c'est le dernier cran
+  de la même courbe. Rien n'y est mis en réserve — la jauge est **remise à zéro** tant que la
+  grille est pleine, et le décompte du prochain item démarre à la fusion qui rouvre une case.
+  Capitaliser le temps passé bloqué ferait tomber un item instantanément au premier merge,
+  c'est-à-dire repunir le joueur à la seconde où il vient de se dégager.
+
+### 9.5 Résultats — 30 parties par politique, graines 1..30
+
+| politique           | grille avant | grille après  | pleine avant | pleine après | vagues avant | vagues après |
+| ------------------- | ------------ | ------------- | ------------ | ------------ | ------------ | ------------ |
+| Spam tier 1         | 19,6 (78 %)  | **11,5 (46 %)** | 55 %       | **0 %**      | 6,23         | 6,13         |
+| Mixte tier 3        | 4,2 (17 %)   | 4,2 (17 %)    | 0 %          | 0 %          | 9,63         | 9,63         |
+| Prépare tier 4      | 4,5 (18 %)   | 4,5 (18 %)    | 0 %          | 0 %          | 9,17         | 9,17         |
+| Mixte sans pouvoirs | 5,8 (23 %)   | 5,8 (23 %)    | 0 %          | 0 %          | 8,33         | 8,33         |
+| **Mixte main lente**| 15,0 (60 %)  | **8,6 (35 %)** | **31 %**    | **0 %**      | 9,07         | 9,03         |
+
+**Les trois politiques qui entretiennent leur grille rendent des chiffres identiques au
+centième.** C'est la propriété qui valide le correctif : la régulation ne se déclenche que
+pour qui en a besoin, elle ne coûte rien aux autres, et elle ne change pas la difficulté —
+`slowHands` survit toujours 9,0 vagues, avec presque deux fois moins d'items à l'écran.
+
+Objectifs chiffrés, tous re-validés sans déplacer une cible :
+
+- ✔ première défaite vagues 8-12 (mixte : 9,63)
+- ✔ durée de partie 3-5 min (4:06)
+- ✔ merge bat spam ×1,49
+- ✔ les pouvoirs se voient +1,30 vague
+
+### 9.7 Le critère d'acceptation, mesuré
+
+Un joueur totalement passif, qui ne touche à rien (`tests`-style, horloge exacte du harness) :
+
+| temps de jeu | avant              | après                          |
+| ------------ | ------------------ | ------------------------------ |
+| 10 s         | 14/25              | 13/25                          |
+| 20 s         | 20/25              | 14/25                          |
+| **30 s**     | **25/25 — pleine** | 16/25                          |
+| 60 s         | 25/25              | 18/25                          |
+| 120 s        | 25/25              | **20/25 — et ça n'augmente plus** |
+
+La grille était noyée **avant la vague 2**. Elle plafonne désormais à 20 cases sur 25 : cinq
+cases restent libres quoi qu'il arrive, donc il reste toujours de quoi fusionner. C'est
+exactement l'objectif de ressenti du lot — « pouvoir regarder une vague entière sans toucher
+la grille sans que la situation devienne irrattrapable ».
+
+### 9.8 Ce qui reste ouvert
+
+- **`startFill` est le curseur du confort de début de partie**, et il n'a été réglé qu'une
+  fois (0,36). C'est le premier nombre à toucher si le playtest trouve le début encore
+  chargé — pas `intervalMs`.
+- **La punition du spammeur a changé de nature.** Sa grille ne sature plus (55 % du temps
+  avant, 0 % après) : il est puni par le cooldown de sortie et par la faiblesse de ses
+  unités, plus par l'asphyxie. Ses vagues survécues n'ont pas bougé (6,23 → 6,13), donc
+  l'équilibre tient — mais le *feedback* de sa punition est moins visible à l'écran, et ça
+  se juge au doigt.
+- **`slowHands` est un instrument, pas une cible.** Il ne figure dans aucun objectif chiffré
+  autre que le confort de grille : personne ne doit régler la difficulté sur sa ligne.

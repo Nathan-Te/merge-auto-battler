@@ -145,8 +145,25 @@ export class GameSession {
      * headless (`npm run sim`) doit produire exactement le même rythme que le jeu, sinon
      * ses conclusions d'équilibrage ne valent rien. La scène se contente d'appeler
      * `update(delta)`.
+     *
+     * Décompte simple pour le **tout premier** item (`firstSpawnDelayMs`), puis jauge
+     * d'avancement pour les suivants — cf. `updateSpawner`.
      */
     this.spawnTimerMs = this.spawner.firstDelayMs();
+    /**
+     * Avancement vers la prochaine apparition, de 0 à 1.
+     *
+     * Une **jauge** plutôt qu'un compte à rebours, parce que l'intervalle change en cours de
+     * route (Lot 4.5 : il dépend du remplissage de la grille). Un compte à rebours figerait
+     * la valeur au moment où il est armé — une grille pleine programmerait vingt secondes
+     * d'attente, et le joueur qui la vide juste après les subirait quand même.
+     *
+     * Elle est **remise à zéro tant que la grille est pleine** : le temps passé bloqué ne se
+     * met pas en réserve, et le décompte du prochain item démarre à la fusion qui rouvre une
+     * case. C'est la différence entre « le jeu attendait que tu te dégages » et « le jeu te
+     * repunit à la seconde où tu t'es dégagé ».
+     */
+    this.spawnProgress = 0;
 
     /**
      * Observation de la grille — c'est ce qui dit si le rythme d'apparition est accordé au
@@ -276,18 +293,62 @@ export class GameSession {
   /**
    * Fait tourner l'horloge d'apparition des items.
    *
-   * Boucle plutôt que simple test : à vitesse ×4 (debug) ou après une frame longue, un
-   * `dtMs` peut couvrir plusieurs intervalles, et sauter les apparitions fausserait le
-   * rythme. La terminaison est garantie — `nextDelayMs()` est toujours > 0.
+   * Deux régimes. Le premier item attend `firstSpawnDelayMs`, en décompte simple. Les
+   * suivants avancent une **jauge** : chaque milliseconde en remplit une fraction de
+   * l'intervalle **courant**, relu à chaque pas. C'est ce qui rend la régulation du
+   * Lot 4.5 réversible — le rythme reprend dès que la grille se vide, sans attendre la fin
+   * d'un délai décidé quand elle était pleine.
+   *
+   * Le temps est consommé par morceaux plutôt que d'un bloc : à vitesse ×4 ou après une
+   * frame longue, un `dtMs` peut couvrir plusieurs intervalles, et chacun doit être calculé
+   * avec le remplissage qu'il aura vraiment. La terminaison est garantie : un intervalle est
+   * toujours > 0, et chaque tour consomme soit tout le temps restant, soit une apparition.
    */
   updateSpawner(dtMs) {
     if (!Number.isFinite(dtMs) || dtMs <= 0) return;
-    this.spawnTimerMs -= dtMs;
-    while (this.spawnTimerMs <= 0) {
-      // Grille pleine : `trySpawn` ne pose rien et le spawner rend un court délai de
-      // re-vérification. L'apparition est en pause, pas perdue.
+
+    let remaining = dtMs;
+
+    // Régime 1 — le tout premier item. Un délai fixe, que la régulation n'a pas à toucher :
+    // la grille sort du remplissage initial, son taux ne veut encore rien dire.
+    if (this.spawnTimerMs > 0) {
+      if (remaining < this.spawnTimerMs) {
+        this.spawnTimerMs -= remaining;
+        return;
+      }
+      remaining -= this.spawnTimerMs;
+      this.spawnTimerMs = 0;
       this.spawner.trySpawn();
-      this.spawnTimerMs += this.spawner.nextDelayMs();
+    }
+
+    // Régime 2 — la jauge régulée.
+    while (remaining > 0) {
+      // **Grille pleine : rien ne se prépare.** La jauge est remise à zéro et le décompte du
+      // prochain item ne démarre qu'à la libération d'une case. Sans cette remise à zéro, le
+      // temps passé bloqué serait mis en réserve et le premier merge ferait tomber un item
+      // instantanément — un effet de « stock » que rien n'annonce et que le joueur subit
+      // pile au moment où il vient de se dégager de la place.
+      if (this.grid.isFull()) {
+        this.spawnProgress = 0;
+        return;
+      }
+
+      const delay = this.spawner.currentDelayMs();
+      const needed = (1 - this.spawnProgress) * delay;
+
+      if (remaining < needed) {
+        this.spawnProgress += remaining / delay;
+        return;
+      }
+      remaining -= needed;
+
+      // Filet : la grille a été testée juste au-dessus, mais si une apparition échouait pour
+      // une autre raison, mieux vaut repartir de zéro que boucler sur une jauge pleine.
+      if (this.spawner.trySpawn() === null) {
+        this.spawnProgress = 0;
+        return;
+      }
+      this.spawnProgress = 0;
     }
   }
 

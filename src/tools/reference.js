@@ -342,6 +342,13 @@ function economySection({ spawner, battle, input }) {
           'la vitesse à laquelle on passe de l’un à l’autre',
         ],
         [
+          'régulation de remplissage',
+          `${Math.round(spawner.fillPressure.startFill * 100)} % → ` +
+            `${Math.round(spawner.fillPressure.stopFill * 100)} %, ` +
+            `jusqu’à ×${spawner.fillPressure.maxFactor}`,
+          '**le curseur de la pression de grille** : la cadence s’étire quand la grille se remplit',
+        ],
+        [
           'tiers à l’apparition',
           spawner.tierWeights.map((entry) => `${entry.tier} (×${entry.weight})`).join(', '),
           'les tiers supérieurs ne s’obtiennent que par fusion',
@@ -406,7 +413,8 @@ export function generateReference(balance) {
     '- **Taper** un item de pouvoir (silhouette **ronde**) le dépense tout de suite : ni file, ni',
     '  cooldown.',
     '- **Glisser** un item sur un autre de la même sorte et du même tier les fusionne en un tier',
-    '  supérieur ; sur une case vide, il se déplace. Un merge ne déclenche **rien** côté combat.',
+    '  supérieur ; sur une case vide, il se déplace ; sur n’importe quel autre item, les deux',
+    '  **échangent leur place**. Un merge ne déclenche **rien** côté combat.',
     '',
     'La file se vide toute seule au rythme du cooldown de sortie : c’est le métronome du jeu, et',
     'c’est ce qui rend le spam de petites unités perdant.',

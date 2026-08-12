@@ -180,11 +180,21 @@ function isPowerWorthIt(session, entry) {
  * @param {string} options.summary Une ligne, reprise telle quelle dans le rapport
  * @param {boolean} [options.usePowers] Faux : elle fusionne les pouvoirs mais n'en use jamais
  * @param {number} [options.powerTier] Tier à partir duquel elle consent à dépenser un pouvoir
+ * @param {number} [options.actionIntervalMs] Cadence de jeu propre à cette politique ; sinon
+ *   celle du harness. C'est la **vitesse de la main**, pas une stratégie
  * @returns {{id: string, label: string, summary: string, sendTier: number,
- *            usePowers: boolean, powerTier: number,
+ *            usePowers: boolean, powerTier: number, actionIntervalMs: ?number,
  *            act: (session: object) => (string|null)}}
  */
-export function tierPolicy({ id, label, sendTier, summary, usePowers = true, powerTier = 1 }) {
+export function tierPolicy({
+  id,
+  label,
+  sendTier,
+  summary,
+  usePowers = true,
+  powerTier = 1,
+  actionIntervalMs = null,
+}) {
   return {
     id,
     label,
@@ -192,6 +202,7 @@ export function tierPolicy({ id, label, sendTier, summary, usePowers = true, pow
     sendTier,
     usePowers,
     powerTier,
+    actionIntervalMs,
     /**
      * Une action, au plus.
      *
@@ -272,6 +283,13 @@ export function tierPolicy({ id, label, sendTier, summary, usePowers = true, pow
  * comparer à `mixed` répond à la seule question qui compte pour cette mécanique — est-ce
  * qu'elle apporte quelque chose ? Deux politiques qui ne diffèrent que par un réglage sont
  * la façon la plus honnête de la poser.
+ *
+ * `slowHands` est le **témoin du Lot 4.5**, et il mesure autre chose qu'une stratégie : la
+ * **vitesse de la main**. Toutes les autres politiques jouent trois gestes par seconde, ce
+ * qu'aucun joueur ne tient — elles entretiennent donc une grille impeccable et ne voient
+ * jamais la saturation dont se plaignent les playtests. Celle-ci joue le même jeu que
+ * `mixed` à un geste toutes les 1,1 s : c'est la seule qui subisse vraiment la pression de
+ * grille, donc la seule sur laquelle la régulation du Lot 4.5 se mesure.
  */
 export const POLICIES = {
   spam: tierPolicy({
@@ -301,6 +319,16 @@ export const POLICIES = {
     sendTier: 3,
     usePowers: false,
     summary: 'le même joueur que « Mixte », mais qui n’utilise jamais un pouvoir',
+  }),
+  slowHands: tierPolicy({
+    id: 'slowHands',
+    label: 'Mixte, main lente',
+    sendTier: 3,
+    powerTier: 3,
+    // Un geste toutes les 1,1 s au lieu de 0,3 : le pouce d'un joueur qui **regarde** la
+    // bataille entre deux fusions, et non celui d'un robot.
+    actionIntervalMs: 1100,
+    summary: 'le même joueur que « Mixte », mais avec une main humaine — la mesure de la pression de grille',
   }),
 };
 

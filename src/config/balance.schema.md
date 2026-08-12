@@ -371,7 +371,12 @@ franc (cf. `src/sim/targets.js`).
   "intervalMs": 1900,         // intervalle d'apparition initial
   "minIntervalMs": 880,       // plancher : l'accélération ne descend jamais en dessous
   "intervalDecay": 0.99,      // facteur appliqué à l'intervalle après chaque apparition
-  "gridFullRetryMs": 400,     // grille pleine : fréquence de re-vérification (spawn en pause)
+  "fillPressure": {           // régulation par le remplissage (Lot 4.5) — voir plus bas
+    "startFill": 0.36,        // en dessous, aucun frein : la cadence est celle du réglage
+    "stopFill": 0.8,          // au-delà, frein à fond (quasi-arrêt)
+    "maxFactor": 14,          // multiplicateur d'intervalle au quasi-arrêt
+    "exponent": 2             // courbure entre les deux (1 = linéaire)
+  },
   "spawnTierWeights": {       // poids relatifs du tier tiré à l'apparition
     "1": 85,                  // seuls les tiers listés apparaissent naturellement ;
     "2": 15                   // les tiers supérieurs ne s'obtiennent que par fusion
@@ -405,9 +410,50 @@ draft (« Extraction », « Gisement riche »). Descendre nettement plus bas res
 mesuré à 650 ms au Lot 3, la partie moyenne passait de 10 à 29 vagues. Ces deux valeurs se
 règlent **ensemble**.
 
-**Grille pleine** : ce n'est pas un game over — le spawn se met simplement en pause
-(feedback : bordure de grille qui pulse) et reprend dès qu'une case se libère.
-`gridFullRetryMs` n'est donc qu'une cadence de re-vérification, pas un délai de grâce.
+### `fillPressure` — la régulation par le remplissage (Lot 4.5)
+
+L'intervalle effectif n'est pas celui calculé ci-dessus : c'est ce **nominal** multiplié par
+un facteur qui dépend du taux de remplissage de la grille.
+
+```
+  remplissage <= startFill           -> ×1          (la grille respire, cadence nominale)
+  startFill < remplissage < stopFill -> ×1 -> ×maxFactor, en puissance `exponent`
+  remplissage >= stopFill            -> ×maxFactor  (quasi-arrêt)
+```
+
+C'est une **boucle de rétroaction**, et elle remplace la pause binaire « grille pleine » du
+Lot 1 — qui ne se déclenchait qu'une fois la noyade consommée. Trois conséquences à garder
+en tête :
+
+- **elle ne coûte rien à qui entretient sa grille.** Un joueur qui fusionne reste sous
+  `startFill` et ne voit jamais le frein : au harness, les politiques `mixed`, `prepare` et
+  `noPowers` rendent des chiffres **identiques** au réglage sans courbe. C'est la propriété
+  qui fait de la régulation un réglage de confort et non de difficulté ;
+- **elle se compose avec la progression de la partie**, par produit. La pression monte donc
+  toujours au fil des vagues (`intervalDecay`), mais elle ne peut plus noyer la grille ;
+- **le dernier cran est un arrêt franc, et il ne capitalise rien.** Grille pleine, la jauge
+  d'avancement est **remise à zéro** : le temps passé bloqué n'est pas mis en réserve, et le
+  décompte du prochain item démarre à la fusion qui rouvre une case. L'alternative (garder la
+  jauge à fond) ferait tomber un item instantanément au premier merge — soit repunir le
+  joueur à la seconde où il vient de se dégager de la place.
+
+**Le curseur de la pression de grille, c'est cette courbe — jamais `intervalMs`.** Un
+ralentissement global paraît équivalent et ne l'est pas : il pénalise d'abord le joueur qui
+**prépare** (il lui faut 4 à 8 items par envoi, il est donc limité par les items) et
+n'atteint pas le spammeur (limité, lui, par `battle.deployCooldownMs`). Mesuré au Lot 4.5 :
+ralentir `intervalMs` de 1 900 à 2 300 ms fait tomber `prepare` de 9,17 à 7,69 vagues
+pendant que `spam` **monte** de 6,23 à 6,31 — l'invariant « merger bat spammer » passe de
+×1,49 à ×1,21. Détail et mesures : `docs/balance-notes.md`, section 9.
+
+**Régler la courbe.** `startFill` décide *quand* le jeu commence à retenir ses items —
+c'est le levier du confort de début de partie. `stopFill` décide du plafond réellement
+atteignable par la grille. `maxFactor` doit rester grand (≥ 10) : c'est un quasi-arrêt, pas
+un ralentissement. `exponent` > 1 retarde le freinage pour qu'il reste imperceptible tant
+qu'il n'est pas nécessaire.
+
+**Grille pleine** : ce n'est pas un game over — plus rien n'apparaît (feedback : bordure de
+grille qui pulse), et le rythme reprend quand la grille redescend sous `stopFill`. Depuis le
+Lot 4.5 c'est le dernier cran de la courbe, et non plus un cas particulier.
 
 Depuis le Lot 2.5 la grille se vide aussi **par le tap** (un envoi consomme un item) : le
 rythme d'apparition et `battle.deployCooldownMs` se règlent donc ensemble. Si les items
