@@ -13,4 +13,19 @@ export function isDebugEnabled(search = globalThis.location?.search ?? '') {
   return value !== null && value !== '0' && value !== 'false';
 }
 
+/**
+ * Vitesses de jeu proposées par le panneau de debug.
+ *
+ * Multiplier le temps plutôt que de toucher aux valeurs : la simulation reste identique
+ * (tick fixe), on la regarde juste défiler plus vite. C'est ce qui permet de vérifier une
+ * vague 12 en trente secondes au lieu de quatre minutes.
+ */
+export const DEBUG_SPEEDS = [1, 2, 4];
+
+/** Vitesse suivante dans le cycle (revient à ×1 après la dernière). */
+export function nextDebugSpeed(current) {
+  const index = DEBUG_SPEEDS.indexOf(current);
+  return DEBUG_SPEEDS[(index + 1) % DEBUG_SPEEDS.length];
+}
+
 export default isDebugEnabled;

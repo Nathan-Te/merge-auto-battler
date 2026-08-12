@@ -17,6 +17,29 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   valeur influence le jeu, elle vit dans `balance.json` et est documentée dans
   `src/config/balance.schema.md` (JSON ne supportant pas les commentaires). Le réglage se
   fait par micro-itérations sur ce seul fichier.
+- **Feel exclusivement via `src/config/juice.json`.** Même règle, autre métier : toute
+  intensité de feedback — durée de tween, squash, nombre de particules, secousse de caméra,
+  paramètre de son — vit là et **jamais en dur** dans une scène. Documenté dans
+  `src/config/juice.schema.md`, validé par `parseJuiceConfig()` qui refuse une valeur
+  manquante. La frontière est nette : si une valeur change **qui gagne la partie**, elle est
+  dans `balance.json` ; si elle change ce que le joueur **ressent**, elle est dans
+  `juice.json`. On règle l'un au harness, l'autre au doigt sur un téléphone.
+- **`npm run sim` avant toute retouche d'équilibrage.** Le harness headless
+  (`src/sim/`, cf. `docs/balance-notes.md`) joue des dizaines de parties automatiques et
+  sort un rapport reproductible : trois politiques (`spam` — envoie tout dès que ça
+  apparaît ; `mixed` — fusionne jusqu'au tier 3, **le joueur de référence** ; `prepare` —
+  ne lâche rien avant le tier 4), vague moyenne, écart-type, durée, occupation de la
+  grille. `--matchups` mesure en plus quel type d'unité tient quelle texture de vague. Un
+  réglage se valide en secondes, pas en playtests.
+- **Invariant intouchable : « merger bat spammer ».** Préparer un gros item doit rester
+  strictement plus payant que spammer des petits — tout le jeu repose là-dessus, sans quoi
+  la grille ne sert plus à rien. `tests/balanceInvariant.test.js` le vérifie sur de vraies
+  parties simulées et **échoue** si un réglage l'inverse. Ne jamais le contourner : si le
+  test tombe, c'est le réglage qui est faux.
+- **Objectifs chiffrés de référence** (`src/sim/targets.js`, vérifiés par le harness et par
+  les tests) : partie moyenne de **3 à 5 minutes**, première défaite vers les **vagues
+  8-12**, `prepare` au moins **×1,4** devant `spam` en vagues survécues. Toute itération de
+  réglage se juge à ces trois nombres.
 - **Greybox jusqu'au Lot 3.** Formes colorées et texte, pas d'assets. Les sprites, sons et
   musique arrivent au Lot 4 — n'anticipe pas, le fun se valide sur les formes.
 - **Souris + tactile obligatoires sur toute interaction.** Chaque geste doit fonctionner au
@@ -148,31 +171,75 @@ du fichier).
 
 ### Mode debug
 
-`?debug=1` dans l'URL allume tout l'affichage de diagnostic (compteur de merges, fps,
-ticks logiques, ennemis vivants, unités en place). Sans ce paramètre, l'écran est celui
-que verra un joueur de Crazy Games. Le drapeau est lu par `isDebugEnabled()`
-(`src/systems/debug.js`) ; tout nouvel affichage de debug passe derrière.
+`?debug=1` dans l'URL allume tout l'outillage de réglage. Sans ce paramètre, l'écran est
+celui que verra un joueur de Crazy Games. Le drapeau est lu par `isDebugEnabled()`
+(`src/systems/debug.js`) ; tout nouvel affichage ou outil de debug passe derrière.
+
+- **Ligne de diagnostic** : fps, merges, envois, ticks logiques, ennemis, unités en place,
+  file de déploiement, items sur la grille.
+- **Panneau de boutons** (`src/scenes/DebugPanel.js`), tactile comme le reste :
+  **vitesse ×1/×2/×4** (le temps du jeu est multiplié, la simulation reste à tick fixe),
+  **vague +** (`BattleModel.skipWave()`), **base ∞** (`BattleModel.invincible`).
+- **Récap de fin de partie** sur l'écran de game over : dégâts par type d'unité, envois par
+  tier, vague atteinte, durée, unités perdues, taps refusés (`GameSession.recap()`).
+
+Le panneau **réserve sa place dans le layout** (`computeLayout({ debugRowPx })`) au lieu de
+se poser par-dessus : en mode debug la grille descend d'une bande, et aucun bouton ne
+recouvre jamais une case.
+
+## Juice
+
+Le feedback passe par une boîte à outils unique, `JuiceKit` (`src/render/juiceKit.js`),
+possédée par `GameScene` et prêtée à `BattleView` : particules poolées, secousses de
+caméra, vignette de dégâts, sons. Un seul exemplaire par partie — deux pools de particules
+ou deux contextes audio mangeraient le budget de performance en doublons.
+
+- **Particules** (`src/render/particles.js`) : pool **figé**, alloué au démarrage, un seul
+  `Graphics` redessiné par frame. Rien n'est alloué pendant le jeu ; pool plein, la plus
+  vieille particule est recyclée. C'est la règle de perf du Lot 3 — **aucune allocation
+  dans la boucle de tick ni dans la boucle de rendu**.
+- **Secousses** : `JuiceKit.shake()` étrangle lui-même les rafales (`shake.minIntervalMs`).
+  Trois événements seulement secouent l'écran — dégâts à la base, mort d'un **tank**, game
+  over. Si tout secouait, la secousse ne voudrait plus rien dire.
+- **Sons** : synthétisés à l'exécution façon jsfxr (`src/systems/sfx.js`), zéro octet
+  téléchargé, remplacés au Lot 4. Déverrouillés au premier `pointerdown` (politique des
+  navigateurs), étranglés par son (`sfx.<nom>.minIntervalMs`), et le toggle du joueur
+  persiste en `localStorage`.
 
 ## Commandes utiles
 
 ```bash
 npm run dev      # serveur de dev Vite (exposé sur le réseau local pour le test téléphone)
 npm test         # vitest, une passe
+npm run sim      # harness d'équilibrage headless — rapport par politique
 npm run build    # build de production dans dist/
 npm run preview  # sert le build de production en local
 ```
 
+```bash
+npm run sim                          # 20 parties par politique, graine 1
+npm run sim -- --games=50 --seed=7   # échantillon plus large, autre graine
+npm run sim -- --policies=spam,prepare
+npm run sim -- --matchups --tier=3   # quel type d'unité contre quelle texture de vague
+npm run sim -- --json                # sortie machine, pour comparer deux réglages
+```
+
+Le rapport est **reproductible** : mêmes graines + même `balance.json` = mêmes chiffres.
+
 ## Structure
 
 ```
-src/scenes/       scènes Phaser + vues (jeu, champ de bataille, game over)
+src/scenes/       scènes Phaser + vues (jeu, champ de bataille, game over, panneau debug)
 src/systems/      logique pure et testable (grille, file de déploiement, combat, session,
-                  gestes, vagues, spawner, layout)
-src/render/       greybox : formes, couleurs, profondeurs (aucune règle)
-src/config/       balance.json + son schéma documenté
+                  gestes, vagues, spawner, layout, juice, sons, rng, préférences)
+src/render/       greybox : formes, couleurs, profondeurs, particules, boîte à juice
+src/sim/          harness d'équilibrage headless (`npm run sim`) — politiques, bancs
+                  d'essai, rapport, objectifs chiffrés
+src/config/       balance.json + juice.json, chacun avec son schéma documenté
 public/           fichiers copiés tels quels dans dist/
 tests/            tests vitest
 docs/seed.md      périmètre — source de vérité
+docs/balance-notes.md  valeurs retenues, raisonnement, résultats du harness
 ```
 
 Règle de découpage : tout ce qui peut être testé sans Phaser vit dans `src/systems/` en
@@ -193,6 +260,12 @@ fonctions pures ; les scènes orchestrent et affichent.
   ne laissait aucune décision. Le lot refond le pont et le combat : **tap pour envoyer,
   glisser pour fusionner**, file de déploiement à cooldown de sortie, combat mutuel où les
   unités marchent, frappent et meurent. La fusion d'unités ★ est retirée de la V1.
-- Lot 3 — Équilibrage & feel. Toutes les valeurs sont dans `balance.json` ; les questions
-  ouvertes du playtest sont listées dans le README (Lot 2.5).
+- **Lot 3 — Équilibrage & feel** ✅ Harness de simulation headless (`npm run sim`) et
+  invariant « merger bat spammer » verrouillé par un test ; passe d'équilibrage complète
+  (partie moyenne 3:37, première défaite vague 10, textures de vagues avec cadence propre) ;
+  passe de juice intégrale pilotée par `juice.json` (squash de fusion, particules poolées,
+  trajets grille → slot → couloir avec traînée, hit flash, recul, vignette, screenshake
+  parcimonieux, SFX jsfxr synthétisés, toggle son) ; outils de debug (vitesse ×1/×2/×4,
+  saut de vague, base invincible, récap de fin de partie). Valeurs et raisonnement :
+  `docs/balance-notes.md`.
 - Lot 4 — Assets IA, vignette, soumission Basic Launch.

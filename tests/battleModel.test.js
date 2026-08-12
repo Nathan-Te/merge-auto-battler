@@ -708,3 +708,130 @@ describe('BattleModel — remise à zéro', () => {
     expect(model.over).toBe(false);
   });
 });
+
+/**
+ * Outils d'équilibrage du Lot 3 : ils vivent dans le modèle (donc testables sans Phaser),
+ * mais ne sont **jamais** un état de jeu — seul `?debug=1` les allume.
+ */
+describe('BattleModel — outils de debug', () => {
+  it('base invincible : le coup est annoncé, les PV ne bougent pas', () => {
+    const model = makeModel();
+    const events = [];
+    model.events.on('baseDamage', (payload) => events.push(payload));
+
+    model.invincible = true;
+    model.damageBase(40);
+
+    expect(model.baseHp).toBe(model.maxBaseHp);
+    expect(model.over).toBe(false);
+    // Le rendu doit quand même réagir, sinon on règle à l'aveugle.
+    expect(events).toEqual([
+      { amount: 0, blocked: true, baseHp: model.maxBaseHp, maxBaseHp: model.maxBaseHp },
+    ]);
+  });
+
+  it('base invincible : rien ne peut plus finir la partie', () => {
+    const model = makeModel();
+    model.invincible = true;
+    model.damageBase(model.maxBaseHp * 10);
+    expect(model.over).toBe(false);
+  });
+
+  it('saut de vague : vide les ennemis vivants et la file d’apparition', () => {
+    const model = makeModel();
+    model.start();
+    model.startWave(3);
+    model.tick();
+    expect(model.enemies.length).toBeGreaterThan(0);
+
+    const deaths = [];
+    model.events.on('enemyDeath', (payload) => deaths.push(payload));
+    expect(model.skipWave()).toBe(true);
+
+    expect(model.enemies).toHaveLength(0);
+    expect(model.spawnQueue).toHaveLength(0);
+    // Le rendu nettoie ses vues par `enemyDeath`, marqué pour ne pas être confondu
+    // avec une vraie mort.
+    expect(deaths.every((payload) => payload.skipped)).toBe(true);
+  });
+
+  it('saut de vague : la vague suivante démarre par le chemin normal du modèle', () => {
+    const model = makeModel();
+    model.start();
+    model.startWave(2);
+    model.tick();
+    model.skipWave();
+    model.tick();
+
+    expect(model.phase).toBe(PHASE.PAUSE);
+    expect(model.wavesCleared).toBe(2);
+  });
+
+  it('saut de vague pendant la pause : écourte le compte à rebours', () => {
+    const model = makeModel();
+    model.start();
+    expect(model.phase).toBe(PHASE.PAUSE);
+
+    model.skipWave();
+    model.tick();
+    expect(model.wave).toBe(1);
+  });
+
+  it('saut de vague refusé après le game over', () => {
+    const model = makeModel();
+    model.start();
+    model.endGame();
+    expect(model.skipWave()).toBe(false);
+  });
+});
+
+describe('BattleModel — comptabilité de fin de partie', () => {
+  it('compte les dégâts par type d’unité, sans surkill', () => {
+    const model = makeModel();
+    model.start();
+    model.startWave(1);
+    model.tick();
+
+    const enemy = model.enemies[0];
+    const hpBefore = enemy.hp;
+    const unit = model.spawnUnit(9, 'single'); // largement de quoi tuer d'un coup
+    unit.progress = enemy.progress;
+    model.tick();
+
+    // Les dégâts comptés s'arrêtent aux PV réellement retirés.
+    expect(model.stats.damageByType.single).toBeLessThanOrEqual(hpBefore);
+    expect(model.stats.damageByType.single).toBeGreaterThan(0);
+    expect(model.stats.killsByType.single).toBe(1);
+    expect(model.stats.enemiesKilled).toBe(1);
+  });
+
+  it('compte les unités déployées par tier, et celles qui tombent', () => {
+    const model = makeModel();
+    const unit = model.spawnUnit(3, 'single');
+    model.spawnUnit(3, 'aoe');
+    model.spawnUnit(5, 'slow');
+
+    expect(model.stats.unitsDeployed).toBe(3);
+    expect(model.stats.deployedByTier).toEqual({ 3: 2, 5: 1 });
+
+    model.killUnit(unit);
+    expect(model.stats.unitsLost).toBe(1);
+  });
+
+  it('mesure la durée de la partie en temps de jeu, pas en temps réel', () => {
+    const model = makeModel();
+    model.start();
+    for (let i = 0; i < 10; i += 1) model.update(100);
+    expect(model.stats.elapsedMs).toBe(1000);
+  });
+
+  it('ne compte pas le temps jeté après un gel — la durée reste celle du jeu vécu', () => {
+    const model = makeModel();
+    model.start();
+    // 10 ticks demandés d'un coup, 5 exécutés (`maxTicksPerFrame`), le retard est jeté.
+    model.update(1000);
+    expect(model.stats.elapsedMs).toBe(
+      TEST_BALANCE.battle.maxTicksPerFrame * TEST_BALANCE.battle.tickMs
+    );
+  });
+});

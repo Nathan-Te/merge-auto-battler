@@ -73,7 +73,28 @@ export class GameSession {
 
     this.mergeCount = 0;
     this.sentCount = 0;
+    /** Envois par tier — lu par le récap de fin de partie et par le harness. */
+    this.sentByTier = {};
+    this.blockedTaps = 0;
     this.destroyed = false;
+
+    /**
+     * Horloge d'apparition des items. Elle vit **ici** et non dans la scène : le harness
+     * headless (`npm run sim`) doit produire exactement le même rythme que le jeu, sinon
+     * ses conclusions d'équilibrage ne valent rien. La scène se contente d'appeler
+     * `update(delta)`.
+     */
+    this.spawnTimerMs = this.spawner.firstDelayMs();
+
+    /**
+     * Observation de la grille — c'est ce qui dit si le rythme d'apparition est accordé au
+     * cooldown de sortie : une grille pleine en permanence est une famine de cases, une
+     * grille vide une famine d'items. Purement descriptif (cf. `recap()`).
+     */
+    this.gridFullMs = 0;
+    this.gridSampleAccMs = 0;
+    this.gridSampleCount = 0;
+    this.gridItemSum = 0;
 
     /** @type {(() => void)[]} Désabonnements, rejoués par `destroy()`. */
     this.unsubscribes = [this.events.on('merge', () => this.onGridMerge())];
@@ -86,12 +107,50 @@ export class GameSession {
     return this;
   }
 
-  /** Avance le combat et le cooldown de sortie. La grille, elle, est pilotée par un timer. */
+  /** Avance le combat, le cooldown de sortie et l'apparition des items. */
   update(dtMs) {
     if (this.destroyed) return 0;
     const steps = this.battle.update(dtMs);
-    if (!this.battle.over) this.deployQueue.update(dtMs);
+    if (!this.battle.over) {
+      this.deployQueue.update(dtMs);
+      this.updateSpawner(dtMs);
+      this.sampleGrid(dtMs);
+    }
     return steps;
+  }
+
+  /**
+   * Échantillonne l'occupation de la grille. Le temps « grille pleine » est compté
+   * exactement (le modèle connaît déjà son état), l'occupation moyenne est échantillonnée
+   * au quart de seconde — inutile de compter 25 cases 60 fois par seconde pour une
+   * statistique de fin de partie.
+   */
+  sampleGrid(dtMs) {
+    if (this.grid.wasFull) this.gridFullMs += dtMs;
+
+    this.gridSampleAccMs += dtMs;
+    if (this.gridSampleAccMs < 250) return;
+    this.gridSampleAccMs = 0;
+    this.gridSampleCount += 1;
+    this.gridItemSum += this.grid.count();
+  }
+
+  /**
+   * Fait tourner l'horloge d'apparition des items.
+   *
+   * Boucle plutôt que simple test : à vitesse ×4 (debug) ou après une frame longue, un
+   * `dtMs` peut couvrir plusieurs intervalles, et sauter les apparitions fausserait le
+   * rythme. La terminaison est garantie — `nextDelayMs()` est toujours > 0.
+   */
+  updateSpawner(dtMs) {
+    if (!Number.isFinite(dtMs) || dtMs <= 0) return;
+    this.spawnTimerMs -= dtMs;
+    while (this.spawnTimerMs <= 0) {
+      // Grille pleine : `trySpawn` ne pose rien et le spawner rend un court délai de
+      // re-vérification. L'apparition est en pause, pas perdue.
+      this.spawner.trySpawn();
+      this.spawnTimerMs += this.spawner.nextDelayMs();
+    }
   }
 
   get over() {
@@ -128,6 +187,7 @@ export class GameSession {
     if (item === null) return { type: SESSION_TAP.INVALID, reason: 'caseVide' };
 
     if (!this.deployQueue.canAccept()) {
+      this.blockedTaps += 1;
       const blocked = { type: SESSION_TAP.BLOCKED, reason: 'fileDeploiementPleine', index };
       this.events.emit('tapRejected', blocked);
       return blocked;
@@ -137,6 +197,7 @@ export class GameSession {
     const unitType = this.unitQueue.take();
     this.grid.removeItem(index);
     this.sentCount += 1;
+    this.sentByTier[tier] = (this.sentByTier[tier] ?? 0) + 1;
 
     // `origin` remonte jusqu'au rendu : c'est ce qui lui permet de faire voler l'item
     // depuis sa case de grille vers son slot de déploiement.
@@ -181,6 +242,41 @@ export class GameSession {
       sentCount: this.sentCount,
       /** File de déploiement pleine : le prochain tap sera refusé. */
       blocked: !this.deployQueue.canAccept(),
+    };
+  }
+
+  /**
+   * Récapitulatif d'une partie — lu par le récap de fin de partie (`?debug=1`) et par le
+   * rapport du harness (`npm run sim`). Purement descriptif : aucune règle ne s'en sert.
+   *
+   * @returns {{wave: number, wavesCleared: number, durationMs: number, baseHp: number,
+   *            merges: number, sent: number, blockedTaps: number,
+   *            sentByTier: Record<number, number>, damageByType: Record<string, number>,
+   *            killsByType: Record<string, number>, unitsLost: number,
+   *            enemiesKilled: number, enemiesLeaked: number}}
+   */
+  recap() {
+    const { stats } = this.battle;
+    return {
+      wave: this.battle.wave,
+      wavesCleared: this.battle.wavesCleared,
+      durationMs: stats.elapsedMs,
+      baseHp: this.battle.baseHp,
+      maxBaseHp: this.battle.maxBaseHp,
+      merges: this.mergeCount,
+      sent: this.sentCount,
+      blockedTaps: this.blockedTaps,
+      sentByTier: { ...this.sentByTier },
+      damageByType: { ...stats.damageByType },
+      killsByType: { ...stats.killsByType },
+      unitsDeployed: stats.unitsDeployed,
+      unitsLost: stats.unitsLost,
+      /** Part du temps où la grille était pleine (0 → 1). */
+      gridFullShare: stats.elapsedMs > 0 ? this.gridFullMs / stats.elapsedMs : 0,
+      /** Nombre moyen d'items sur la grille (sur 25 cases). */
+      gridItemsAvg: this.gridSampleCount > 0 ? this.gridItemSum / this.gridSampleCount : 0,
+      enemiesKilled: stats.enemiesKilled,
+      enemiesLeaked: stats.enemiesLeaked,
     };
   }
 

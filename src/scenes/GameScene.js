@@ -1,14 +1,18 @@
 import Phaser from 'phaser';
 
 import balance from '../config/balance.json';
+import juiceConfig from '../config/juice.json';
 import { GameSession, SESSION_DROP, SESSION_TAP } from '../systems/GameSession.js';
 import { computeLayout, cellCenterAt, nearestCellIndex } from '../systems/layout.js';
 import { isTap } from '../systems/tapGesture.js';
-import { drawTierShape, TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { parseJuiceConfig } from '../systems/juice.js';
+import { drawTierShape, tierColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { DEPTH } from '../render/depths.js';
+import { JuiceKit } from '../render/juiceKit.js';
 import { isDebugEnabled } from '../systems/debug.js';
 import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
+import { DebugPanel } from './DebugPanel.js';
 
 /**
  * Scène de jeu — grille de merge + champ de bataille.
@@ -23,8 +27,12 @@ import { BattleView } from './BattleView.js';
  * du seuil de `isTap()`, le même que celui donné à `input.dragDistanceThreshold` pour que
  * Phaser ne démarre pas un drag pendant qu'on juge encore d'un tap.
  *
+ * **Toutes les intensités de feedback viennent de `juice.json`** (Lot 3) : durées de tween,
+ * squash de fusion, gerbes de particules, secousses, sons. Rien de tout cela n'est écrit
+ * en dur ici — voir `src/systems/juice.js`.
+ *
  * Le rendu de la moitié droite est délégué à `BattleView`, qui possède ses propres objets
- * d'affichage mais partage le layout et le bus.
+ * d'affichage mais partage le layout, le bus et la boîte à juice.
  */
 
 const COLORS = {
@@ -35,27 +43,16 @@ const COLORS = {
   cellStroke: 0x2c3350,
   text: '#eef1f8',
   textDim: '#8f97b0',
+  soundOn: 0x4d96ff,
+  soundOff: 0x2c3350,
 };
 
-/** Réglages d'interaction, purement de feel (le vrai polish arrive au Lot 3). */
-const FEEL = {
-  /** Agrandissement de l'item tenu, pour qu'il reste visible sous le doigt. */
-  dragScale: 1.18,
-  dragScaleMs: 110,
-  returnMs: 170,
-  spawnPopMs: 200,
-  moveMs: 130,
-  mergeAbsorbMs: 110,
-  mergePopMs: 220,
+/** Réglages d'interaction qui ne sont pas du feel : ergonomie du geste. */
+const INPUT = {
   /** Tolérance de drop, en fraction de case, autour du centre de la case visée. */
   dropTolerance: 0.9,
   /** Délai au-delà duquel un pointeur « perdu » (drag interrompu) annule le drag. */
   lostPointerMs: 140,
-  /** Secousse de l'item quand le tap est refusé (file de déploiement pleine). */
-  rejectMs: 60,
-  rejectPx: 8,
-  /** Aspiration de l'item tapé : il rétrécit pendant que la vignette s'envole. */
-  sendMs: 130,
   /** Délai avant l'écran de game over : le dernier ennemi doit avoir le temps d'arriver. */
   gameOverDelayMs: 650,
 };
@@ -70,6 +67,7 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     this.debug = isDebugEnabled();
+    this.juiceConfig = parseJuiceConfig(juiceConfig);
 
     this.session = new GameSession({ balance });
     this.model = this.session.grid;
@@ -82,15 +80,18 @@ export default class GameScene extends Phaser.Scene {
     /** Item sous le doigt tant que le geste peut encore devenir un tap. */
     this.tapCandidate = null;
     this.pulseTween = null;
-    this.spawnTimer = null;
     this.gameOverStarted = false;
+    /** Multiplicateur de temps du panneau de debug (×1 en jeu normal). */
+    this.speed = 1;
 
     // Deux pointeurs suffisent : on n'autorise qu'un drag à la fois, mais il faut
     // pouvoir détecter (et neutraliser proprement) un second doigt.
     this.input.addPointer(2);
 
     this.buildDisplay();
-    this.battleView = new BattleView(this, this.session);
+    this.juice = new JuiceKit(this, this.juiceConfig);
+    this.battleView = new BattleView(this, this.session, this.juice);
+    this.debugPanel = this.debug ? this.buildDebugPanel() : null;
     this.bindModel();
     this.bindInput();
 
@@ -101,7 +102,6 @@ export default class GameScene extends Phaser.Scene {
     this.layout(width, height);
 
     this.session.start();
-    this.scheduleSpawn(this.session.spawner.firstDelayMs());
   }
 
   // ------------------------------------------------------------------ affichage
@@ -132,6 +132,8 @@ export default class GameScene extends Phaser.Scene {
       .setResolution(this.textResolution());
     this.debugAccumulator = 0;
 
+    this.buildSoundButton();
+
     this.gridPanel = this.add
       .rectangle(0, 0, 10, 10, COLORS.gridPanel)
       .setOrigin(0, 0)
@@ -158,6 +160,51 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Bouton son — exigé au périmètre V1 (seed doc), et le choix survit au rechargement. */
+  buildSoundButton() {
+    this.soundButton = this.add
+      .rectangle(0, 0, 10, 10, COLORS.soundOn, 1)
+      .setDepth(DEPTH.hud)
+      .setInteractive({ useHandCursor: true });
+    this.soundIcon = this.add
+      .text(0, 0, '♪', { fontFamily: FONT, fontStyle: 'bold', color: '#12141c' })
+      .setOrigin(0.5, 0.5)
+      .setDepth(DEPTH.hud + 1)
+      .setResolution(this.textResolution());
+
+    this.soundButton.on('pointerup', () => {
+      // Le premier geste sur le bouton déverrouille aussi l'audio : sans ça, rallumer le
+      // son avant d'avoir touché la grille ne produirait rien.
+      this.juice.sfx.unlock();
+      this.juice.sfx.toggle();
+      this.refreshSoundButton();
+      if (this.juice.sfx.enabled) this.juice.play('tap');
+    });
+  }
+
+  refreshSoundButton() {
+    const on = this.juice?.sfx.enabled ?? true;
+    this.soundButton.setFillStyle(on ? COLORS.soundOn : COLORS.soundOff, 1);
+    this.soundIcon.setText(on ? '♪' : '✕').setColor(on ? '#12141c' : COLORS.textDim);
+  }
+
+  buildDebugPanel() {
+    return new DebugPanel(this, {
+      onSpeed: (speed) => {
+        this.speed = speed;
+        // Les timers de la scène suivent la même horloge que la simulation, sinon les
+        // délais d'animation dérivent du jeu à ×4.
+        this.time.timeScale = speed;
+      },
+      onSkipWave: () => this.session.battle.skipWave(),
+      onToggleInvincible: () => {
+        const battle = this.session.battle;
+        battle.invincible = !battle.invincible;
+        return battle.invincible;
+      },
+    });
+  }
+
   /** Texte net sur écran haute densité, sans exploser le fillrate au-delà de 2x. */
   textResolution() {
     return Math.min(window.devicePixelRatio || 1, 2);
@@ -176,18 +223,32 @@ export default class GameScene extends Phaser.Scene {
       cols: this.model.cols,
       rows: this.model.rows,
       slotCount: this.session.battleConfig.slotCount,
+      // La bande de boutons de debug se réserve sa place dans le layout plutôt que de se
+      // poser par-dessus le jeu : en mode normal elle vaut 0 et rien ne bouge.
+      debugRowPx: this.debug
+        ? Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.055), 22, 40)
+        : 0,
     });
     this.layoutData = layout;
 
     this.background.setSize(width, height);
+    this.juice.layout(width, height);
 
     const headerFont = Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.034), 11, 18);
     this.title.setFontSize(headerFont);
-    // Plus petit que le titre : la ligne de debug est dense et partage la même rangée.
-    this.debugText.setFontSize(Phaser.Math.Clamp(Math.round(headerFont * 0.78), 8, 14));
     const headerMiddle = layout.header.y + layout.header.height / 2;
     this.title.setPosition(layout.header.x, headerMiddle);
-    this.debugText.setPosition(layout.header.x + layout.header.width, headerMiddle);
+
+    // Bouton son collé au bord droit de l'en-tête ; la ligne de debug se range à sa gauche.
+    const soundSize = Phaser.Math.Clamp(Math.round(layout.header.height * 0.72), 20, 40);
+    const soundX = layout.header.x + layout.header.width - soundSize / 2;
+    this.soundButton.setPosition(soundX, headerMiddle).setSize(soundSize, soundSize);
+    this.soundButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
+    this.soundIcon.setFontSize(Math.round(soundSize * 0.55)).setPosition(soundX, headerMiddle);
+
+    // Plus petit que le titre : la ligne de debug est dense et partage la même rangée.
+    this.debugText.setFontSize(Phaser.Math.Clamp(Math.round(headerFont * 0.78), 8, 14));
+    this.debugText.setPosition(soundX - soundSize / 2 - layout.pad / 2, headerMiddle);
 
     const gridWidth = layout.grid.cell * layout.grid.cols;
     const gridHeight = layout.grid.cell * layout.grid.rows;
@@ -202,6 +263,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.refreshItemViews();
     this.battleView.layout(layout);
+    this.debugPanel?.layout(layout);
+    this.refreshSoundButton();
   }
 
   /**
@@ -240,20 +303,6 @@ export default class GameScene extends Phaser.Scene {
     this.bus.on('gameOver', (payload) => this.onGameOver(payload));
   }
 
-  /**
-   * Programme la prochaine apparition. Le spawner décide seul du délai : grille
-   * pleine, il renvoie un délai court de re-vérification et le spawn reste en pause
-   * (aucun item n'apparaît) jusqu'à ce qu'une case se libère.
-   */
-  scheduleSpawn(delayMs) {
-    this.spawnTimer?.remove(false);
-    this.spawnTimer = this.time.delayedCall(delayMs, () => {
-      if (this.session.over) return;
-      this.session.trySpawnItem();
-      this.scheduleSpawn(this.session.spawner.nextDelayMs());
-    });
-  }
-
   onModelMove(index, item) {
     const view = this.views.get(item.id);
     if (!view) return;
@@ -264,8 +313,9 @@ export default class GameScene extends Phaser.Scene {
       targets: view,
       x: center.x,
       y: center.y,
-      scale: 1,
-      duration: FEEL.moveMs,
+      scaleX: 1,
+      scaleY: 1,
+      duration: this.juiceConfig.grid.moveMs,
       ease: 'Quad.easeOut',
     });
   }
@@ -277,15 +327,17 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.killTweensOf(view);
     this.tweens.add({
       targets: view,
-      scale: 0,
+      scaleX: 0,
+      scaleY: 0,
       alpha: 0,
-      duration: FEEL.sendMs,
+      duration: this.juiceConfig.grid.sendMs,
       ease: 'Quad.easeIn',
       onComplete: () => view.destroy(),
     });
   }
 
   onModelMerge(payload) {
+    const grid = this.juiceConfig.grid;
     const [sourceItem, targetItem] = payload.consumed;
     const sourceView = this.views.get(sourceItem.id);
     const center = cellCenterAt(this.layoutData, payload.index);
@@ -293,7 +345,12 @@ export default class GameScene extends Phaser.Scene {
     const finish = () => {
       this.destroyItemView(sourceItem.id);
       this.destroyItemView(targetItem.id);
-      this.createItemView(payload.index, payload.item, { pop: FEEL.mergePopMs });
+      const view = this.createItemView(payload.index, payload.item, { pop: false });
+      this.squashPop(view);
+
+      // La gerbe part à la couleur du tier **produit** : l'œil suit la promotion.
+      this.juice.burst(center.x, center.y, grid.mergeBurst, tierColor(payload.resultTier));
+      this.juice.play('merge');
     };
 
     if (!sourceView) {
@@ -308,10 +365,40 @@ export default class GameScene extends Phaser.Scene {
       targets: sourceView,
       x: center.x,
       y: center.y,
-      scale: 0.5,
-      duration: FEEL.mergeAbsorbMs,
+      scaleX: 0.5,
+      scaleY: 0.5,
+      duration: grid.mergeAbsorbMs,
       ease: 'Quad.easeIn',
       onComplete: finish,
+    });
+  }
+
+  /**
+   * Squash & stretch de fusion : l'item naît écrasé, se détend, puis rebondit à sa taille.
+   * C'est ce qui donne du poids à la fusion — sans lui, un item de tier supérieur
+   * apparaîtrait simplement, et le geste principal du jeu n'aurait pas d'impact.
+   */
+  squashPop(view) {
+    if (!view?.active) return;
+    const { mergeSquash, mergePopMs } = this.juiceConfig.grid;
+
+    view.setScale(mergeSquash.scaleX * 0.7, mergeSquash.scaleY * 0.7);
+    this.tweens.chain({
+      targets: view,
+      tweens: [
+        {
+          scaleX: mergeSquash.scaleX,
+          scaleY: mergeSquash.scaleY,
+          duration: mergeSquash.durationMs,
+          ease: 'Quad.easeOut',
+        },
+        {
+          scaleX: 1,
+          scaleY: 1,
+          duration: mergePopMs,
+          ease: 'Back.easeOut',
+        },
+      ],
     });
   }
 
@@ -321,7 +408,7 @@ export default class GameScene extends Phaser.Scene {
    * Crée la vue d'un item : un conteneur (forme + numéro de tier), draggable au
    * doigt comme à la souris.
    */
-  createItemView(index, item, { pop = FEEL.spawnPopMs } = {}) {
+  createItemView(index, item, { pop = true } = {}) {
     const layout = this.layoutData;
     const center = cellCenterAt(layout, index);
 
@@ -351,12 +438,13 @@ export default class GameScene extends Phaser.Scene {
 
     this.views.set(item.id, view);
 
-    if (pop > 0) {
+    if (pop) {
       view.setScale(0.25);
       this.tweens.add({
         targets: view,
-        scale: 1,
-        duration: pop,
+        scaleX: 1,
+        scaleY: 1,
+        duration: this.juiceConfig.grid.spawnPopMs,
         ease: 'Back.easeOut',
       });
     }
@@ -401,11 +489,20 @@ export default class GameScene extends Phaser.Scene {
     // un tap. C'est ce qui garantit que les deux gestes ne se déclenchent jamais ensemble.
     this.input.dragDistanceThreshold = this.session.inputConfig.tapMaxDistancePx;
 
+    this.input.on('pointerdown', this.onPointerDown, this);
     this.input.on('gameobjectdown', this.onObjectDown, this);
     this.input.on('pointerup', this.onPointerUp, this);
     this.input.on('dragstart', this.onDragStart, this);
     this.input.on('drag', this.onDragMove, this);
     this.input.on('dragend', this.onDragEnd, this);
+  }
+
+  /**
+   * Les navigateurs n'autorisent l'audio qu'après un geste : le premier appui, où qu'il
+   * soit, réveille la banque de sons. Idempotent, donc appelé sans état à tenir.
+   */
+  onPointerDown() {
+    this.juice.sfx.unlock();
   }
 
   // --------------------------------------------------------------- tap (envoi)
@@ -438,9 +535,17 @@ export default class GameScene extends Phaser.Scene {
 
     const index = candidate.view.getData('index');
     const result = this.session.applyTap(index);
+
+    if (result.type === SESSION_TAP.SENT) {
+      this.juice.play('tap');
+      return;
+    }
     // Refus : la file de déploiement est pleine. L'item secoue et reste en place —
     // `BattleView` met la jauge en évidence de son côté.
-    if (result.type === SESSION_TAP.BLOCKED) this.shake(candidate.view);
+    if (result.type === SESSION_TAP.BLOCKED) {
+      this.shake(candidate.view);
+      this.juice.play('reject');
+    }
   }
 
   // --------------------------------------------------------------- drag (merge)
@@ -464,12 +569,14 @@ export default class GameScene extends Phaser.Scene {
       lostSince: 0,
     };
 
+    const grid = this.juiceConfig.grid;
     this.tweens.killTweensOf(view);
     view.setDepth(DEPTH.drag);
     this.tweens.add({
       targets: view,
-      scale: FEEL.dragScale,
-      duration: FEEL.dragScaleMs,
+      scaleX: grid.dragScale,
+      scaleY: grid.dragScale,
+      duration: grid.dragScaleMs,
       ease: 'Back.easeOut',
     });
   }
@@ -499,7 +606,7 @@ export default class GameScene extends Phaser.Scene {
     view.setDepth(DEPTH.item);
 
     const target = nearestCellIndex(this.layoutData, view.x, view.y, {
-      tolerance: FEEL.dropTolerance,
+      tolerance: INPUT.dropTolerance,
     });
     const result =
       target === -1 ? { type: SESSION_DROP.INVALID } : this.session.applyDrop(fromIndex, target);
@@ -520,8 +627,9 @@ export default class GameScene extends Phaser.Scene {
       targets: view,
       x: center.x,
       y: center.y,
-      scale: 1,
-      duration: FEEL.returnMs,
+      scaleX: 1,
+      scaleY: 1,
+      duration: this.juiceConfig.grid.returnMs,
       ease: 'Back.easeOut',
     });
   }
@@ -529,14 +637,15 @@ export default class GameScene extends Phaser.Scene {
   /** Secousse de refus sur l'item resté en place (tap sur une file pleine). */
   shake(view) {
     if (!view?.active) return;
+    const reject = this.juiceConfig.grid.reject;
     const home = cellCenterAt(this.layoutData, view.getData('index'));
     this.tweens.killTweensOf(view);
     this.tweens.add({
       targets: view,
-      x: home.x + FEEL.rejectPx,
-      duration: FEEL.rejectMs,
+      x: home.x + reject.offsetPx,
+      duration: reject.durationMs,
       yoyo: true,
-      repeat: 2,
+      repeat: reject.repeat,
       ease: 'Sine.easeInOut',
       onComplete: () => view.setPosition(home.x, home.y),
     });
@@ -568,15 +677,20 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameOverStarted) return;
     this.gameOverStarted = true;
 
-    this.spawnTimer?.remove(false);
-    this.spawnTimer = null;
     this.input.enabled = false;
+    this.juice.shake('gameOver');
+    this.juice.play('gameOver');
 
     const { best, isRecord } = submitScore(wavesCleared);
+    // Le récap n'a de sens que pour régler : il ne s'affiche que sous `?debug=1`.
+    const recap = this.debug ? this.session.recap() : null;
 
     // Court délai : le dernier ennemi finit son animation avant que l'écran ne tombe.
-    this.time.delayedCall(FEEL.gameOverDelayMs, () => {
-      this.scene.launch('GameOverScene', { wavesCleared, best, isRecord });
+    this.time.delayedCall(INPUT.gameOverDelayMs, () => {
+      // Mettre la scène en pause **gèle ses tweens** : une vignette prise en plein fondu
+      // resterait rouge derrière l'écran de fin. On l'éteint avant de figer.
+      this.juice.clearVignette();
+      this.scene.launch('GameOverScene', { wavesCleared, best, isRecord, recap });
       this.scene.pause();
     });
   }
@@ -584,8 +698,12 @@ export default class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------------ boucle
 
   update(time, delta) {
-    this.session.update(delta);
-    this.battleView.update(delta);
+    // Le multiplicateur de debug étire le temps du jeu, pas celui du navigateur : la
+    // simulation reste à tick fixe, elle défile simplement plus vite.
+    const scaled = delta * this.speed;
+    this.session.update(scaled);
+    this.battleView.update(scaled);
+    this.juice.update(delta);
     this.updateDebug(delta);
 
     const drag = this.dragState;
@@ -601,7 +719,7 @@ export default class GameScene extends Phaser.Scene {
       drag.lostSince = time;
       return;
     }
-    if (time - drag.lostSince > FEEL.lostPointerMs) {
+    if (time - drag.lostSince > INPUT.lostPointerMs) {
       this.dragState = null;
       drag.view.setDepth(DEPTH.item);
       this.returnHome(drag.view, drag.fromIndex);
@@ -618,27 +736,30 @@ export default class GameScene extends Phaser.Scene {
     const battle = this.session.battle;
     // Dense à dessein : cette ligne doit tenir à côté du titre sur un écran de 320 px.
     // m = merges, s = envois, t = ticks logiques, e = ennemis, u = unités au combat,
-    // f = file de déploiement.
+    // f = file de déploiement, g = items sur la grille.
     this.debugText.setText(
       `${Math.round(this.game.loop.actualFps)}fps m${hud.mergeCount} s${hud.sentCount} ` +
         `t${battle.tickCount} e${battle.enemies.length} ` +
-        `u${hud.fieldUnits}/${hud.maxFieldUnits} f${hud.queueLength}/${hud.slotCount}`
+        `u${hud.fieldUnits}/${hud.maxFieldUnits} f${hud.queueLength}/${hud.slotCount} ` +
+        `g${this.model.count()}`
     );
   }
 
   teardown() {
     this.scale.off('resize', this.handleResize, this);
+    this.input.off('pointerdown', this.onPointerDown, this);
     this.input.off('gameobjectdown', this.onObjectDown, this);
     this.input.off('pointerup', this.onPointerUp, this);
     this.input.off('dragstart', this.onDragStart, this);
     this.input.off('drag', this.onDragMove, this);
     this.input.off('dragend', this.onDragEnd, this);
-    this.spawnTimer?.remove(false);
-    this.spawnTimer = null;
     this.dragState = null;
     this.tapCandidate = null;
+    this.time.timeScale = 1;
 
+    this.debugPanel?.destroy();
     this.battleView?.destroy();
+    this.juice?.destroy();
     this.session.destroy();
     // Le bus meurt avec la session : aucun écouteur ne survit à la partie, donc aucune
     // fuite d'un `rejouer` à l'autre.

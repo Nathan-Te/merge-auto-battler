@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "input": {
     "tapMaxDistancePx": 12,
     "tapMaxDurationMs": 600
@@ -14,15 +14,15 @@
     "baseHp": 100,
     "unitTypePattern": [
       "single",
-      "single",
       "aoe",
+      "single",
       "slow",
       "single",
       "support",
       "aoe",
       "single",
       "slow",
-      "single"
+      "aoe"
     ],
     "maxSupportFireRateBonus": 0.6
   },
@@ -53,12 +53,12 @@
       "role": "slow",
       "hp": 34,
       "speed": 64,
-      "damage": 3,
+      "damage": 6,
       "fireRateMs": 900,
-      "range": 200,
-      "slowFactor": 0.55,
-      "slowDurationMs": 1400,
-      "slowRadius": 90,
+      "range": 250,
+      "slowFactor": 0.38,
+      "slowDurationMs": 1600,
+      "slowRadius": 140,
       "tierScaling": { "hp": 2.25, "damage": 2.1, "fireRateMs": 0.97, "range": 1.04, "effect": 1.14 }
     },
     "support": {
@@ -87,8 +87,8 @@
     "fast": {
       "label": "Rapide",
       "hp": 13,
-      "speed": 115,
-      "damageToBase": 4,
+      "speed": 135,
+      "damageToBase": 5,
       "damage": 10,
       "attackRateMs": 500,
       "attackRange": 34
@@ -104,44 +104,93 @@
     }
   },
   "waves": {
-    "firstWaveDelayMs": 6000,
-    "interWavePauseMs": 2200,
-    "spawnGapMs": 700,
+    "firstWaveDelayMs": 7000,
+    "interWavePauseMs": 4000,
+    "spawnGapMs": 820,
     "scripted": [
-      [{ "type": "basic", "count": 3 }],
-      [{ "type": "basic", "count": 5 }],
-      [
-        { "type": "basic", "count": 3 },
-        { "type": "fast", "count": 2 }
-      ],
-      [
-        { "type": "basic", "count": 4 },
-        { "type": "fast", "count": 4 }
-      ],
-      [
-        { "type": "tank", "count": 1 },
-        { "type": "basic", "count": 4 }
-      ],
-      [
-        { "type": "basic", "count": 5 },
-        { "type": "fast", "count": 5 }
-      ],
-      [
-        { "type": "tank", "count": 2 },
-        { "type": "basic", "count": 4 },
-        { "type": "fast", "count": 3 }
-      ]
+      {
+        "label": "Découverte",
+        "spawnGapMs": 900,
+        "composition": [{ "type": "basic", "count": 3 }]
+      },
+      {
+        "label": "Découverte",
+        "spawnGapMs": 820,
+        "composition": [{ "type": "basic", "count": 5 }]
+      },
+      {
+        "label": "Premiers rapides",
+        "spawnGapMs": 760,
+        "composition": [
+          { "type": "basic", "count": 5 },
+          { "type": "fast", "count": 4 }
+        ]
+      },
+      {
+        "label": "Rush",
+        "spawnGapMs": 220,
+        "composition": [{ "type": "fast", "count": 14 }]
+      },
+      {
+        "label": "Mur de tanks",
+        "spawnGapMs": 1100,
+        "composition": [
+          { "type": "tank", "count": 4 },
+          { "type": "basic", "count": 6 }
+        ]
+      },
+      {
+        "label": "Marée mixte",
+        "spawnGapMs": 520,
+        "composition": [
+          { "type": "basic", "count": 12 },
+          { "type": "fast", "count": 9 }
+        ]
+      },
+      {
+        "label": "Rush blindé",
+        "spawnGapMs": 200,
+        "composition": [
+          { "type": "fast", "count": 20 },
+          { "type": "tank", "count": 5 }
+        ]
+      },
+      {
+        "label": "Marée",
+        "spawnGapMs": 480,
+        "composition": [
+          { "type": "basic", "count": 16 },
+          { "type": "fast", "count": 12 }
+        ]
+      },
+      {
+        "label": "Mur épais",
+        "spawnGapMs": 1000,
+        "composition": [
+          { "type": "tank", "count": 8 },
+          { "type": "basic", "count": 12 }
+        ]
+      },
+      {
+        "label": "Tout à la fois",
+        "spawnGapMs": 200,
+        "composition": [
+          { "type": "fast", "count": 26 },
+          { "type": "basic", "count": 12 },
+          { "type": "tank", "count": 5 }
+        ]
+      }
     ],
     "infinite": [
-      { "type": "basic", "count": 6 },
-      { "type": "fast", "count": 4 },
-      { "type": "tank", "count": 2 }
+      { "type": "basic", "count": 12 },
+      { "type": "fast", "count": 14 },
+      { "type": "tank", "count": 6 }
     ],
     "scaling": {
-      "hpPerWave": 1.21,
+      "hpPerWave": 1.48,
       "speedPerWave": 1.02,
-      "damagePerWave": 1.2,
-      "countPerWave": 1.18,
+      "damagePerWave": 1.28,
+      "countPerWave": 1.24,
       "spawnGapPerWave": 0.98,
       "minSpawnGapMs": 320,
       "maxCountPerEntry": 24
@@ -149,10 +198,10 @@
   },
   "itemSpawner": {
     "maxTier": 11,
-    "startingItems": 4,
+    "startingItems": 8,
     "firstSpawnDelayMs": 500,
-    "intervalMs": 2400,
-    "minIntervalMs": 900,
+    "intervalMs": 1200,
+    "minIntervalMs": 780,
     "intervalDecay": 0.985,
     "gridFullRetryMs": 400,
     "spawnTierWeights": {

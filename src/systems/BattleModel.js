@@ -33,7 +33,7 @@
  *   - `enemyDeath`    { enemy }                tué par les unités
  *   - `enemyLeak`     { enemy, damage }        a atteint la base
  *   - `enemyAttack`   { enemy, unit, damage, killed }
- *   - `baseDamage`    { amount, baseHp, maxBaseHp }
+ *   - `baseDamage`    { amount, blocked, baseHp, maxBaseHp }  `blocked` = base invincible (debug)
  *   - `unitSpawn`     { unit, origin }         une unité entre sur le champ de bataille
  *   - `unitAttack`    { unit, from, target, hits, role, splashRadius }
  *   - `unitDeath`     { unit }
@@ -49,7 +49,13 @@
 
 import { EventBus } from './eventBus.js';
 import { unitStats, supportBonus, enemyStats } from './battleConfig.js';
-import { waveSpawnOrder, waveSpawnGapMs, waveComposition, describeWave } from './waves.js';
+import {
+  waveSpawnOrder,
+  waveSpawnGapMs,
+  waveComposition,
+  describeWave,
+  waveLabel,
+} from './waves.js';
 
 /** Phases de la partie. */
 export const PHASE = {
@@ -80,6 +86,35 @@ export class BattleModel {
   /** Remet le champ de bataille dans son état de début de partie, sans émettre. */
   reset() {
     const { config } = this;
+
+    /**
+     * Base invulnérable — **outil de debug uniquement** (`?debug=1`), jamais un état de
+     * jeu : il sert à observer une vague de bout en bout sans mourir pendant le réglage.
+     */
+    this.invincible = false;
+    /**
+     * Comptabilité de fin de partie : c'est ce que lit le récap de debug et le rapport du
+     * harness (`npm run sim`). Aucun effet sur les règles — on ne fait qu'observer.
+     */
+    this.stats = {
+      /** Dégâts **effectifs** infligés aux ennemis, par type d'unité (sans surkill). */
+      damageByType: {},
+      /** Ennemis achevés, par type d'unité responsable du coup fatal. */
+      killsByType: {},
+      /** Unités entrées sur le champ, par tier. */
+      deployedByTier: {},
+      unitsDeployed: 0,
+      unitsLost: 0,
+      enemiesKilled: 0,
+      enemiesLeaked: 0,
+      baseDamageTaken: 0,
+      /** Temps de jeu simulé, en ms (ticks × `tickMs`) — la durée réelle d'une partie. */
+      elapsedMs: 0,
+    };
+    for (const type of Object.keys(config.units)) {
+      this.stats.damageByType[type] = 0;
+      this.stats.killsByType[type] = 0;
+    }
 
     this.maxBaseHp = config.baseHp;
     this.baseHp = config.baseHp;
@@ -155,6 +190,7 @@ export class BattleModel {
   tick() {
     if (this.over) return;
     this.tickCount += 1;
+    this.stats.elapsedMs += this.config.tickMs;
 
     this.stepPhase();
     this.stepUnits();
@@ -194,6 +230,9 @@ export class BattleModel {
       wave,
       composition: waveComposition(this.config, wave),
       description: describeWave(this.config, wave),
+      // Texture de la vague (« Rush », « Mur de tanks »…) : le bandeau l'annonce, ce qui
+      // laisse au joueur une chance de préparer le bon type d'unité.
+      label: waveLabel(this.config, wave),
     });
   }
 
@@ -251,6 +290,8 @@ export class BattleModel {
       engaged: false,
     };
     this.units.push(unit);
+    this.stats.unitsDeployed += 1;
+    this.stats.deployedByTier[tier] = (this.stats.deployedByTier[tier] ?? 0) + 1;
     this.events.emit('unitSpawn', { unit, origin });
     return unit;
   }
@@ -340,8 +381,14 @@ export class BattleModel {
     const hits = [];
 
     const apply = (enemy) => {
+      // Dégâts **effectifs** : le surkill ne doit pas gonfler le récap de fin de partie,
+      // sinon un mono-cible qui achève tout paraîtrait deux fois plus utile qu'il n'est.
+      const dealt = Math.max(0, Math.min(enemy.hp, stats.damage));
       enemy.hp -= stats.damage;
-      hits.push({ enemy, damage: stats.damage, killed: enemy.hp <= 0 });
+      const killed = enemy.hp <= 0;
+      this.stats.damageByType[unit.type] += dealt;
+      if (killed) this.stats.killsByType[unit.type] += 1;
+      hits.push({ enemy, damage: stats.damage, killed });
     };
 
     apply(target);
@@ -399,6 +446,7 @@ export class BattleModel {
     const index = this.units.indexOf(unit);
     if (index === -1) return; // déjà retirée par un autre attaquant du même tick
     this.units.splice(index, 1);
+    this.stats.unitsLost += 1;
     this.events.emit('unitDeath', { unit });
   }
 
@@ -470,6 +518,7 @@ export class BattleModel {
       if (enemy.progress >= laneLength) {
         enemy.progress = laneLength;
         this.enemies.splice(i, 1);
+        this.stats.enemiesLeaked += 1;
         this.events.emit('enemyLeak', { enemy, damage: enemy.damageToBase });
         this.damageBase(enemy.damageToBase);
         if (this.over) return;
@@ -496,16 +545,56 @@ export class BattleModel {
     const index = this.enemies.indexOf(enemy);
     if (index === -1) return; // déjà retiré par une autre touche de la même salve
     this.enemies.splice(index, 1);
+    this.stats.enemiesKilled += 1;
     this.events.emit('enemyDeath', { enemy });
+  }
+
+  /**
+   * Vide la vague en cours — **outil de debug uniquement** (`?debug=1`).
+   *
+   * Les ennemis vivants sont retirés comme s'ils étaient tués (le rendu nettoie ses vues
+   * par `enemyDeath`), la file d'apparition est jetée, et une pause en cours est écourtée.
+   * Le passage à la vague suivante reste celui du modèle : `stepWaveEnd` le décide au tick
+   * d'après, exactement comme si le joueur avait tout nettoyé.
+   *
+   * @returns {boolean} false si la partie est finie
+   */
+  skipWave() {
+    if (this.over) return false;
+
+    this.spawnQueue.length = 0;
+    for (let i = this.enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = this.enemies[i];
+      this.enemies.splice(i, 1);
+      this.events.emit('enemyDeath', { enemy, skipped: true });
+    }
+    // En pause : le compte à rebours saute et la vague suivante démarre au tick suivant.
+    if (this.phase === PHASE.PAUSE) this.phaseTimerMs = 0;
+    return true;
   }
 
   // ------------------------------------------------------------------ base
 
   damageBase(amount) {
     if (amount <= 0 || this.over) return;
+
+    // Base invulnérable (debug) : le coup est annoncé — le rendu doit réagir, sinon on
+    // règle à l'aveugle — mais les PV ne bougent pas.
+    if (this.invincible) {
+      this.events.emit('baseDamage', {
+        amount: 0,
+        blocked: true,
+        baseHp: this.baseHp,
+        maxBaseHp: this.maxBaseHp,
+      });
+      return;
+    }
+
     this.baseHp = Math.max(0, this.baseHp - amount);
+    this.stats.baseDamageTaken += amount;
     this.events.emit('baseDamage', {
       amount,
+      blocked: false,
       baseHp: this.baseHp,
       maxBaseHp: this.maxBaseHp,
     });
