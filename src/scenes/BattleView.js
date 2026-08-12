@@ -12,6 +12,7 @@ import {
 } from '../render/battleShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
+import { compositionText, t, waveLabelText } from '../i18n/index.js';
 
 /**
  * Rendu du champ de bataille et de la file de déploiement — **aucune règle de gameplay**.
@@ -162,7 +163,7 @@ export class BattleView {
       .setDepth(DEPTH.banner);
 
     this.hint = scene.add
-      .text(0, 0, 'File pleine — ça part dans un instant', {
+      .text(0, 0, t('hud.queueFull'), {
         fontFamily: FONT,
         fontStyle: 'bold',
         color: COLORS.textWarn,
@@ -947,9 +948,12 @@ export class BattleView {
    * La vague 1 y a droit comme les autres : c'est la première chose que voit un joueur, et
    * lui montrer d'emblée que le jeu **prévient** est ce qui lui apprend à lire l'annonce.
    */
-  onWaveCountdown({ wave, label, description }) {
-    const title = label ? `Vague ${wave} · ${label}` : `Vague ${wave}`;
-    this.announceText = `${title}\n${description}`;
+  onWaveCountdown({ wave, label, composition }) {
+    // `label` est un **descripteur** rendu par le modèle, pas une phrase : c'est ici, au
+    // rendu, qu'il devient du texte dans la langue du joueur.
+    const texture = waveLabelText(label);
+    const title = texture ? t('hud.waveNamed', { wave, label: texture }) : t('hud.wave', { wave });
+    this.announceText = `${title}\n${compositionText(composition)}`;
     this.announceSeconds = -1;
     this.showAnnounce();
   }
@@ -980,7 +984,7 @@ export class BattleView {
     const seconds = Math.ceil(countdown.remainingMs / 1000);
     if (seconds === this.announceSeconds) return;
     this.announceSeconds = seconds;
-    this.banner.setText(`${this.announceText}\ndans ${seconds} s`);
+    this.banner.setText(`${this.announceText}\n${t('hud.countdown', { seconds })}`);
   }
 
   /** Efface le bandeau : la vague commence, la lecture est finie. */
@@ -1093,8 +1097,8 @@ export class BattleView {
     if (signature === this.hudSignature) return;
     this.hudSignature = signature;
 
-    this.hpText.setText(`PV ${Math.ceil(hud.baseHp)}/${hud.maxBaseHp}`);
-    this.queueText.setText(`File ${hud.queueLength}/${hud.slotCount}`);
+    this.hpText.setText(t('hud.baseHp', { current: Math.ceil(hud.baseHp), max: hud.maxBaseHp }));
+    this.queueText.setText(t('hud.queue', { current: hud.queueLength, max: hud.slotCount }));
     this.queueText.setColor(hud.blocked ? COLORS.textWarn : COLORS.textDim);
   }
 

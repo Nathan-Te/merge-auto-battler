@@ -4,12 +4,27 @@ import juiceConfig from './config/juice.json';
 import { parseJuiceConfig } from './systems/juice.js';
 import { HiDpi } from './render/hiDpi.js';
 import { pixelRatioOverride } from './systems/debug.js';
+import { detectLocale, setLocale, t } from './i18n/index.js';
 import GameScene from './scenes/GameScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
 import DraftScene from './scenes/DraftScene.js';
 import HelpScene from './scenes/HelpScene.js';
+import CreditsScene from './scenes/CreditsScene.js';
 
 const juice = parseJuiceConfig(juiceConfig);
+
+/**
+ * La langue est choisie **une fois**, avant que la moindre scène ne se crée.
+ *
+ * Anglais par défaut, français si le navigateur l'est, `?lang=` pour forcer (cf. `src/i18n/`).
+ * Il n'y a pas de sélecteur en jeu : le seed doc impose un démarrage direct sans menu, et
+ * changer de langue en cours de partie obligerait chaque scène à se réécrire.
+ */
+setLocale(detectLocale({ search: window.location.search, languages: navigator.languages ?? [] }));
+
+// L'onglet et l'écran d'accueil du navigateur suivent la langue du joueur, comme le reste.
+document.title = t('game.title');
+document.documentElement.lang = document.documentElement.lang || 'en';
 
 const config = {
   type: Phaser.AUTO,
@@ -40,10 +55,10 @@ const config = {
     // différemment selon le téléphone, pour un gain que personne ne voit.
     roundPixels: false,
   },
-  // `GameOverScene`, `DraftScene` et `HelpScene` sont lancées **par-dessus** `GameScene`
-  // mise en pause, pas à sa place : le champ de bataille reste visible derrière, et la
-  // partie ne peut pas avancer d'un tick pendant qu'un de ces écrans est ouvert.
-  scene: [GameScene, GameOverScene, DraftScene, HelpScene],
+  // `GameOverScene`, `DraftScene`, `HelpScene` et `CreditsScene` sont lancées **par-dessus**
+  // `GameScene` mise en pause, pas à sa place : le champ de bataille reste visible derrière,
+  // et la partie ne peut pas avancer d'un tick pendant qu'un de ces écrans est ouvert.
+  scene: [GameScene, GameOverScene, DraftScene, HelpScene, CreditsScene],
 };
 
 const game = new Phaser.Game(config);

@@ -29,7 +29,7 @@ jeu** (`unitStats`) : `stat(tier) = stat(1) × facteur^(tier-1)`.
 
 ### Archer — `single`
 
-Frappe une cible à la fois. Le généraliste : jamais le meilleur, jamais mauvais.
+Hits one target at a time. The all-rounder: never the best, never bad.
 
 Rôle `damage` · vitesse de marche 70 unités de couloir/s (elle ne dépend pas du tier).
 
@@ -44,9 +44,9 @@ Rôle `damage` · vitesse de marche 70 unités de couloir/s (elle ne dépend pas
 | 8 | 10214.5 | 3064.3 | 566 | 237 |
 | 11 | 124279.5 | 37283.9 | 516 | 266 |
 
-### Pyromancien — `aoe`
+### Pyromancer — `aoe`
 
-Touche aussi les ennemis autour de sa cible. Redoutable contre les paquets serrés.
+Also hits enemies around its target. Devastating against tight packs.
 
 Rôle `aoe` · vitesse de marche 64 unités de couloir/s (elle ne dépend pas du tier).
 
@@ -61,9 +61,9 @@ Rôle `aoe` · vitesse de marche 64 unités de couloir/s (elle ne dépend pas du
 | 8 | 7590.2 | 1751.6 | 955 | 211 | 218 |
 | 11 | 86456.7 | 19951.5 | 899 | 237 | 290 |
 
-### Mage de givre — `slow`
+### Frost mage — `slow`
 
-Frappe une cible et gèle toute la zone autour. Il achète du temps.
+Hits one target and chills the whole area around it. It buys you time.
 
 Rôle `slow` · vitesse de marche 64 unités de couloir/s (elle ne dépend pas du tier).
 
@@ -80,9 +80,9 @@ Rôle `slow` · vitesse de marche 64 unités de couloir/s (elle ne dépend pas d
 
 Le facteur de ralentissement vaut **0.38** à tous les tiers : c'est la durée et le rayon qui montent, sinon un ralentisseur de haut tier immobiliserait la vague.
 
-### Porte-étendard — `support`
+### Bannerman — `support`
 
-Ne frappe jamais : il augmente les dégâts et la cadence des alliés autour de lui.
+Never strikes: he raises the damage and rate of fire of nearby allies.
 
 Rôle `support` · vitesse de marche 76 unités de couloir/s (elle ne dépend pas du tier).
 
@@ -122,9 +122,9 @@ réparti selon les poids ci-dessous. Les pouvoirs plafonnent au **tier 6**, plus
 les items d’unité : au-delà, le dernier tier serait hors d’atteinte et deux pouvoirs
 plafonnés resteraient collés sur la grille sans pouvoir fusionner.
 
-### Potion de soin — `heal`
+### Healing potion — `heal`
 
-Soigne toutes les unités vivantes. À garder pour le moment où la ligne plie.
+Heals every living unit. Save it for the moment the line bends.
 
 Effet `heal` · poids d’apparition 50 sur 100 · effet **immédiat**
 
@@ -137,9 +137,9 @@ Effet `heal` · poids d’apparition 50 sur 100 · effet **immédiat**
 | 5 | 7388 |
 | 6 | 22903 |
 
-### Météorite — `meteor`
+### Meteor — `meteor`
 
-Frappe le groupe d'ennemis le plus menaçant. Les rushs ne passent pas.
+Strikes the most threatening pack of enemies. Rushes do not get through.
 
 Effet `blast` · poids d’apparition 50 sur 100 · télégraphie **0.4 s** avant l’impact
 
@@ -167,8 +167,8 @@ est appliqué par-dessus (voir plus bas).
 
 | type | PV | vitesse | dégâts base | dégâts unités | cadence (ms) | portée |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Gobelin** (`basic`) | 24 | 44 | 6 | 18 | 800 | 40 |
-| **Loup** (`fast`) | 13 | 106 | 5 | 10 | 500 | 34 |
+| **Goblin** (`basic`) | 24 | 44 | 6 | 18 | 800 | 40 |
+| **Wolf** (`fast`) | 13 | 106 | 5 | 10 | 500 | 34 |
 | **Ogre** (`tank`) | 95 | 26 | 14 | 42 | 1200 | 50 |
 
 ### Montée en puissance par vague
@@ -177,7 +177,7 @@ PV ×**1.66**, vitesse ×**1.02**, dégâts aux unités
 ×**1.28**, le tout à la puissance (vague − 1). Les dégâts à la base,
 eux, **ne montent pas** : la pression vient des PV, de la vitesse et du nombre.
 
-| vague | PV gobelin | PV loup | PV ogre |
+| vague | PV goblin | PV wolf | PV ogre |
 | --- | --- | --- | --- |
 | 1 | 24 | 13 | 95 |
 | 3 | 66 | 36 | 262 |
@@ -195,20 +195,20 @@ d'ennemis égal, un rush et un mur ne sont pas la même vague.
 
 | vague | texture | cadence | composition |
 | --- | --- | --- | --- |
-| 1 | Découverte | 900 ms | 3× Gobelin |
-| 2 | Découverte | 820 ms | 5× Gobelin |
-| 3 | Premiers rapides | 760 ms | 5× Gobelin, 4× Loup |
-| 4 | Rush | 220 ms | 14× Loup |
-| 5 | Mur d'ogres | 1100 ms | 4× Ogre, 6× Gobelin |
-| 6 | Marée mixte | 520 ms | 12× Gobelin, 9× Loup |
-| 7 | Rush blindé | 200 ms | 20× Loup, 5× Ogre |
-| 8 | Marée | 480 ms | 16× Gobelin, 12× Loup |
-| 9 | Mur épais | 1000 ms | 8× Ogre, 12× Gobelin |
-| 10 | Tout à la fois | 200 ms | 26× Loup, 12× Gobelin, 5× Ogre |
-| 11 *(générée)* | Vague mixte | 670 ms | 12× Gobelin, 14× Loup, 6× Ogre |
-| 12 *(générée)* | Vague mixte | 657 ms | 15× Gobelin, 17× Loup, 7× Ogre |
-| 13 *(générée)* | Vague mixte | 643 ms | 18× Gobelin, 22× Loup, 9× Ogre |
-| 14 *(générée)* | Vague mixte | 631 ms | 23× Gobelin, 24× Loup, 11× Ogre |
+| 1 | First contact | 900 ms | 3× Goblin |
+| 2 | First contact | 820 ms | 5× Goblin |
+| 3 | First runners | 760 ms | 5× Goblin, 4× Wolf |
+| 4 | Rush | 220 ms | 14× Wolf |
+| 5 | Wall of ogres | 1100 ms | 4× Ogre, 6× Goblin |
+| 6 | Mixed tide | 520 ms | 12× Goblin, 9× Wolf |
+| 7 | Armoured rush | 200 ms | 20× Wolf, 5× Ogre |
+| 8 | Tide | 480 ms | 16× Goblin, 12× Wolf |
+| 9 | Thick wall | 1000 ms | 8× Ogre, 12× Goblin |
+| 10 | All at once | 200 ms | 26× Wolf, 12× Goblin, 5× Ogre |
+| 11 *(générée)* | Mixed wave | 670 ms | 12× Goblin, 14× Wolf, 6× Ogre |
+| 12 *(générée)* | Mixed wave | 657 ms | 15× Goblin, 17× Wolf, 7× Ogre |
+| 13 *(générée)* | Mixed wave | 643 ms | 18× Goblin, 22× Wolf, 9× Ogre |
+| 14 *(générée)* | Mixed wave | 631 ms | 23× Goblin, 24× Wolf, 11× Ogre |
 
 Préparation avant la vague 1 : **9 s**.
 Pause entre deux vagues : **7 s** — c'est le
@@ -223,19 +223,19 @@ accumule un modificateur appliqué au moment de lire une stat.
 
 | carte | niveaux | effet par niveau | description |
 | --- | --- | --- | --- |
-| **Cadence** (`fireRate`) | 3 | `unitFireRate` ×0.88 (−12 %) | Toutes les unités frappent 12 % plus vite. |
-| **Puissance** (`power`) | 3 | `unitDamage` ×1.18 (+18 %) | +18 % de dégâts pour toutes les unités. |
-| **Portée** (`reach`) | 2 | `unitRange` ×1.14 (+14 %) | +14 % de portée : vos unités engagent plus tôt. |
-| **Blindage** (`plating`) | 2 | `unitHp` ×1.22 (+22 %) | +22 % de PV pour les unités à venir. |
-| **Invocation rapide** (`deploy`) | 3 | `deployCooldown` ×0.88 (−12 %) | −12 % sur le cooldown d'invocation. |
-| **Cercle élargi** (`slot`) | 2 | `slotBonus` +1 | +1 place dans le cercle d'invocation. |
-| **Fortifications** (`fortify`) | 3 | `baseHpBonus` +22 | +22 PV de château, et autant de PV rendus tout de suite. |
-| **Gisement riche** (`richVein`) | 2 | `spawnTierBonus` +1 | Les orbes apparaissent un tier plus haut. |
-| **Extraction** (`extraction`) | 3 | `spawnInterval` ×0.86 (−14 %) | −14 % sur l'intervalle d'apparition des orbes. |
-| **Étendard** (`banner`) | 2 | `support` : effect ×1.35, range ×1.2 | Aura et bonus du porte-étendard +35 %. |
-| **Réflexe** (`reflex`) | 2 | `skipCooldown` ×0.65 (−35 %) | −35 % sur le cooldown du bouton « passer ». |
-| **Charge arcanique** (`arcane`) | 3 | `powerAmount` ×1.3 (+30 %) | +30 % de puissance pour les pouvoirs (soin et dégâts). |
-| **Résonance** (`resonance`) | 2 | `powerChance` ×1.45 (+45 %) | +45 % de chances qu'un orbe soit un pouvoir. |
+| **Rate of fire** (`fireRate`) | 3 | `unitFireRate` ×0.88 (−12 %) | Every unit strikes 12% faster. |
+| **Might** (`power`) | 3 | `unitDamage` ×1.18 (+18 %) | +18% damage for every unit. |
+| **Reach** (`reach`) | 2 | `unitRange` ×1.14 (+14 %) | +14% range: your units engage sooner. |
+| **Plating** (`plating`) | 2 | `unitHp` ×1.22 (+22 %) | +22% HP for units yet to come. |
+| **Swift muster** (`deploy`) | 3 | `deployCooldown` ×0.88 (−12 %) | −12% on the summoning cooldown. |
+| **Wider circle** (`slot`) | 2 | `slotBonus` +1 | +1 slot in the summoning queue. |
+| **Fortifications** (`fortify`) | 3 | `baseHpBonus` +22 | +22 castle HP, and as much healed right away. |
+| **Rich vein** (`richVein`) | 2 | `spawnTierBonus` +1 | Orbs appear one tier higher. |
+| **Extraction** (`extraction`) | 3 | `spawnInterval` ×0.86 (−14 %) | −14% on the orb spawn interval. |
+| **Banner** (`banner`) | 2 | `support` : effect ×1.35, range ×1.2 | Bannerman aura and bonus +35%. |
+| **Reflex** (`reflex`) | 2 | `skipCooldown` ×0.65 (−35 %) | −35% on the skip button cooldown. |
+| **Arcane charge** (`arcane`) | 3 | `powerAmount` ×1.3 (+30 %) | +30% power strength (healing and damage). |
+| **Resonance** (`resonance`) | 2 | `powerChance` ×1.45 (+45 %) | +45% chance an orb is a power. |
 
 Les facteurs se composent **par produit** à chaque niveau (deux fois « +18 % » vaut ×1,39,
 pas ×1,36) ; les quantités entières (places, PV, tiers) s’additionnent.

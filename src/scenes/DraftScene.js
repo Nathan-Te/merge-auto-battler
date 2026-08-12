@@ -6,6 +6,7 @@ import { OverlayGuard } from '../systems/overlayGuard.js';
 import { drawDraftIcon, iconColor } from '../render/draftIcons.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Écran de draft — trois cartes, un choix, effet permanent pour la partie.
@@ -83,12 +84,12 @@ export default class DraftScene extends Phaser.Scene {
     this.guard.open(this.now());
 
     this.titleText = this.add
-      .text(0, 0, 'Renfort', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.title })
+      .text(0, 0, t('draft.title'), { fontFamily: FONT, fontStyle: 'bold', color: COLORS.title })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(this.textResolution());
     this.subtitleText = this.add
-      .text(0, 0, `Vague ${this.wave} tenue — choisissez une amélioration`, {
+      .text(0, 0, t('draft.subtitle', { wave: this.wave }), {
         fontFamily: FONT,
         color: COLORS.textDim,
         align: 'center',
@@ -137,19 +138,27 @@ export default class DraftScene extends Phaser.Scene {
 
     const icon = this.add.graphics().setDepth(DEPTH.banner + 2);
     const label = this.add
-      .text(0, 0, card.label, { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text })
+      .text(0, 0, t(`draft.upgrades.${card.id}.label`), {
+        fontFamily: FONT,
+        fontStyle: 'bold',
+        color: COLORS.text,
+      })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(this.textResolution());
     const description = this.add
-      .text(0, 0, card.description, { fontFamily: FONT, color: COLORS.textDim, align: 'center' })
+      .text(0, 0, t(`draft.upgrades.${card.id}.description`), {
+        fontFamily: FONT,
+        color: COLORS.textDim,
+        align: 'center',
+      })
       .setOrigin(0.5, 0)
       .setDepth(DEPTH.banner + 2)
       .setResolution(this.textResolution());
     // « Niveau 2/3 » : une amélioration déjà prise doit se voir, sinon on la reprend sans
     // savoir qu'on l'empile — et le build cesse d'être un choix.
     const level = this.add
-      .text(0, 0, `Niveau ${card.level}/${card.maxLevel}`, {
+      .text(0, 0, t('draft.level', { level: card.level, max: card.maxLevel }), {
         fontFamily: FONT,
         color: COLORS.textDim,
       })

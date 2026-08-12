@@ -94,23 +94,31 @@ describe('waveSpawnGapMs', () => {
 });
 
 describe('waveLabel', () => {
-  it('donne sa texture écrite à la main à chaque vague scriptée', () => {
+  /**
+   * Depuis le Lot 5, `waveLabel` rend un **descripteur** et non une phrase : la mise en mots
+   * appartient à `src/i18n/`. C'est ce qui permet de traduire le jeu sans toucher au module
+   * qui décide de ce qui apparaît — voir `tests/i18n.test.js` pour la moitié « phrase ».
+   */
+  it('rend l’identifiant de texture de chaque vague scriptée', () => {
     for (let wave = 1; wave <= scriptedCount; wave += 1) {
-      expect(waveLabel(config, wave)).toBe(balance.waves.scripted[wave - 1].label ?? '');
+      expect(waveLabel(config, wave)).toEqual({
+        kind: 'scripted',
+        id: balance.waves.scripted[wave - 1].labelId,
+      });
     }
   });
 
-  it('en dérive une pour les vagues générées : l’annonce ne s’éteint pas en vague 11', () => {
+  it('en dérive un pour les vagues générées : l’annonce ne s’éteint pas en vague 11', () => {
     // L'annonce du Lot 3.5 doit valoir pour **toutes** les vagues, formule comprise :
     // une bannière muette au moment où la difficulté décolle serait le pire moment.
     for (let wave = scriptedCount + 1; wave <= scriptedCount + 6; wave += 1) {
-      expect(waveLabel(config, wave).length).toBeGreaterThan(0);
+      expect(waveLabel(config, wave)).not.toBeNull();
     }
   });
 
   it('annonce la dominante quand il y en a une, « mixte » sinon', () => {
     const only = { ...config, waves: { ...config.waves, scripted: [], infinite: [{ type: 'tank', count: 5 }] } };
-    expect(waveLabel(only, 1)).toBe('Marée de tanks');
+    expect(waveLabel(only, 1)).toEqual({ kind: 'tide', enemy: 'tank' });
 
     const even = {
       ...config,
@@ -124,13 +132,18 @@ describe('waveLabel', () => {
         ],
       },
     };
-    expect(waveLabel(even, 1)).toBe('Vague mixte');
+    expect(waveLabel(even, 1)).toEqual({ kind: 'mixed' });
   });
 });
 
 describe('describeWave', () => {
-  it('rend un libellé lisible avec les noms de balance.json', () => {
-    expect(describeWave(config, 1)).toBe(`3× ${balance.enemies.basic.label}`);
-    expect(describeWave(config, 3)).toContain(balance.enemies.fast.label);
+  it('rend les identifiants de type sans traducteur — un test ne dépend pas d’une langue', () => {
+    expect(describeWave(config, 1)).toBe('3× basic');
+    expect(describeWave(config, 3)).toContain('fast');
+  });
+
+  it('utilise le nom donné par l’appelant quand il en fournit un', () => {
+    const labels = { basic: 'Gobelin', fast: 'Loup', tank: 'Ogre' };
+    expect(describeWave(config, 1, (type) => labels[type])).toBe('3× Gobelin');
   });
 });

@@ -26,7 +26,7 @@
  *
  * ## Événements émis
  *
- *   - `waveCountdown` { wave, delayMs, composition, label, description, spawnGapMs, total }
+ *   - `waveCountdown` { wave, delayMs, composition, label, spawnGapMs, total }
  *                                              pause avant la vague à venir, **annoncée**
  *   - `waveStart`     { wave, composition, description }
  *   - `waveCleared`   { wave, wavesCleared }
@@ -61,7 +61,6 @@ import {
   waveSpawnOrder,
   waveSpawnGapMs,
   waveComposition,
-  describeWave,
   waveLabel,
 } from './waves.js';
 
@@ -195,16 +194,18 @@ export class BattleModel {
    * c'est ce que lisent le bandeau d'annonce et le HUD.
    *
    * @param {number} wave
-   * @returns {{wave: number, composition: {type: string, count: number}[], label: string,
-   *            description: string, spawnGapMs: number, total: number}}
+   * @returns {{wave: number, composition: {type: string, count: number}[], label: object|null,
+   *            spawnGapMs: number, total: number}}
    */
   wavePreview(wave) {
     const composition = waveComposition(this.config, wave);
     return {
       wave,
       composition,
+      // Un **descripteur**, pas une phrase : la mise en mots appartient au rendu, qui
+      // connaît la langue (cf. `waveLabelText`, `src/i18n/`). Le modèle n'a jamais eu à
+      // savoir dans quelle langue on joue, et il ne l'apprend pas au Lot 5.
       label: waveLabel(this.config, wave),
-      description: describeWave(this.config, wave),
       spawnGapMs: waveSpawnGapMs(this.config, wave),
       total: composition.reduce((sum, entry) => sum + entry.count, 0),
     };
@@ -221,8 +222,8 @@ export class BattleModel {
    * Les types sont rendus dans l'ordre de la composition annoncée, pour que les icônes ne
    * changent pas de place en cours de vague — un compteur qui se déplace ne se lit plus.
    *
-   * @returns {{wave: number, composition: {type: string, count: number}[], label: string,
-   *            description: string, spawnGapMs: number, total: number}}
+   * @returns {{wave: number, composition: {type: string, count: number}[], label: object|null,
+   *            spawnGapMs: number, total: number}}
    */
   waveRemaining() {
     const counts = new Map();
@@ -243,9 +244,6 @@ export class BattleModel {
       wave: this.wave,
       composition,
       label: waveLabel(this.config, this.wave),
-      description: composition
-        .map((entry) => `${entry.count}× ${this.config.enemies[entry.type].label}`)
-        .join(', '),
       spawnGapMs: this.spawnGapMs,
       total: composition.reduce((sum, entry) => sum + entry.count, 0),
     };
@@ -360,8 +358,7 @@ export class BattleModel {
     this.events.emit('waveStart', {
       wave,
       composition: waveComposition(this.config, wave),
-      description: describeWave(this.config, wave),
-      // Texture de la vague (« Rush », « Mur de tanks »…) : le bandeau l'annonce, ce qui
+      // Texture de la vague (« Rush », « Mur d'ogres »…) : le bandeau l'annonce, ce qui
       // laisse au joueur une chance de préparer le bon type d'unité.
       label: waveLabel(this.config, wave),
     });
@@ -596,7 +593,6 @@ export class BattleModel {
     const enemy = {
       id: this.nextEnemyId++,
       type,
-      label: stats.label,
       hp: stats.hp,
       maxHp: stats.hp,
       speed: stats.speed,

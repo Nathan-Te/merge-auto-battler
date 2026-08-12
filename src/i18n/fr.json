@@ -1,0 +1,146 @@
+{
+  "game": {
+    "title": "Merge Battler",
+    "tagline": "Fusionne les orbes, invoque ton armée, tiens le château."
+  },
+
+  "hud": {
+    "baseHp": "PV {current}/{max}",
+    "queue": "File {current}/{max}",
+    "queueFull": "File pleine — ça part dans un instant",
+    "wave": "Vague {wave}",
+    "waveNamed": "Vague {wave} · {label}",
+    "seconds": "{seconds} s",
+    "countdown": "dans {seconds} s",
+    "remaining": "reste {count}",
+    "skip": "passer"
+  },
+
+  "waves": {
+    "labels": {
+      "discovery": "Découverte",
+      "firstFast": "Premiers rapides",
+      "rush": "Rush",
+      "tankWall": "Mur d'ogres",
+      "mixedTide": "Marée mixte",
+      "armoredRush": "Rush blindé",
+      "tide": "Marée de {enemy}",
+      "thickWall": "Mur épais",
+      "everything": "Tout à la fois",
+      "plainTide": "Marée",
+      "mixed": "Vague mixte"
+    }
+  },
+
+  "units": {
+    "single": {
+      "label": "Archer",
+      "blurb": "Frappe une cible à la fois. Le généraliste : jamais le meilleur, jamais mauvais."
+    },
+    "aoe": {
+      "label": "Pyromancien",
+      "blurb": "Touche aussi les ennemis autour de sa cible. Redoutable contre les paquets serrés."
+    },
+    "slow": {
+      "label": "Mage de givre",
+      "blurb": "Frappe une cible et gèle toute la zone autour. Il achète du temps."
+    },
+    "support": {
+      "label": "Porte-étendard",
+      "blurb": "Ne frappe jamais : il augmente les dégâts et la cadence des alliés autour de lui."
+    }
+  },
+
+  "enemies": {
+    "basic": { "label": "Gobelin", "plural": "gobelins" },
+    "fast": { "label": "Loup", "plural": "loups" },
+    "tank": { "label": "Ogre", "plural": "ogres" }
+  },
+
+  "powers": {
+    "heal": {
+      "label": "Potion de soin",
+      "blurb": "Soigne toutes les unités vivantes. À garder pour le moment où la ligne plie."
+    },
+    "meteor": {
+      "label": "Météorite",
+      "blurb": "Frappe le groupe d'ennemis le plus menaçant. Les rushs ne passent pas."
+    }
+  },
+
+  "draft": {
+    "title": "Renfort",
+    "subtitle": "Vague {wave} tenue — choisissez une amélioration",
+    "level": "Niveau {level}/{max}",
+    "upgrades": {
+      "fireRate": { "label": "Cadence", "description": "Toutes les unités frappent 12 % plus vite." },
+      "power": { "label": "Puissance", "description": "+18 % de dégâts pour toutes les unités." },
+      "reach": { "label": "Portée", "description": "+14 % de portée : vos unités engagent plus tôt." },
+      "plating": { "label": "Blindage", "description": "+22 % de PV pour les unités à venir." },
+      "deploy": { "label": "Invocation rapide", "description": "−12 % sur le cooldown d'invocation." },
+      "slot": { "label": "Cercle élargi", "description": "+1 place dans le cercle d'invocation." },
+      "fortify": {
+        "label": "Fortifications",
+        "description": "+22 PV de château, et autant de PV rendus tout de suite."
+      },
+      "richVein": { "label": "Gisement riche", "description": "Les orbes apparaissent un tier plus haut." },
+      "extraction": { "label": "Extraction", "description": "−14 % sur l'intervalle d'apparition des orbes." },
+      "banner": { "label": "Étendard", "description": "Aura et bonus du porte-étendard +35 %." },
+      "reflex": { "label": "Réflexe", "description": "−35 % sur le cooldown du bouton « passer »." },
+      "arcane": {
+        "label": "Charge arcanique",
+        "description": "+30 % de puissance pour les pouvoirs (soin et dégâts)."
+      },
+      "resonance": { "label": "Résonance", "description": "+45 % de chances qu'un orbe soit un pouvoir." }
+    }
+  },
+
+  "help": {
+    "title": "Comment on joue",
+    "gestures": "Taper un orbe → il part au combat, du type en tête de file.\nGlisser sur un orbe de la même sorte et du même tier → fusion.\nSinon, les deux orbes échangent leur place : rangez votre table.",
+    "unitsTitle": "Les quatre unités",
+    "powersTitle": "Les pouvoirs",
+    "powersRule": "Rond = pouvoir. Tap pour l'utiliser tout de suite : pas de file, pas d'attente.\nUn pouvoir ne fusionne qu'avec le même pouvoir — jamais avec un orbe d'invocation.",
+    "rhythm": "La file en haut annonce les 3 prochains types ; « passer » en défausse un ({seconds} s).\nChaque pause annonce la vague à venir. Toutes les {waves} vagues, une amélioration au choix.",
+    "row": "{label} — {role}",
+    "close": "Reprendre",
+    "credits": "Crédits"
+  },
+
+  "credits": {
+    "title": "Crédits",
+    "close": "Retour",
+    "made": "Réalisé avec Phaser 3 et Vite.",
+    "iconsTitle": "Icônes",
+    "icons": "Icônes d'interface issues de game-icons.net, sous licence CC BY 3.0.",
+    "artTitle": "Illustrations",
+    "art": "Sprites générés avec l'aide d'une IA, puis découpés et traités par le pipeline d'assets du projet.",
+    "audioTitle": "Audio",
+    "audio": "Effets sonores et musique : voir la liste ci-dessous.",
+    "fontsTitle": "Polices",
+    "fonts": "Polices auto-hébergées — le jeu ne fait aucune requête externe.",
+    "noneYet": "—"
+  },
+
+  "gameOver": {
+    "title": "Game over",
+    "score": { "one": "{count} vague survécue", "other": "{count} vagues survécues" },
+    "best": "Record : {best}",
+    "newRecord": "Nouveau record !",
+    "replay": "Rejouer",
+    "build": "Build : {build}",
+    "noUpgrades": "aucune amélioration prise",
+    "upgradeLevel": "{label} ×{level}",
+    "damageShare": "{unit} a porté {share} % des dégâts",
+    "noDamage": "aucun dégât infligé",
+    "summary": "{sent} invocations · {merges} fusions · meilleur tier {tier}",
+    "powers": " · {count} pouvoirs",
+    "powersFavourite": " · {count} pouvoirs (surtout {label})"
+  },
+
+  "debug": {
+    "speed": "×{speed}",
+    "nextWave": "vague +",
+    "invincible": "base ∞"
+  }
+}

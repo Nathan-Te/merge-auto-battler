@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "input": {
     "tapMaxDistancePx": 12,
     "tapMaxDurationMs": 600,
@@ -30,19 +30,21 @@
   },
   "units": {
     "single": {
-      "label": "Mono-cible",
-      "blurb": "Frappe une cible à la fois. Le généraliste : jamais le meilleur, jamais mauvais.",
       "role": "damage",
       "hp": 30,
       "speed": 70,
       "damage": 9,
       "fireRateMs": 700,
       "range": 180,
-      "tierScaling": { "hp": 2.3, "damage": 2.3, "fireRateMs": 0.97, "range": 1.04, "effect": 1.12 }
+      "tierScaling": {
+        "hp": 2.3,
+        "damage": 2.3,
+        "fireRateMs": 0.97,
+        "range": 1.04,
+        "effect": 1.12
+      }
     },
     "aoe": {
-      "label": "Zone",
-      "blurb": "Touche aussi les ennemis autour de sa cible. Redoutable contre les paquets serrés.",
       "role": "aoe",
       "hp": 26,
       "speed": 64,
@@ -50,11 +52,15 @@
       "fireRateMs": 1100,
       "range": 160,
       "splashRadius": 112,
-      "tierScaling": { "hp": 2.25, "damage": 2.25, "fireRateMs": 0.98, "range": 1.04, "effect": 1.1 }
+      "tierScaling": {
+        "hp": 2.25,
+        "damage": 2.25,
+        "fireRateMs": 0.98,
+        "range": 1.04,
+        "effect": 1.1
+      }
     },
     "slow": {
-      "label": "Ralentisseur",
-      "blurb": "Frappe une cible et ralentit toute la zone autour. Il achète du temps.",
       "role": "slow",
       "hp": 34,
       "speed": 64,
@@ -64,11 +70,15 @@
       "slowFactor": 0.38,
       "slowDurationMs": 1600,
       "slowRadius": 140,
-      "tierScaling": { "hp": 2.25, "damage": 2.1, "fireRateMs": 0.97, "range": 1.04, "effect": 1.14 }
+      "tierScaling": {
+        "hp": 2.25,
+        "damage": 2.1,
+        "fireRateMs": 0.97,
+        "range": 1.04,
+        "effect": 1.14
+      }
     },
     "support": {
-      "label": "Soutien",
-      "blurb": "Ne frappe jamais : il multiplie les dégâts et la cadence des alliés autour de lui.",
       "role": "support",
       "hp": 42,
       "speed": 76,
@@ -76,8 +86,17 @@
       "fireRateMs": 0,
       "range": 130,
       "auraRadius": 250,
-      "buff": { "damage": 0.58, "fireRate": 0.3 },
-      "tierScaling": { "hp": 2.3, "damage": 1, "fireRateMs": 1, "range": 1.03, "effect": 1.25 }
+      "buff": {
+        "damage": 0.58,
+        "fireRate": 0.3
+      },
+      "tierScaling": {
+        "hp": 2.3,
+        "damage": 1,
+        "fireRateMs": 1,
+        "range": 1.03,
+        "effect": 1.25
+      }
     }
   },
   "powers": {
@@ -85,30 +104,31 @@
     "spawnChance": 0.2,
     "types": {
       "heal": {
-        "label": "Potion de soin",
-        "blurb": "Soigne toutes les unités vivantes. À garder pour le moment où la ligne plie.",
         "kind": "heal",
         "weight": 50,
         "amount": 80,
         "radius": 0,
         "telegraphMs": 0,
-        "tierScaling": { "amount": 3.1, "radius": 1 }
+        "tierScaling": {
+          "amount": 3.1,
+          "radius": 1
+        }
       },
       "meteor": {
-        "label": "Météorite",
-        "blurb": "Frappe le groupe d'ennemis le plus menaçant. Les rushs ne passent pas.",
         "kind": "blast",
         "weight": 50,
         "amount": 260,
         "radius": 120,
         "telegraphMs": 400,
-        "tierScaling": { "amount": 3.5, "radius": 1.09 }
+        "tierScaling": {
+          "amount": 3.5,
+          "radius": 1.09
+        }
       }
     }
   },
   "enemies": {
     "basic": {
-      "label": "Basique",
       "hp": 24,
       "speed": 44,
       "damageToBase": 6,
@@ -117,7 +137,6 @@
       "attackRange": 40
     },
     "fast": {
-      "label": "Rapide",
       "hp": 13,
       "speed": 106,
       "damageToBase": 5,
@@ -126,7 +145,6 @@
       "attackRange": 34
     },
     "tank": {
-      "label": "Tank",
       "hp": 95,
       "speed": 26,
       "damageToBase": 14,
@@ -141,82 +159,151 @@
     "spawnGapMs": 820,
     "scripted": [
       {
-        "label": "Découverte",
+        "labelId": "discovery",
         "spawnGapMs": 900,
-        "composition": [{ "type": "basic", "count": 3 }]
+        "composition": [
+          {
+            "type": "basic",
+            "count": 3
+          }
+        ]
       },
       {
-        "label": "Découverte",
+        "labelId": "discovery",
         "spawnGapMs": 820,
-        "composition": [{ "type": "basic", "count": 5 }]
+        "composition": [
+          {
+            "type": "basic",
+            "count": 5
+          }
+        ]
       },
       {
-        "label": "Premiers rapides",
+        "labelId": "firstFast",
         "spawnGapMs": 760,
         "composition": [
-          { "type": "basic", "count": 5 },
-          { "type": "fast", "count": 4 }
+          {
+            "type": "basic",
+            "count": 5
+          },
+          {
+            "type": "fast",
+            "count": 4
+          }
         ]
       },
       {
-        "label": "Rush",
+        "labelId": "rush",
         "spawnGapMs": 220,
-        "composition": [{ "type": "fast", "count": 14 }]
+        "composition": [
+          {
+            "type": "fast",
+            "count": 14
+          }
+        ]
       },
       {
-        "label": "Mur de tanks",
+        "labelId": "tankWall",
         "spawnGapMs": 1100,
         "composition": [
-          { "type": "tank", "count": 4 },
-          { "type": "basic", "count": 6 }
+          {
+            "type": "tank",
+            "count": 4
+          },
+          {
+            "type": "basic",
+            "count": 6
+          }
         ]
       },
       {
-        "label": "Marée mixte",
+        "labelId": "mixedTide",
         "spawnGapMs": 520,
         "composition": [
-          { "type": "basic", "count": 12 },
-          { "type": "fast", "count": 9 }
+          {
+            "type": "basic",
+            "count": 12
+          },
+          {
+            "type": "fast",
+            "count": 9
+          }
         ]
       },
       {
-        "label": "Rush blindé",
+        "labelId": "armoredRush",
         "spawnGapMs": 200,
         "composition": [
-          { "type": "fast", "count": 20 },
-          { "type": "tank", "count": 5 }
+          {
+            "type": "fast",
+            "count": 20
+          },
+          {
+            "type": "tank",
+            "count": 5
+          }
         ]
       },
       {
-        "label": "Marée",
+        "labelId": "plainTide",
         "spawnGapMs": 480,
         "composition": [
-          { "type": "basic", "count": 16 },
-          { "type": "fast", "count": 12 }
+          {
+            "type": "basic",
+            "count": 16
+          },
+          {
+            "type": "fast",
+            "count": 12
+          }
         ]
       },
       {
-        "label": "Mur épais",
+        "labelId": "thickWall",
         "spawnGapMs": 1000,
         "composition": [
-          { "type": "tank", "count": 8 },
-          { "type": "basic", "count": 12 }
+          {
+            "type": "tank",
+            "count": 8
+          },
+          {
+            "type": "basic",
+            "count": 12
+          }
         ]
       },
       {
-        "label": "Tout à la fois",
+        "labelId": "everything",
         "spawnGapMs": 200,
         "composition": [
-          { "type": "fast", "count": 26 },
-          { "type": "basic", "count": 12 },
-          { "type": "tank", "count": 5 }
+          {
+            "type": "fast",
+            "count": 26
+          },
+          {
+            "type": "basic",
+            "count": 12
+          },
+          {
+            "type": "tank",
+            "count": 5
+          }
         ]
       }
     ],
     "infinite": [
-      { "type": "basic", "count": 12 },
-      { "type": "fast", "count": 14 },
-      { "type": "tank", "count": 6 }
+      {
+        "type": "basic",
+        "count": 12
+      },
+      {
+        "type": "fast",
+        "count": 14
+      },
+      {
+        "type": "tank",
+        "count": 6
+      }
     ],
     "scaling": {
       "hpPerWave": 1.66,
@@ -234,107 +321,112 @@
     "upgrades": [
       {
         "id": "fireRate",
-        "label": "Cadence",
-        "description": "Toutes les unités frappent 12 % plus vite.",
         "icon": "rate",
         "maxLevel": 3,
-        "effect": { "unitFireRate": 0.88 }
+        "effect": {
+          "unitFireRate": 0.88
+        }
       },
       {
         "id": "power",
-        "label": "Puissance",
-        "description": "+18 % de dégâts pour toutes les unités.",
         "icon": "damage",
         "maxLevel": 3,
-        "effect": { "unitDamage": 1.18 }
+        "effect": {
+          "unitDamage": 1.18
+        }
       },
       {
         "id": "reach",
-        "label": "Portée",
-        "description": "+14 % de portée : vos unités engagent plus tôt.",
         "icon": "range",
         "maxLevel": 2,
-        "effect": { "unitRange": 1.14 }
+        "effect": {
+          "unitRange": 1.14
+        }
       },
       {
         "id": "plating",
-        "label": "Blindage",
-        "description": "+22 % de PV pour les unités à venir.",
         "icon": "shield",
         "maxLevel": 2,
-        "effect": { "unitHp": 1.22 }
+        "effect": {
+          "unitHp": 1.22
+        }
       },
       {
         "id": "deploy",
-        "label": "Sortie rapide",
-        "description": "−12 % sur le cooldown de sortie de la file.",
         "icon": "clock",
         "maxLevel": 3,
-        "effect": { "deployCooldown": 0.88 }
+        "effect": {
+          "deployCooldown": 0.88
+        }
       },
       {
         "id": "slot",
-        "label": "File élargie",
-        "description": "+1 place dans la file de déploiement.",
         "icon": "slot",
         "maxLevel": 2,
-        "effect": { "slotBonus": 1 }
+        "effect": {
+          "slotBonus": 1
+        }
       },
       {
         "id": "fortify",
-        "label": "Fortifications",
-        "description": "+22 PV de base, et autant de PV rendus tout de suite.",
         "icon": "base",
         "maxLevel": 3,
-        "effect": { "baseHpBonus": 22 }
+        "effect": {
+          "baseHpBonus": 22
+        }
       },
       {
         "id": "richVein",
-        "label": "Gisement riche",
-        "description": "Les items apparaissent un tier plus haut.",
         "icon": "tier",
         "maxLevel": 2,
-        "effect": { "spawnTierBonus": 1 }
+        "effect": {
+          "spawnTierBonus": 1
+        }
       },
       {
         "id": "extraction",
-        "label": "Extraction",
-        "description": "−14 % sur l'intervalle d'apparition des items.",
         "icon": "grid",
         "maxLevel": 3,
-        "effect": { "spawnInterval": 0.86 }
+        "effect": {
+          "spawnInterval": 0.86
+        }
       },
       {
         "id": "banner",
-        "label": "Étendard",
-        "description": "Aura et bonus du soutien +35 %.",
         "icon": "aura",
         "maxLevel": 2,
-        "effect": { "byType": { "support": { "effect": 1.35, "range": 1.2 } } }
+        "effect": {
+          "byType": {
+            "support": {
+              "effect": 1.35,
+              "range": 1.2
+            }
+          }
+        }
       },
       {
         "id": "reflex",
-        "label": "Réflexe",
-        "description": "−35 % sur le cooldown du bouton « passer ».",
         "icon": "skip",
         "maxLevel": 2,
-        "effect": { "skipCooldown": 0.65 }
+        "effect": {
+          "skipCooldown": 0.65
+        }
       },
       {
         "id": "arcane",
-        "label": "Charge arcanique",
-        "description": "+30 % de puissance pour les pouvoirs (soin et dégâts).",
         "icon": "power",
         "maxLevel": 3,
-        "effect": { "powerAmount": 1.3 }
+        "effect": {
+          "powerAmount": 1.3
+        }
       },
       {
         "id": "resonance",
-        "label": "Résonance",
-        "description": "+45 % de chances qu'un item soit un pouvoir.",
         "icon": "orb",
         "maxLevel": 2,
-        "effect": { "powerChance": 1.45 }
+        "effect": {
+          "powerChance": 1.45
+        }
       }
     ]
   },

@@ -23,6 +23,9 @@ import { parseSpawnerConfig } from '../systems/itemSpawner.js';
 import { parseInputConfig } from '../systems/tapGesture.js';
 import { parseDraftConfig } from '../systems/DraftSystem.js';
 import { parsePowersConfig, powerStats } from '../systems/PowerSystem.js';
+// `format.js` et non `index.js` : ce dernier importe les dictionnaires JSON, ce que Node
+// refuse sans attribut d'import — et ce module tourne en ligne de commande.
+import { compositionText, waveLabelText } from '../i18n/format.js';
 import { waveComposition, waveSpawnGapMs, waveLabel } from '../systems/waves.js';
 import { MULTIPLIER_KEYS, ADDITIVE_KEYS } from '../systems/modifiers.js';
 
@@ -70,7 +73,7 @@ export function describeEffect(effect) {
   return parts.join(' · ');
 }
 
-function unitsSection(config) {
+function unitsSection(config, t) {
   const lines = ['## Unités', ''];
   lines.push(
     'Quatre types au périmètre V1. Les stats listées sont **calculées par les formules du',
@@ -79,10 +82,11 @@ function unitsSection(config) {
   );
 
   for (const [id, def] of Object.entries(config.units)) {
-    lines.push(`### ${def.label} — \`${id}\``, '');
-    // Le même texte que le panneau d'aide in-game : une seule source, donc pas de dérive
-    // entre ce que le jeu dit au joueur et ce que la référence dit au développeur.
-    lines.push(def.blurb, '');
+    lines.push(`### ${t(`units.${id}.label`)} — \`${id}\``, '');
+    // Le même texte que le panneau d'aide in-game, tiré du **même dictionnaire** : une seule
+    // source, donc pas de dérive entre ce que le jeu dit au joueur et ce que la référence dit
+    // au développeur.
+    lines.push(t(`units.${id}.blurb`), '');
     lines.push(
       `Rôle \`${def.role}\` · vitesse de marche ${def.speed} unités de couloir/s ` +
         '(elle ne dépend pas du tier).',
@@ -155,7 +159,7 @@ function unitsSection(config) {
   return lines.join('\n');
 }
 
-function powersSection(powers) {
+function powersSection(powers, t) {
   const lines = ['## Pouvoirs actifs', ''];
   lines.push(
     'La grille produit **deux familles d’items**. Un item d’unité part en file de déploiement',
@@ -173,8 +177,8 @@ function powersSection(powers) {
 
   for (const [id, def] of Object.entries(powers.types)) {
     const total = Object.values(powers.types).reduce((sum, entry) => sum + entry.weight, 0);
-    lines.push(`### ${def.label} — \`${id}\``, '');
-    lines.push(def.blurb, '');
+    lines.push(`### ${t(`powers.${id}.label`)} — \`${id}\``, '');
+    lines.push(t(`powers.${id}.blurb`), '');
     lines.push(
       `Effet \`${def.kind}\` · poids d’apparition ${def.weight} sur ${total} · ` +
         (def.telegraphMs > 0
@@ -209,7 +213,7 @@ function powersSection(powers) {
   return lines.join('\n');
 }
 
-function enemiesSection(config) {
+function enemiesSection(config, t) {
   const lines = ['## Ennemis', ''];
   lines.push(
     'Trois types. Les stats listées sont celles de la **vague 1** ; le scaling par vague',
@@ -221,7 +225,7 @@ function enemiesSection(config) {
     table(
       ['type', 'PV', 'vitesse', 'dégâts base', 'dégâts unités', 'cadence (ms)', 'portée'],
       Object.entries(config.enemies).map(([id, def]) => [
-        `**${def.label}** (\`${id}\`)`,
+        `**${t(`enemies.${id}.label`)}** (\`${id}\`)`,
         String(def.hp),
         String(def.speed),
         String(def.damageToBase),
@@ -244,7 +248,10 @@ function enemiesSection(config) {
 
   lines.push(
     table(
-      ['vague', ...Object.values(config.enemies).map((def) => `PV ${def.label.toLowerCase()}`)],
+      [
+        'vague',
+        ...Object.keys(config.enemies).map((id) => `PV ${t(`enemies.${id}.label`).toLowerCase()}`),
+      ],
       [1, 3, 5, 8, 10, 12, 15].map((wave) => [
         String(wave),
         ...Object.keys(config.enemies).map((id) => String(enemyStats(config, id, wave).hp)),
@@ -255,7 +262,7 @@ function enemiesSection(config) {
   return lines.join('\n');
 }
 
-function wavesSection(config) {
+function wavesSection(config, t) {
   const scripted = config.waves.scripted.length;
   const lines = ['## Vagues', ''];
   lines.push(
@@ -269,11 +276,9 @@ function wavesSection(config) {
   for (let wave = 1; wave <= scripted + SHOWN_GENERATED; wave += 1) {
     rows.push([
       String(wave) + (wave > scripted ? ' *(générée)*' : ''),
-      waveLabel(config, wave) || '—',
+      waveLabelText(waveLabel(config, wave), t) || '—',
       `${round(waveSpawnGapMs(config, wave), 0)} ms`,
-      waveComposition(config, wave)
-        .map((entry) => `${entry.count}× ${config.enemies[entry.type].label}`)
-        .join(', '),
+      compositionText(waveComposition(config, wave), t),
     ]);
   }
   lines.push(table(['vague', 'texture', 'cadence', 'composition'], rows), '');
@@ -287,7 +292,7 @@ function wavesSection(config) {
   return lines.join('\n');
 }
 
-function draftSection(draft) {
+function draftSection(draft, t) {
   const lines = ['## Améliorations (draft)', ''];
   lines.push(
     `Toutes les **${draft.everyWaves} vagues**, la partie se met en pause et propose`,
@@ -301,10 +306,10 @@ function draftSection(draft) {
     table(
       ['carte', 'niveaux', 'effet par niveau', 'description'],
       draft.upgrades.map((entry) => [
-        `**${entry.label}** (\`${entry.id}\`)`,
+        `**${t(`draft.upgrades.${entry.id}.label`)}** (\`${entry.id}\`)`,
         String(entry.maxLevel),
         describeEffect(entry.effect),
-        entry.description,
+        t(`draft.upgrades.${entry.id}.description`),
       ])
     ),
     ''
@@ -382,12 +387,21 @@ function economySection({ spawner, battle, input }) {
 }
 
 /**
- * Rend le contenu complet de `docs/reference.md`.
+ * Rend le contenu complet de la référence, **dans la langue demandée**.
+ *
+ * Les libellés ne sont plus dans `balance.json` depuis le Lot 5 : ils viennent du même
+ * dictionnaire que le jeu (`src/i18n/`). C'est ce qui garantit qu'une carte de draft
+ * s'appelle pareil dans la référence et sur la carte que voit le joueur — une référence qui
+ * dérive de l'interface ne vaut pas mieux qu'une référence tenue à la main.
  *
  * @param {object} balance Contenu de `balance.json`
+ * @param {object} options
+ * @param {(key: string, params?: object) => string} options.t Traducteur, construit par
+ *   l'appelant (`src/tools/generateReference.js` le fabrique depuis les dictionnaires lus
+ *   au disque, les tests depuis `createTranslator`)
  * @returns {string} Markdown
  */
-export function generateReference(balance) {
+export function generateReference(balance, { t }) {
   const config = parseBattleConfig(balance);
   const spawner = parseSpawnerConfig(balance);
   const input = parseInputConfig(balance);
@@ -419,11 +433,11 @@ export function generateReference(balance) {
     'La file se vide toute seule au rythme du cooldown de sortie : c’est le métronome du jeu, et',
     'c’est ce qui rend le spam de petites unités perdant.',
     '',
-    unitsSection(config),
-    powersSection(powers),
-    enemiesSection(config),
-    wavesSection(config),
-    draftSection(draft),
+    unitsSection(config, t),
+    powersSection(powers, t),
+    enemiesSection(config, t),
+    wavesSection(config, t),
+    draftSection(draft, t),
     economySection({ spawner, battle: config, input }),
   ].join('\n');
 }

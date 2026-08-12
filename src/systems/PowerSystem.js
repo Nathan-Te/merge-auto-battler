@@ -37,7 +37,7 @@
  * la vraie menace.
  *
  * ## Événements émis
- *   - `powerCast`     { type, tier, kind, label, center, radius, amount, telegraphMs, origin }
+ *   - `powerCast`     { type, tier, kind, center, radius, amount, telegraphMs, origin }
  *   - `powerResolved` { type, tier, kind, center, radius, amount, hits, killed, healed, total }
  *   - `powerFizzled`  { type, tier, reason }   la partie s'est terminée pendant la télégraphie
  */
@@ -101,22 +101,15 @@ export function parsePowersConfig(balance) {
         `balance.json : ${path}.kind inconnu « ${def.kind} » (attendu : ${Object.keys(KIND_KEYS).join(', ')})`
       );
     }
-    for (const key of ['label', 'blurb']) {
-      if (typeof def[key] !== 'string' || def[key].length === 0) {
-        throw new Error(`balance.json : ${path}.${key} manquant`);
-      }
-    }
     const tierScaling = def.tierScaling;
     if (!tierScaling || typeof tierScaling !== 'object') {
       throw new Error(`balance.json : ${path}.tierScaling manquant`);
     }
 
+    // Aucun libellé ici depuis le Lot 5 : le nom et la description d'un pouvoir sont du
+    // texte affiché, donc ils vivent dans `src/i18n/` sous `powers.<id>`.
     const power = {
       id,
-      label: def.label,
-      // Texte destiné au **joueur** (panneau d'aide, référence générée), comme le `blurb`
-      // des unités : c'est du contenu, le code n'a pas à le connaître.
-      blurb: def.blurb,
       kind: def.kind,
       weight: num(def, path, 'weight', { min: 0 }),
       /** Montant de l'effet au tier 1 : PV rendus, ou dégâts infligés. */
@@ -161,7 +154,7 @@ export function parsePowersConfig(balance) {
  * @param {string} type Id du pouvoir
  * @param {number} tier
  * @param {object} [modifiers] Modificateurs de draft (`src/systems/modifiers.js`)
- * @returns {{id: string, label: string, kind: string, amount: number, radius: number,
+ * @returns {{id: string, kind: string, amount: number, radius: number,
  *            telegraphMs: number}}
  */
 export function powerStats(config, type, tier, modifiers = null) {
@@ -171,7 +164,6 @@ export function powerStats(config, type, tier, modifiers = null) {
   const steps = Math.max(0, tier - 1);
   return {
     id: def.id,
-    label: def.label,
     kind: def.kind,
     amount: def.amount * def.tierScaling.amount ** steps * (modifiers?.powerAmount ?? 1),
     radius: def.radius * def.tierScaling.radius ** steps,
@@ -302,7 +294,6 @@ export class PowerSystem {
       type,
       tier,
       kind: stats.kind,
-      label: stats.label,
       center,
       radius: stats.radius,
       amount: stats.amount,

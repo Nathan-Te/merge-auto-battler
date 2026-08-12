@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 
+import { t } from '../i18n/index.js';
+
 import { DEPTH } from '../render/depths.js';
 import { DEBUG_SPEEDS } from '../systems/debug.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
@@ -43,14 +45,14 @@ export class DebugPanel {
 
     this.buttons = [
       ...DEBUG_SPEEDS.map((speed) =>
-        this.makeButton(`×${speed}`, () => {
+        this.makeButton(t('debug.speed', { speed }), () => {
           this.speed = speed;
           onSpeed(speed);
           this.refresh();
         })
       ),
-      this.makeButton('vague +', () => onSkipWave()),
-      this.makeButton('base ∞', () => {
+      this.makeButton(t('debug.nextWave'), () => onSkipWave()),
+      this.makeButton(t('debug.invincible'), () => {
         this.invincible = onToggleInvincible();
         this.refresh();
       }),
@@ -105,8 +107,8 @@ export class DebugPanel {
     this.buttons.forEach((button) => {
       const isSpeed = button.label.startsWith('×');
       const active = isSpeed
-        ? button.label === `×${this.speed}`
-        : button.label === 'base ∞' && this.invincible;
+        ? button.label === t('debug.speed', { speed: this.speed })
+        : button.label === t('debug.invincible') && this.invincible;
       button.box.setFillStyle(active ? COLORS.buttonActive : COLORS.button, 1);
       button.text.setColor(active ? COLORS.textActive : COLORS.text);
     });

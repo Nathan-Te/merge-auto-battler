@@ -187,8 +187,8 @@ describe('DraftSystem — cumul des modificateurs', () => {
     draft.choose('power');
     draft.choose('slot');
     expect(draft.chosen()).toEqual([
-      { id: 'power', label: expect.any(String), level: 2, maxLevel: 3 },
-      { id: 'slot', label: expect.any(String), level: 1, maxLevel: 2 },
+      { id: 'power', level: 2, maxLevel: 3 },
+      { id: 'slot', level: 1, maxLevel: 2 },
     ]);
   });
 

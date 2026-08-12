@@ -116,20 +116,11 @@ function parseUnits(raw) {
     if (!ROLE_KEYS[def.role]) {
       throw new Error(`balance.json : ${path}.role inconnu « ${def.role} »`);
     }
-    if (typeof def.label !== 'string' || def.label.length === 0) {
-      throw new Error(`balance.json : ${path}.label manquant`);
-    }
-    // Texte destiné au **joueur** (panneau d'aide, référence générée). Il vit ici et non
-    // dans une scène pour la même raison que les descriptions de cartes de draft : c'est du
-    // contenu, et le code n'a pas à le connaître.
-    if (typeof def.blurb !== 'string' || def.blurb.length === 0) {
-      throw new Error(`balance.json : ${path}.blurb manquant`);
-    }
-
+    // Aucun libellé ici depuis le Lot 5 : le nom et la description d'un type d'unité sont
+    // du **texte affiché**, donc ils vivent dans `src/i18n/` sous la clé `units.<id>`, et
+    // `balance.json` ne garde que ce qui décide qui gagne la partie.
     const unit = {
       id,
-      label: def.label,
-      blurb: def.blurb,
       role: def.role,
       hp: num(def, path, 'hp', { min: 1 }),
       /** Vitesse de marche, en unités de couloir par seconde. Ne dépend pas du tier. */
@@ -190,12 +181,8 @@ function parseEnemies(raw) {
     const def = raw[id];
     const path = `enemies.${id}`;
     if (!def || typeof def !== 'object') throw new Error(`balance.json : ${path} invalide`);
-    if (typeof def.label !== 'string' || def.label.length === 0) {
-      throw new Error(`balance.json : ${path}.label manquant`);
-    }
     enemies[id] = {
       id,
-      label: def.label,
       hp: num(def, path, 'hp', { min: 1 }),
       speed: num(def, path, 'speed', { min: 1 }),
       damageToBase: num(def, path, 'damageToBase', { min: 0 }),
@@ -249,7 +236,7 @@ function parseWaves(raw, enemies) {
  * Une vague scriptée, sous l'une de ses deux formes :
  *
  *   - **liste** : la composition seule, cadence et libellé par défaut ;
- *   - **objet** `{ label, spawnGapMs, composition }` : la forme complète, qui permet de
+ *   - **objet** `{ labelId, spawnGapMs, composition }` : la forme complète, qui permet de
  *     donner à chaque vague sa **texture**. C'est `spawnGapMs` qui fait la différence
  *     entre un rush (arrivées serrées) et un mur (arrivées espacées mais épaisses) — à
  *     nombre d'ennemis égal, ce ne sont pas les mêmes vagues du tout.
@@ -259,16 +246,18 @@ function parseWaves(raw, enemies) {
  */
 function parseScriptedWave(raw, path, enemies) {
   if (Array.isArray(raw)) {
-    return { label: '', spawnGapMs: null, composition: parseComposition(raw, path, enemies) };
+    return { labelId: '', spawnGapMs: null, composition: parseComposition(raw, path, enemies) };
   }
   if (!raw || typeof raw !== 'object') {
     throw new Error(`balance.json : ${path} doit être une liste ou un objet de vague`);
   }
-  if (raw.label !== undefined && typeof raw.label !== 'string') {
-    throw new Error(`balance.json : ${path}.label doit être une chaîne`);
+  // `labelId` est un **identifiant**, pas un libellé : la texture de la vague se lit dans
+  // `src/i18n/`, sous `waves.labels.<labelId>`. Une vague sans identifiant n'a pas de nom.
+  if (raw.labelId !== undefined && typeof raw.labelId !== 'string') {
+    throw new Error(`balance.json : ${path}.labelId doit être une chaîne`);
   }
   return {
-    label: raw.label ?? '',
+    labelId: raw.labelId ?? '',
     spawnGapMs:
       raw.spawnGapMs === undefined ? null : num(raw, path, 'spawnGapMs', { min: 16 }),
     composition: parseComposition(raw.composition, `${path}.composition`, enemies),
@@ -303,7 +292,7 @@ function parseComposition(raw, path, enemies) {
  * @param {number} [options.supportDamage] Bonus de dégâts cumulé des soutiens à portée (0.3 = +30 %)
  * @param {number} [options.supportFireRate] Bonus de cadence cumulé des soutiens à portée
  * @param {object} [options.modifiers] Modificateurs de draft (`src/systems/modifiers.js`)
- * @returns {{role: string, label: string, hp: number, speed: number, damage: number,
+ * @returns {{role: string, hp: number, speed: number, damage: number,
  *            fireRateMs: number, range: number, splashRadius: number, slowFactor: number,
  *            slowDurationMs: number, slowRadius: number, auraRadius: number}}
  */
@@ -339,7 +328,6 @@ export function unitStats(config, type, tier, options = {}) {
 
   return {
     role: def.role,
-    label: def.label,
     hp: def.hp * hpScale * mod.hp,
     speed: def.speed,
     damage: def.damage * damageScale * (1 + supportDamage) * mod.damage,
@@ -388,7 +376,7 @@ export function supportBonus(config, type, tier, modifiers = null) {
  * haut tier deviendrait immortelle et le champ de bataille se figerait
  * (cf. `balance.schema.md`).
  *
- * @returns {{label: string, hp: number, speed: number, damageToBase: number,
+ * @returns {{hp: number, speed: number, damageToBase: number,
  *            damage: number, attackRateMs: number, attackRange: number}}
  */
 export function enemyStats(config, type, wave) {
@@ -398,7 +386,6 @@ export function enemyStats(config, type, wave) {
   const steps = Math.max(0, wave - 1);
   const { hpPerWave, speedPerWave, damagePerWave } = config.waves.scaling;
   return {
-    label: def.label,
     hp: Math.max(1, Math.round(def.hp * hpPerWave ** steps)),
     speed: def.speed * speedPerWave ** steps,
     damageToBase: def.damageToBase,

@@ -256,8 +256,10 @@ describe('annonce de vague', () => {
       const preview = session.battle.wavePreview(wave);
       expect(preview.composition.length).toBeGreaterThan(0);
       expect(preview.total).toBeGreaterThan(0);
-      expect(preview.label.length).toBeGreaterThan(0);
-      expect(preview.description).toMatch(/×/);
+      // Un **descripteur** de texture, pas une phrase : l'annonce ne s'éteint pas passé
+      // les vagues scriptées, et la mise en mots appartient au rendu.
+      expect(preview.label).not.toBeNull();
+      expect(preview.label.kind).toBeTruthy();
     }
   });
 

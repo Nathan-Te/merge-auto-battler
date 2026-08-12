@@ -19,7 +19,7 @@
  *     cartes s'il ne reste plus rien, et zéro carte veut dire « pas de draft ».
  *
  * ## Événements émis
- *   - `draftChosen` { id, label, level, maxLevel, modifiers, effect }
+ *   - `draftChosen` { id, icon, level, maxLevel, modifiers, effect }
  */
 
 import { EventBus } from './eventBus.js';
@@ -53,7 +53,7 @@ export function parseDraftConfig(balance) {
   const upgrades = raw.upgrades.map((entry, index) => {
     const path = `draft.upgrades[${index}]`;
     if (!entry || typeof entry !== 'object') throw new Error(`balance.json : ${path} invalide`);
-    for (const key of ['id', 'label', 'description', 'icon']) {
+    for (const key of ['id', 'icon']) {
       if (typeof entry[key] !== 'string' || entry[key].length === 0) {
         throw new Error(`balance.json : ${path}.${key} manquant`);
       }
@@ -65,10 +65,11 @@ export function parseDraftConfig(balance) {
     if (!Number.isInteger(entry.maxLevel) || entry.maxLevel < 1) {
       throw new Error(`balance.json : ${path}.maxLevel doit être un entier >= 1`);
     }
+    // Ni libellé ni description depuis le Lot 5 : une carte est désignée par son `id`, et
+    // le rendu va chercher `draft.upgrades.<id>` dans `src/i18n/`. C'est ce qui permet de
+    // proposer les mêmes cartes en deux langues sans dupliquer le pool.
     return {
       id: entry.id,
-      label: entry.label,
-      description: entry.description,
       /** Clé de forme greybox (`src/render/draftIcons.js`) — purement visuel. */
       icon: entry.icon,
       maxLevel: entry.maxLevel,
@@ -124,8 +125,7 @@ export class DraftSystem {
    * Le tirage est un mélange de Fisher-Yates tronqué plutôt qu'un tirage avec rejet : à pool
    * presque épuisé, le rejet pourrait boucler longtemps, le mélange se termine toujours.
    *
-   * @returns {{id: string, label: string, description: string, icon: string,
-   *            level: number, maxLevel: number, effect: object}[]}
+   * @returns {{id: string, icon: string, level: number, maxLevel: number, effect: object}[]}
    */
   offer() {
     const pool = this.available();
@@ -147,8 +147,6 @@ export class DraftSystem {
     const level = this.levelOf(entry.id);
     return {
       id: entry.id,
-      label: entry.label,
-      description: entry.description,
       icon: entry.icon,
       /** Niveau qu'aurait l'amélioration une fois cette carte prise. */
       level: level + 1,
@@ -175,8 +173,6 @@ export class DraftSystem {
 
     const chosen = {
       id: entry.id,
-      label: entry.label,
-      description: entry.description,
       icon: entry.icon,
       level: level + 1,
       maxLevel: entry.maxLevel,
@@ -191,14 +187,13 @@ export class DraftSystem {
    * Améliorations prises, dans l'ordre du pool — c'est **le build de la partie**, lu par le
    * récap de fin de partie.
    *
-   * @returns {{id: string, label: string, level: number, maxLevel: number}[]}
+   * @returns {{id: string, level: number, maxLevel: number}[]}
    */
   chosen() {
     return this.config.upgrades
       .filter((entry) => this.levelOf(entry.id) > 0)
       .map((entry) => ({
         id: entry.id,
-        label: entry.label,
         level: this.levelOf(entry.id),
         maxLevel: entry.maxLevel,
       }));

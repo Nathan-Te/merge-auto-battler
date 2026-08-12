@@ -11,6 +11,7 @@ import { powerColor } from '../render/powerShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { JuiceKit } from '../render/juiceKit.js';
 import { isDebugEnabled } from '../systems/debug.js';
+import { t } from '../i18n/index.js';
 import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
 import { IntelBar } from './IntelBar.js';
@@ -118,7 +119,7 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.background);
 
     this.title = this.add
-      .text(0, 0, 'Merge Battler', {
+      .text(0, 0, t('game.title'), {
         fontFamily: FONT,
         fontStyle: 'bold',
         color: COLORS.text,
@@ -197,16 +198,10 @@ export default class GameScene extends Phaser.Scene {
     this.scene.launch('HelpScene', {
       // Le panneau ne connaît ni `balance.json` ni les règles : il affiche ce que la
       // session lui donne, comme tout le reste du rendu.
-      units: Object.values(this.session.battleConfig.units).map((def) => ({
-        type: def.id,
-        label: def.label,
-        role: def.blurb,
-      })),
-      powers: Object.values(this.session.powersConfig.types).map((def) => ({
-        type: def.id,
-        label: def.label,
-        role: def.blurb,
-      })),
+      // Des identifiants de type, pas des libellés : `HelpScene` va chercher les siens
+      // dans `src/i18n/`. La scène de jeu n'a pas à traduire pour une autre.
+      units: Object.values(this.session.battleConfig.units).map((def) => def.id),
+      powers: Object.values(this.session.powersConfig.types).map((def) => def.id),
       draftEveryWaves: this.session.draftConfig.everyWaves,
       skipCooldownMs: this.session.battleConfig.skipCooldownMs,
       graceMs: this.session.inputConfig.overlayGraceMs,
