@@ -32,6 +32,30 @@ export function pixelRatioOverride(search = globalThis.location?.search ?? '') {
 }
 
 /**
+ * Mode capture — `?screenshot=1`.
+ *
+ * Il sert à produire les images et le GIF de la page du portail, et il fait deux choses :
+ * il **retire de l'écran ce qui n'est pas le jeu** (boutons son et aide, ligne de
+ * diagnostic), et il donne de quoi **figer** la partie sur une belle image.
+ *
+ * Le gel est le point important. Une capture réussie demande une composition précise — une
+ * vague pleine, une météorite en vol, la ligne qui tient de justesse — et ces instants durent
+ * une demi-seconde. Sans gel, on capture en rafale en espérant tomber juste ; avec, on
+ * compose. C'est aussi ce qui rend l'exercice faisable **sur un téléphone**, où il n'y a ni
+ * console ni raccourci clavier.
+ *
+ * Il ne touche à **aucune** valeur de gameplay : la partie qui tourne derrière est la vraie.
+ *
+ * @param {string} [search]
+ * @returns {boolean}
+ */
+export function isScreenshotEnabled(search = globalThis.location?.search ?? '') {
+  if (typeof search !== 'string' || search.length === 0) return false;
+  const value = new URLSearchParams(search).get('screenshot');
+  return value !== null && value !== '0' && value !== 'false';
+}
+
+/**
  * Vitesses de jeu proposées par le panneau de debug.
  *
  * Multiplier le temps plutôt que de toucher aux valeurs : la simulation reste identique

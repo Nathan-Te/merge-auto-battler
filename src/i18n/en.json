@@ -3,7 +3,6 @@
     "title": "Merge Battler",
     "tagline": "Merge orbs, summon your army, hold the castle."
   },
-
   "hud": {
     "baseHp": "HP {current}/{max}",
     "queue": "Queue {current}/{max}",
@@ -15,7 +14,6 @@
     "remaining": "{count} left",
     "skip": "skip"
   },
-
   "waves": {
     "labels": {
       "discovery": "First contact",
@@ -31,7 +29,6 @@
       "mixed": "Mixed wave"
     }
   },
-
   "units": {
     "single": {
       "label": "Archer",
@@ -50,13 +47,20 @@
       "blurb": "Never strikes: he raises the damage and rate of fire of nearby allies."
     }
   },
-
   "enemies": {
-    "basic": { "label": "Goblin", "plural": "Goblins" },
-    "fast": { "label": "Wolf", "plural": "Wolves" },
-    "tank": { "label": "Ogre", "plural": "Ogres" }
+    "basic": {
+      "label": "Goblin",
+      "plural": "Goblins"
+    },
+    "fast": {
+      "label": "Wolf",
+      "plural": "Wolves"
+    },
+    "tank": {
+      "label": "Ogre",
+      "plural": "Ogres"
+    }
   },
-
   "powers": {
     "heal": {
       "label": "Healing potion",
@@ -67,34 +71,65 @@
       "blurb": "Strikes the most threatening pack of enemies. Rushes do not get through."
     }
   },
-
   "draft": {
     "title": "Reinforcement",
     "subtitle": "Wave {wave} held — choose an upgrade",
     "level": "Level {level}/{max}",
     "upgrades": {
-      "fireRate": { "label": "Rate of fire", "description": "Every unit strikes 12% faster." },
-      "power": { "label": "Might", "description": "+18% damage for every unit." },
-      "reach": { "label": "Reach", "description": "+14% range: your units engage sooner." },
-      "plating": { "label": "Plating", "description": "+22% HP for units yet to come." },
-      "deploy": { "label": "Swift muster", "description": "−12% on the summoning cooldown." },
-      "slot": { "label": "Wider circle", "description": "+1 slot in the summoning queue." },
+      "fireRate": {
+        "label": "Rate of fire",
+        "description": "Every unit strikes 12% faster."
+      },
+      "power": {
+        "label": "Might",
+        "description": "+18% damage for every unit."
+      },
+      "reach": {
+        "label": "Reach",
+        "description": "+14% range: your units engage sooner."
+      },
+      "plating": {
+        "label": "Plating",
+        "description": "+22% HP for units yet to come."
+      },
+      "deploy": {
+        "label": "Swift muster",
+        "description": "−12% on the summoning cooldown."
+      },
+      "slot": {
+        "label": "Wider circle",
+        "description": "+1 slot in the summoning queue."
+      },
       "fortify": {
         "label": "Fortifications",
         "description": "+22 castle HP, and as much healed right away."
       },
-      "richVein": { "label": "Rich vein", "description": "Orbs appear one tier higher." },
-      "extraction": { "label": "Extraction", "description": "−14% on the orb spawn interval." },
-      "banner": { "label": "Banner", "description": "Bannerman aura and bonus +35%." },
-      "reflex": { "label": "Reflex", "description": "−35% on the skip button cooldown." },
+      "richVein": {
+        "label": "Rich vein",
+        "description": "Orbs appear one tier higher."
+      },
+      "extraction": {
+        "label": "Extraction",
+        "description": "−14% on the orb spawn interval."
+      },
+      "banner": {
+        "label": "Banner",
+        "description": "Bannerman aura and bonus +35%."
+      },
+      "reflex": {
+        "label": "Reflex",
+        "description": "−35% on the skip button cooldown."
+      },
       "arcane": {
         "label": "Arcane charge",
         "description": "+30% power strength (healing and damage)."
       },
-      "resonance": { "label": "Resonance", "description": "+45% chance an orb is a power." }
+      "resonance": {
+        "label": "Resonance",
+        "description": "+45% chance an orb is a power."
+      }
     }
   },
-
   "help": {
     "title": "How to play",
     "gestures": "Tap an orb → it goes to battle, as the unit at the head of the queue.\nDrag onto an orb of the same kind and tier → they merge.\nOtherwise the two orbs swap places: keep your table tidy.",
@@ -106,13 +141,12 @@
     "close": "Resume",
     "credits": "Credits"
   },
-
   "credits": {
     "title": "Credits",
     "close": "Back",
-    "made": "Made with Phaser 3 and Vite.",
+    "made": "Built with",
     "iconsTitle": "Icons",
-    "icons": "Interface icons from game-icons.net, used under CC BY 3.0.",
+    "icons": "Interface icons, used under their original licence:",
     "artTitle": "Art",
     "art": "Sprites generated with AI assistance, then cut and processed by the project's own asset pipeline.",
     "audioTitle": "Audio",
@@ -121,10 +155,12 @@
     "fonts": "Self-hosted web fonts — the game makes no external request.",
     "noneYet": "—"
   },
-
   "gameOver": {
     "title": "Game over",
-    "score": { "one": "{count} wave survived", "other": "{count} waves survived" },
+    "score": {
+      "one": "{count} wave survived",
+      "other": "{count} waves survived"
+    },
     "best": "Best: {best}",
     "newRecord": "New record!",
     "replay": "Play again",
@@ -137,7 +173,6 @@
     "powers": " · {count} powers",
     "powersFavourite": " · {count} powers (mostly {label})"
   },
-
   "debug": {
     "speed": "×{speed}",
     "nextWave": "wave +",

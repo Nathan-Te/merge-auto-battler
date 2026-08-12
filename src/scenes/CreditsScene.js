@@ -83,6 +83,8 @@ export default class CreditsScene extends Phaser.Scene {
       const authors = icons.authors ?? [];
       sections.push({
         title: t('credits.iconsTitle'),
+        // La phrase **introduit**, les données **énoncent** : dire deux fois « CC BY 3.0 »,
+        // une fois en prose et une fois en donnée, alourdit sans rien attribuer de plus.
         body: [
           t('credits.icons'),
           [icons.source, icons.license, icons.url].filter(Boolean).join(' · '),

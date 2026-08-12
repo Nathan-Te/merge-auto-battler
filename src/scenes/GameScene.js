@@ -10,7 +10,7 @@ import { itemColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { JuiceKit } from '../render/juiceKit.js';
-import { isDebugEnabled } from '../systems/debug.js';
+import { isDebugEnabled, isScreenshotEnabled } from '../systems/debug.js';
 import { t } from '../i18n/index.js';
 import { Skin } from '../render/skin.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
@@ -72,6 +72,10 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     this.debug = isDebugEnabled();
+    /** Mode capture (`?screenshot=1`) : l'écran se dégage, et la partie peut se figer. */
+    this.screenshot = isScreenshotEnabled();
+    /** Partie figée par le bouton du mode capture. Sans effet hors de ce mode. */
+    this.frozen = false;
     this.juiceConfig = parseJuiceConfig(juiceConfig);
     // L'index vient de `BootScene`, qui l'a lu au démarrage. Sans assets livrés il vaut
     // null, et tout le jeu retombe sur le greybox vectoriel — c'est un état normal.
@@ -143,6 +147,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.buildSoundButton();
     this.buildHelpButton();
+    if (this.screenshot) this.buildFreezeButton();
 
     this.gridPanel = this.add
       .rectangle(0, 0, 10, 10, COLORS.gridPanel)
@@ -259,6 +264,33 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Bouton de gel du mode capture — il **remplace** les boutons son et aide, à leur place.
+   *
+   * Un bouton plutôt qu'un raccourci clavier : les captures se prennent aussi sur un
+   * téléphone, où il n'y a ni clavier ni console. Il n'existe que sous `?screenshot=1`, donc
+   * aucun joueur ne peut mettre la main dessus.
+   */
+  buildFreezeButton() {
+    this.freezeButton = this.add
+      .rectangle(0, 0, 10, 10, COLORS.helpButton, 1)
+      .setDepth(DEPTH.hud)
+      .setInteractive({ useHandCursor: true });
+    this.freezeIcon = this.add
+      .text(0, 0, '❚❚', { fontFamily: FONTS.body, fontStyle: 'bold', color: COLORS.text })
+      .setOrigin(0.5, 0.5)
+      .setDepth(DEPTH.hud + 1)
+      .setResolution(this.textResolution());
+
+    this.freezeButton.on('pointerup', () => {
+      this.frozen = !this.frozen;
+      this.freezeIcon.setText(this.frozen ? '▶' : '❚❚');
+      // Les tweens en cours se figent aussi : sinon un item en vol continuerait sa course
+      // pendant que la simulation est arrêtée, et la capture montrerait une scène impossible.
+      this.tweens.timeScale = this.frozen ? 0 : 1;
+    });
+  }
+
   /** Texte net sur écran haute densité, sans exploser le fillrate au-delà de 2x. */
   textResolution() {
     return sceneTextResolution(this);
@@ -308,6 +340,19 @@ export default class GameScene extends Phaser.Scene {
     this.helpButton.setPosition(helpX, headerMiddle).setSize(soundSize, soundSize);
     this.helpButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
     this.helpIcon.setFontSize(Math.round(soundSize * 0.55)).setPosition(helpX, headerMiddle);
+
+    // Mode capture : tout ce qui n'est pas le jeu quitte l'écran, et le bouton de gel prend
+    // la place laissée par le bouton son.
+    if (this.screenshot) {
+      for (const object of [this.soundButton, this.soundIcon, this.helpButton, this.helpIcon]) {
+        object.setVisible(false);
+      }
+      this.soundButton.disableInteractive();
+      this.helpButton.disableInteractive();
+      this.freezeButton.setPosition(soundX, headerMiddle).setSize(soundSize, soundSize);
+      this.freezeButton.input?.hitArea?.setTo(0, 0, soundSize, soundSize);
+      this.freezeIcon.setFontSize(Math.round(soundSize * 0.45)).setPosition(soundX, headerMiddle);
+    }
 
     // Plus petit que le titre : la ligne de debug est dense et partage la même rangée.
     this.debugText.setFontSize(Phaser.Math.Clamp(Math.round(headerFont * 0.78), 8, 14));
@@ -867,8 +912,9 @@ export default class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     // Le multiplicateur de debug étire le temps du jeu, pas celui du navigateur : la
-    // simulation reste à tick fixe, elle défile simplement plus vite.
-    const scaled = delta * this.speed;
+    // simulation reste à tick fixe, elle défile simplement plus vite. Le gel du mode capture
+    // le met à zéro — l'affichage continue de tourner, mais plus rien n'avance.
+    const scaled = this.frozen ? 0 : delta * this.speed;
     this.session.update(scaled);
     this.battleView.update(scaled);
     this.intelBar.update();
@@ -925,6 +971,7 @@ export default class GameScene extends Phaser.Scene {
     this.dragState = null;
     this.tapCandidate = null;
     this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
 
     this.debugPanel?.destroy();
     this.intelBar?.destroy();

@@ -457,7 +457,12 @@ async function main() {
 
   for (const warning of warnings) console.warn(`Attention : ${warning}`);
   await report(build, log);
-  return totalBytes > manifest.budgetKb.max * 1024 ? 1 : 0;
+  // Le dépassement de budget **avertit** ici et **échoue** dans le CI, sur le poids réel de
+  // `dist/`. Une seule barrière, et posée sur ce qui est vraiment téléchargé : le pipeline
+  // ne voit ni le bundle JavaScript ni la compression du serveur, donc il ne peut pas
+  // trancher tout seul — et le faire échouer ici priverait de la galerie au moment précis où
+  // l'on cherche quel asset alléger.
+  return 0;
 }
 
 /** Recopie un dossier d'assets déjà au bon format (audio, polices). */
@@ -502,6 +507,15 @@ async function report(build, log) {
   }
   if (build.orphans.length > 0) {
     lines.push(`Orphelins   : ${build.orphans.length} sprite(s) que le jeu n'utilise pas.`);
+  }
+  if (build.totalBytes > build.budgetKb.max * 1024) {
+    lines.push(
+      `ATTENTION : le budget dur de ${formatBytes(build.budgetKb.max * 1024)} est dépassé — ` +
+        `le build échouera. Leviers, dans l'ordre : atlas.quality, sizes.<catégorie>, ` +
+        `longueur de la musique.`
+    );
+  } else if (build.totalBytes > build.budgetKb.target * 1024) {
+    lines.push(`Note : au-dessus de la cible de ${formatBytes(build.budgetKb.target * 1024)}.`);
   }
   lines.push('', 'Galerie : public/gallery/index.html (servie sur /gallery/ une fois déployée).');
 

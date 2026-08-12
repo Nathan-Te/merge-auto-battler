@@ -52,12 +52,16 @@ describe('dictionnaires', () => {
   });
 
   it('ne laisse aucune traduction vide', () => {
+    const empty = [];
     for (const [locale, dictionary] of Object.entries(LOCALES)) {
       for (const key of flatten(dictionary)) {
         const value = key.split('.').reduce((node, part) => node[part], dictionary);
-        expect(`${locale}:${key}:${value}`).not.toMatch(/:$/);
+        if (typeof value !== 'string' || value.trim().length === 0) empty.push(`${locale}:${key}`);
       }
     }
+    // Rendu en liste : le message d'échec nomme la clé fautive et sa langue, ce qui est
+    // toute la valeur du test.
+    expect(empty).toEqual([]);
   });
 });
 

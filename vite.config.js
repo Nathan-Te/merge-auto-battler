@@ -1,6 +1,30 @@
+import { readFileSync } from 'node:fs';
+
 import { defineConfig } from 'vite';
 
+/**
+ * Le nom du jeu n'est écrit **qu'une fois**, dans `src/i18n/en.json` (`game.title`).
+ *
+ * `index.html` est un fichier statique : sans ce greffon, le nom vivrait à deux endroits —
+ * le dictionnaire pour le jeu, la balise `<title>` pour l'onglet — et le jour où il change,
+ * on en oublierait un. Le titre injecté ici est celui de l'onglet **avant** que le jeu ne
+ * démarre ; `main.js` le réécrit ensuite dans la langue réellement choisie.
+ */
+function injectGameTitle() {
+  return {
+    name: 'merge-battler-title',
+    transformIndexHtml(html) {
+      const en = JSON.parse(readFileSync(new URL('./src/i18n/en.json', import.meta.url), 'utf8'));
+      return html.replace(
+        /<title>[^<]*<\/title>/,
+        `<title>${en.game.title}</title>`
+      );
+    },
+  };
+}
+
 export default defineConfig({
+  plugins: [injectGameTitle()],
   // Chemins relatifs dans le build : le même `dist/` fonctionne servi depuis un
   // sous-chemin (GitHub Pages : /<repo>/) comme depuis la racine (Crazy Games).
   base: './',
