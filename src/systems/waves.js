@@ -24,7 +24,7 @@ export function waveComposition(config, wave) {
 
   if (index < scripted.length) {
     // Copie défensive : le modèle ne doit jamais pouvoir muter la config chargée.
-    return scripted[index].map((entry) => ({ ...entry }));
+    return scripted[index].composition.map((entry) => ({ ...entry }));
   }
 
   // Vagues générées : le modèle `infinite` grossit d'un cran par vague au-delà des
@@ -60,9 +60,28 @@ export function waveEnemyCount(config, wave) {
  * avec le temps, jusqu'à un plancher.
  */
 export function waveSpawnGapMs(config, wave) {
-  const { spawnGapMs, scaling } = config.waves;
-  const steps = Math.max(0, Math.floor(wave) - 1);
+  const { scripted, spawnGapMs, scaling } = config.waves;
+  const index = Math.max(1, Math.floor(wave)) - 1;
+
+  // Une vague scriptée peut imposer sa cadence : c'est ce qui donne sa texture au rush
+  // (arrivées serrées) face au mur (arrivées espacées). L'override ne subit pas le
+  // resserrement par vague, sous peine de dériver.
+  const override = scripted[index]?.spawnGapMs;
+  if (typeof override === 'number') return override;
+
+  const steps = Math.max(0, index);
   return Math.max(scaling.minSpawnGapMs, spawnGapMs * scaling.spawnGapPerWave ** steps);
+}
+
+/**
+ * Libellé de texture d'une vague (« Rush », « Mur de tanks »…), ou chaîne vide.
+ *
+ * Les vagues générées n'en ont pas : au-delà des vagues scriptées, la formule ne compose
+ * plus de textures, elle empile.
+ */
+export function waveLabel(config, wave) {
+  const index = Math.max(1, Math.floor(wave)) - 1;
+  return config.waves.scripted[index]?.label ?? '';
 }
 
 /**

@@ -13,6 +13,7 @@ Périmètre et contraintes : [`docs/seed.md`](docs/seed.md). Règles de travail 
 npm install
 npm run dev      # serveur de dev, exposé sur le réseau local (test téléphone)
 npm test         # vitest
+npm run sim      # harness d'équilibrage headless (voir Lot 3)
 npm run build    # build de production dans dist/
 npm run preview  # sert le build de production en local
 ```
@@ -362,3 +363,117 @@ ailleurs.
 - **Juice** : squash à la fusion, particules, impacts, screenshake sont toujours au Lot 3.
   Le Lot 2.5 ne pose que le vol grille → slot, les traceurs, les flashs de touche et la
   jauge de sortie.
+
+## Lot 3 — ce qui est livré
+
+Le cœur validé au Lot 2.5 est amené à son feel final et posé sur un équilibrage mesuré.
+Toujours en greybox : les assets arrivent au Lot 4.
+
+### Outillage d'équilibrage
+
+- **Harness de simulation headless — `npm run sim`.** Les modèles étant purs, une partie
+  complète se joue sans canvas, sans horloge et sans joueur : trois politiques automatiques
+  (`spam`, `mixed`, `prepare`) pilotent une vraie `GameSession`, et le harness sort un
+  rapport reproductible (vague moyenne, écart-type, durée, occupation de la grille, part de
+  dégâts par type). Un réglage de `balance.json` se valide **en une seconde** au lieu d'un
+  playtest. Déterministe par graine (`makeRng`), et fidèle : il ne réimplémente aucune
+  règle, il appelle `applyTap` / `applyDrop` / `update` comme la scène Phaser.
+- `npm run sim -- --matchups` mesure en plus **quel type d'unité tient quelle texture de
+  vague** — escouade figée, renforts au rythme réel du cooldown, base invulnérable.
+- **Mode `?debug=1` enrichi** : vitesse ×1/×2/×4, saut de vague, base invincible, et un
+  récap de fin de partie (dégâts par type, envois par tier, vague, durée, taps refusés).
+  Le panneau réserve sa place dans le layout — il ne recouvre jamais une case de la grille.
+
+### Résultats d'équilibrage
+
+30 parties par politique, graines 1..30 (`npm run sim -- --games=30`) :
+
+| politique      | vague moy. | σ    | durée moy. | grille pleine |
+| -------------- | ---------- | ---- | ---------- | ------------- |
+| Spam tier 1    | 5,90       | 0,30 | 2:27       | **79 %**      |
+| Mixte tier 3   | **10,00**  | 0,00 | **3:37**   | 0 %           |
+| Prépare tier 4 | 12,00      | 0,00 | 4:33       | 0 %           |
+
+Les trois objectifs du lot sont atteints : partie moyenne **3:37** (cible 3-5 min),
+première défaite **vague 10** (cible 8-12), et **« merger bat spammer » ×2,03** (seuil
+×1,4). Cet invariant est verrouillé par un test automatisé qui joue de vraies parties
+(`tests/balanceInvariant.test.js`) : **la CI échoue si un futur réglage l'inverse**.
+
+Le raisonnement complet, les valeurs retenues et les mesures sont dans
+[`docs/balance-notes.md`](docs/balance-notes.md). En résumé : le débit d'items est le levier
+dominant (il se cale sur `4 items / deployCooldownMs`), `hpPerWave` décide seul de la vague
+où l'on meurt sans toucher au début de partie, et chaque vague scriptée porte désormais sa
+**propre cadence d'apparition** — c'est ce qui distingue un rush d'un mur à nombre d'ennemis
+égal, et le bandeau annonce la texture (« Vague 4 / Rush »).
+
+### Passe de juice
+
+Toutes les intensités vivent dans **`src/config/juice.json`** (documenté par
+`src/config/juice.schema.md`, validé par `parseJuiceConfig`) — aucune en dur dans le code.
+
+- **Grille** : squash & stretch à la fusion, gerbe de particules à la couleur du tier
+  produit, easing des retours, secousse nette sur un tap refusé.
+- **Trajets** : grille → slot puis slot → couloir, tous deux avec easing et traînée. Ce sont
+  eux qui rendent le concept lisible, ils sont traités comme tels.
+- **Combat** : hit flash des deux côtés, recul du corps au tir et au corps-à-corps, gerbe de
+  particules à la mort, traceurs.
+- **Base** : flash du bloc, vignette rouge en bord d'écran, secousse.
+- **UI** : jauge de cooldown qui sursaute à chaque sortie, bandeau de vague avec entrée et
+  sortie propres, score de game over qui compte de 0 à sa valeur.
+- **SFX placeholder jsfxr**, synthétisés à l'exécution (`src/systems/sfx.js`) : merge, tap,
+  refus, sortie d'unité, tir, mort, dégâts base, vague, game over. **Zéro octet
+  téléchargé** — ils seront remplacés au Lot 4. Toggle son dans l'en-tête, mémorisé.
+- **Screenshake parcimonieux** : trois événements seulement (dégâts base, mort d'un **tank**,
+  game over), et l'étranglement est dans `JuiceKit.shake()` lui-même, pas chez l'appelant.
+
+### Performance
+
+Pooling strict : le champ de particules alloue son pool au démarrage et **n'alloue plus
+rien** ensuite (pool plein → la plus vieille est recyclée), avec un seul `Graphics`
+redessiné par frame. Mesuré en charge maximale (cap de 20 unités atteint, grosse vague à
+l'écran, 184 particules vivantes), le coût par frame de **tout** notre code — modèle, vues,
+particules — est de **0,17 ms en moyenne, 1,1 ms au 95e centile**, sur un budget de 16,7 ms.
+Le reste de la frame est au rendu.
+
+Poids de `dist/` : **1,28 Mo** (342 Ko gzip), contre 1,26 Mo au Lot 2.5. Les systèmes de
+particules, la boîte à juice et le synthétiseur de sons ajoutent **~14 Ko** : les sons étant
+générés à l'exécution et la vignette dessinée dans un canvas, le lot n'ajoute aucun asset.
+Très en dessous du budget.
+
+### Ce qui est testable
+
+- `npm test` : **363 tests**, dont l'invariant d'équilibrage sur parties simulées, le
+  déterminisme du harness (même graine → partie identique au compteur près), le pool de
+  particules (taille constante, recyclage, dessin borné), la validation de `juice.json`, le
+  synthétiseur de sons et son étranglement, les outils de debug du modèle.
+- `npm run sim` et `npm run sim -- --matchups` : rapports reproductibles.
+- **Passe navigateur** (Chromium, portrait 390×844) : partie jouée au pointeur, boutons de
+  debug (×4, saut de vague, base ∞), toggle son, game over avec récap, rejouer — **aucune
+  erreur console**, et la préférence de son survit à la nouvelle partie.
+
+### Les curseurs à ajuster en priorité après les premiers tests au doigt
+
+1. **`itemSpawner.minIntervalMs`** (780 ms) — le débit d'items, de loin le levier le plus
+   violent. Le repère : un envoi de tier 3 coûte 4 items, un envoi part toutes les 3,5 s,
+   donc « suivre le rythme » demande un item toutes les 875 ms. Le plancher est réglé juste
+   en dessous pour que le goulot reste le cooldown de sortie, pas la grille. Si la grille
+   paraît vide ou famélique au doigt, c'est ici — mais tout bouge en même temps.
+2. **`waves.scaling.hpPerWave`** (1,48) — la vague où l'on meurt, sans toucher aux vagues
+   1-3. Si les premières parties tombent trop tôt (vague 6-7), descendre à 1,44.
+3. **`waves.interWavePauseMs`** (4000 ms) — la respiration, et un cadeau de puissance
+   contre-intuitif : une pause vaut un déploiement gratuit. Passer de 3200 à 4500 ms fait
+   grimper la vague moyenne de 10,3 à 12,8. À manier avec précaution.
+
+Côté feel, les deux réglages à juger en premier sont `grid.mergeSquash` (le geste principal
+du jeu) et `flight.toSlotMs` / `toFieldMs` (la lisibilité du pont).
+
+### Ce qui reste ouvert
+
+- **Le soutien n'a toujours pas de retour visuel d'aura.** Sa valeur est réelle et mesurée
+  (il gagne les scénarios de ligne tenue) mais invisible. Candidat n° 1 du prochain passage
+  de lisibilité — la donnée existe déjà (`auraRadius`).
+- **Le spammeur meurt vague 6**, ce qui est rude pour qui n'a pas compris la fusion. Si le
+  message ne passe pas au playtest, c'est un problème de pédagogie, pas d'équilibrage.
+- **Les 60 fps sur mobile réel restent à confirmer au doigt** : la mesure ci-dessus est
+  celle du coût CPU de notre code, pas celle du GPU d'un téléphone d'entrée de gamme.
+- **La fusion d'unités ★** reste hors V1 (retirée au Lot 2.5).

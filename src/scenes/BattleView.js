@@ -2,7 +2,13 @@ import Phaser from 'phaser';
 
 import { cellCenterAt, lanePoint } from '../systems/layout.js';
 import { drawTierShape, TIER_LABEL_COLOR } from '../render/tierShapes.js';
-import { drawUnitShape, drawEnemyShape, enemySize, unitColor } from '../render/battleShapes.js';
+import {
+  drawUnitShape,
+  drawEnemyShape,
+  enemySize,
+  unitColor,
+  enemyColor,
+} from '../render/battleShapes.js';
 import { DEPTH } from '../render/depths.js';
 
 /**
@@ -14,8 +20,13 @@ import { DEPTH } from '../render/depths.js';
  * fluide à 60 fps au-dessus d'une simulation à 10 Hz.
  *
  * Ce n'est pas une scène Phaser : c'est un objet de rendu possédé par `GameScene`, qui le
- * relayoute à chaque `resize`. Depuis le Lot 2.5, la vue ne reçoit plus aucun geste : on
- * ne manipule plus rien sur la bande, tout se joue sur la grille.
+ * relayoute à chaque `resize` et lui prête sa boîte à juice (particules, secousses, sons).
+ * Depuis le Lot 2.5, la vue ne reçoit plus aucun geste : on ne manipule plus rien sur la
+ * bande, tout se joue sur la grille.
+ *
+ * **Les deux trajets sont la lisibilité du concept** (Lot 3) : grille → slot au tap, puis
+ * slot → couloir à la sortie. Les deux volent avec une traînée, et c'est ce qui rend
+ * visible le lien entre les deux moitiés du jeu.
  */
 
 const COLORS = {
@@ -30,6 +41,7 @@ const COLORS = {
   gauge: 0x4d96ff,
   gaugeReady: 0x6bcb77,
   base: 0x2c3350,
+  baseHit: 0x7a3341,
   baseFill: 0x6bcb77,
   baseFillLow: 0xff6b6b,
   text: '#eef1f8',
@@ -42,25 +54,20 @@ const COLORS = {
 
 const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
 
-/** Réglages de feel du rendu de combat (le polish complet est au Lot 3). */
-const FEEL = {
-  flightMs: 300,
-  unitPopMs: 200,
-  tracerMs: 140,
-  bannerMs: 900,
-  hintMs: 1100,
-  hitFlashMs: 90,
-  slotShiftMs: 160,
-};
+/** Durée du glissement d'une vignette d'un slot au suivant. Purement mécanique. */
+const SLOT_SHIFT_MS = 160;
 
 export class BattleView {
   /**
    * @param {Phaser.Scene} scene
    * @param {import('../systems/GameSession.js').GameSession} session
+   * @param {import('../render/juiceKit.js').JuiceKit} juice
    */
-  constructor(scene, session) {
+  constructor(scene, session, juice) {
     this.scene = scene;
     this.session = session;
+    this.juice = juice;
+    this.juiceConfig = juice.config;
     this.model = session.battle;
     this.queue = session.deployQueue;
     this.config = session.battleConfig;
@@ -75,6 +82,8 @@ export class BattleView {
     this.tracers = [];
     this.unsubscribes = [];
     this.layoutData = null;
+    /** Vue d'unité créée par `unitSpawn` et attendue par `onDeployed` (le vol slot → couloir). */
+    this.pendingDeploy = null;
 
     this.build();
     this.bind(session.events);
@@ -136,7 +145,7 @@ export class BattleView {
     this.nextText = scene.add.text(0, 0, '', dim).setOrigin(1, 1).setDepth(DEPTH.hud);
 
     this.banner = scene.add
-      .text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text })
+      .text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text, align: 'center' })
       .setOrigin(0.5, 0.5)
       .setAlpha(0)
       .setDepth(DEPTH.banner);
@@ -208,7 +217,10 @@ export class BattleView {
       34
     );
     const laneCenter = lanePoint(zone, 0.5);
-    this.banner.setFontSize(bannerFont).setPosition(laneCenter.x, laneCenter.y);
+    this.banner
+      .setFontSize(bannerFont)
+      .setWordWrapWidth(Math.max(60, zone.lane.width))
+      .setPosition(laneCenter.x, laneCenter.y);
     this.hint
       .setFontSize(Phaser.Math.Clamp(Math.round(bannerFont * 0.55), 10, 18))
       .setWordWrapWidth(Math.max(60, zone.lane.width))
@@ -242,7 +254,7 @@ export class BattleView {
         targets: view,
         x: slot.x,
         y: slot.y,
-        duration: FEEL.slotShiftMs,
+        duration: SLOT_SHIFT_MS,
         ease: 'Quad.easeOut',
       });
     });
@@ -272,18 +284,18 @@ export class BattleView {
     const on = (type, handler) => this.unsubscribes.push(bus.on(type, handler));
 
     on('enemySpawn', ({ enemy }) => this.createEnemyView(enemy));
-    on('enemyDeath', ({ enemy }) => this.popEnemyView(enemy, { leaked: false }));
+    on('enemyDeath', ({ enemy }) => this.onEnemyDeath(enemy));
     on('enemyLeak', ({ enemy }) => this.popEnemyView(enemy, { leaked: true }));
-    on('enemyAttack', ({ unit }) => this.flashFighter(this.unitViews.get(unit.id)));
+    on('enemyAttack', ({ unit }) => this.onEnemyAttack(unit));
     on('baseDamage', () => this.onBaseDamage());
     on('unitAttack', (payload) => this.onUnitAttack(payload));
 
     on('unitQueued', ({ unit, position, origin }) => this.onUnitQueued(unit, position, origin));
     on('deployUnit', ({ unit }) => this.onDeployed(unit));
-    on('unitSpawn', ({ unit }) => this.createUnitView(unit));
+    on('unitSpawn', ({ unit, origin }) => this.createUnitView(unit, origin));
     on('unitDeath', ({ unit }) => this.popUnitView(unit));
 
-    on('waveStart', ({ wave }) => this.showBanner(`Vague ${wave}`));
+    on('waveStart', ({ wave, label }) => this.onWaveStart(wave, label));
     on('waveCountdown', ({ wave }) => {
       if (wave > 1) this.showBanner(`Vague ${wave}\nen approche`);
     });
@@ -309,15 +321,34 @@ export class BattleView {
       return;
     }
     view.setData('flying', true);
-    this.flight(start, slot, unit.tier, () => {
-      view.setData('flying', false);
-      if (view.active) this.revealView(view);
+    this.flight(start, slot, {
+      durationMs: this.juiceConfig.flight.toSlotMs,
+      ease: 'Cubic.easeIn',
+      color: unitColor(unit.type),
+      draw: (graphics) => drawTierShape(graphics, unit.tier, this.layoutData.itemSize),
+      endScale: (zone.unitSize / Math.max(1, this.layoutData.itemSize)) * 0.9,
+      onComplete: () => {
+        view.setData('flying', false);
+        if (view.active) this.revealView(view);
+      },
     });
   }
 
-  /** La tête de file part au combat : sa vignette disparaît, la file se resserre. */
+  /**
+   * La tête de file part au combat : sa vignette disparaît, la file se resserre, et un
+   * second vol l'emmène du slot jusqu'à l'entrée du couloir.
+   *
+   * L'unité correspondante a déjà été créée (cachée) par `createUnitView` : `deployUnit`
+   * est d'abord consommé par `BattleModel`, qui émet `unitSpawn` avant que cette
+   * méthode-ci ne s'exécute. `pendingDeploy` est le relais entre les deux.
+   */
   onDeployed(unit) {
+    const zone = this.zone;
     const view = this.queueViews.get(unit.id);
+    const from = view ? { x: view.x, y: view.y } : zone?.slots[0];
+    const target = this.pendingDeploy;
+    this.pendingDeploy = null;
+
     if (view) {
       this.queueViews.delete(unit.id);
       this.scene.tweens.killTweensOf(view);
@@ -330,6 +361,33 @@ export class BattleView {
         onComplete: () => view.destroy(),
       });
     }
+
+    // Second trajet : le slot vers l'entrée du couloir. L'unité attend cachée et
+    // n'apparaît qu'à l'arrivée du vol.
+    if (target?.active) {
+      if (zone && from) {
+        this.flight(
+          from,
+          { x: target.x, y: target.y },
+          {
+            durationMs: this.juiceConfig.flight.toFieldMs,
+            ease: 'Cubic.easeOut',
+            color: unitColor(unit.type),
+            draw: (graphics) => drawUnitShape(graphics, unit.type, unit.tier, zone.unitSize),
+            endScale: zone.fieldUnitSize / Math.max(1, zone.unitSize),
+            onComplete: () => {
+              if (target.active) this.revealView(target);
+            },
+          }
+        );
+      } else {
+        // Sans zone de départ, on ne laisse **jamais** une unité invisible sur le champ.
+        this.revealView(target);
+      }
+    }
+
+    this.juice.play('deploy');
+    this.pulseGauge();
     this.refreshQueueViews();
   }
 
@@ -342,20 +400,40 @@ export class BattleView {
     return null;
   }
 
-  /** Objet volant temporaire : la forme de l'item de la grille, qui rejoint son slot. */
-  flight(from, to, tier, onComplete) {
-    const zone = this.zone;
-    const shape = this.scene.add.graphics();
-    drawTierShape(shape, tier, this.layoutData.itemSize);
-    const flyer = this.scene.add.container(from.x, from.y, [shape]).setDepth(DEPTH.flight);
+  /**
+   * Objet volant temporaire, avec traînée.
+   *
+   * Les deux trajets du jeu (grille → slot, slot → couloir) passent par ici : c'est le
+   * seul endroit où se règle leur feel, et la traînée est ce qui rend le lien lisible
+   * même quand l'œil est ailleurs.
+   */
+  flight(from, to, { durationMs, ease, color, draw, endScale = 1, onComplete }) {
+    const graphics = this.scene.add.graphics();
+    draw(graphics);
+    const flyer = this.scene.add.container(from.x, from.y, [graphics]).setDepth(DEPTH.flight);
+
+    const trail = this.juiceConfig.flight.trail;
+    // Horodatage plutôt qu'accumulateur : `onUpdate` est appelé une fois par propriété
+    // tweenée, et compter les frames y déposerait trois fois trop de particules.
+    let lastTrailAt = 0;
 
     this.scene.tweens.add({
       targets: flyer,
       x: to.x,
       y: to.y,
-      scale: (zone.unitSize / Math.max(1, this.layoutData.itemSize)) * 0.9,
-      duration: FEEL.flightMs,
-      ease: 'Cubic.easeIn',
+      scale: endScale,
+      duration: durationMs,
+      ease,
+      onUpdate: () => {
+        const now = this.scene.time.now;
+        if (now - lastTrailAt < trail.everyMs) return;
+        lastTrailAt = now;
+        this.juice.particles.spawn(flyer.x, flyer.y, 0, 0, {
+          lifeMs: trail.lifeMs,
+          sizePx: trail.sizePx,
+          color,
+        });
+      },
       onComplete: () => {
         flyer.destroy();
         onComplete?.();
@@ -406,7 +484,7 @@ export class BattleView {
   }
 
   /** Vue d'une unité **sur le champ de bataille** : elle marche, elle encaisse, elle meurt. */
-  createUnitView(unit) {
+  createUnitView(unit, origin) {
     const zone = this.zone;
     if (!zone) return null;
 
@@ -414,7 +492,15 @@ export class BattleView {
     view.setDepth(DEPTH.item);
     this.unitViews.set(unit.id, view);
     this.positionFighterView(view, unit, 1, COLORS.unitHpFill);
-    this.revealView(view);
+
+    // Sortie de file : l'unité reste cachée le temps que le vol slot → couloir la rejoigne
+    // (`onDeployed`). Hors de ce chemin (tests, bancs d'essai), elle apparaît tout de suite.
+    if (origin?.kind === 'deploy') {
+      view.setVisible(false);
+      this.pendingDeploy = view;
+    } else {
+      this.revealView(view);
+    }
     return view;
   }
 
@@ -422,13 +508,19 @@ export class BattleView {
     const view = this.unitViews.get(unit.id);
     if (!view) return;
     this.unitViews.delete(unit.id);
+    this.stopFighterTweens(view);
+
+    const combat = this.juiceConfig.combat;
+    this.juice.burst(view.x, view.y, combat.deathBurst, unitColor(unit.type));
+    this.juice.play('death');
+
     this.scene.tweens.killTweensOf(view);
     this.scene.tweens.add({
       targets: view,
       scale: 0.15,
       alpha: 0,
       angle: 45,
-      duration: 200,
+      duration: combat.deathMs,
       ease: 'Quad.easeOut',
       onComplete: () => view.destroy(),
     });
@@ -440,7 +532,7 @@ export class BattleView {
     this.scene.tweens.add({
       targets: view,
       scale: 1,
-      duration: FEEL.unitPopMs,
+      duration: this.juiceConfig.combat.unitPopMs,
       ease: 'Back.easeOut',
     });
   }
@@ -483,7 +575,12 @@ export class BattleView {
     this.positionFighterView(view, enemy, 1, COLORS.enemyHpFill);
 
     view.setScale(0.4);
-    this.scene.tweens.add({ targets: view, scale: 1, duration: 160, ease: 'Back.easeOut' });
+    this.scene.tweens.add({
+      targets: view,
+      scale: 1,
+      duration: this.juiceConfig.combat.enemyPopMs,
+      ease: 'Back.easeOut',
+    });
     return view;
   }
 
@@ -500,6 +597,19 @@ export class BattleView {
     view.setData('barWidth', barWidth);
   }
 
+  /** Mort d'un ennemi : gerbe, son, et secousse **réservée aux tanks**. */
+  onEnemyDeath(enemy) {
+    const view = this.enemyViews.get(enemy.id);
+    if (view) {
+      this.juice.burst(view.x, view.y, this.juiceConfig.combat.deathBurst, enemyColor(enemy.type));
+    }
+    this.juice.play('death');
+    // Parcimonie : seule la mort d'un tank secoue l'écran. Si chaque ennemi secouait, la
+    // secousse ne voudrait plus rien dire (et le jeu serait illisible en vague 10).
+    if (enemy.type === 'tank') this.juice.shake('tankDeath');
+    this.popEnemyView(enemy, { leaked: false });
+  }
+
   /**
    * Retire la vue d'un ennemi : il implose s'il a été tué, il gonfle s'il a atteint la
    * base — deux issues opposées, deux animations opposées.
@@ -508,13 +618,14 @@ export class BattleView {
     const view = this.enemyViews.get(enemy.id);
     if (!view) return;
     this.enemyViews.delete(enemy.id);
+    this.stopFighterTweens(view);
 
     this.scene.tweens.killTweensOf(view);
     this.scene.tweens.add({
       targets: view,
       scale: leaked ? 1.6 : 0.2,
       alpha: 0,
-      duration: 180,
+      duration: this.juiceConfig.combat.deathMs * 0.9,
       ease: 'Quad.easeOut',
       onComplete: () => view.destroy(),
     });
@@ -522,10 +633,15 @@ export class BattleView {
 
   onBaseDamage() {
     this.refreshBaseBar();
-    this.baseRect.setFillStyle(0x7a3341, 1);
-    this.scene.time.delayedCall(220, () => {
+    this.baseRect.setFillStyle(COLORS.baseHit, 1);
+    this.scene.time.delayedCall(this.juiceConfig.base.flashMs, () => {
       if (this.baseRect.active) this.baseRect.setFillStyle(COLORS.base, 1);
     });
+
+    // Le seul feedback plein écran du jeu : la base encaisse, tout tremble et rougit.
+    this.juice.shake('baseDamage');
+    this.juice.flashVignette();
+    this.juice.play('baseHit');
   }
 
   refreshBaseBar() {
@@ -563,19 +679,77 @@ export class BattleView {
           : 0,
     });
 
+    this.juice.play('shot');
+    // Recul du tireur, vers la base : le coup a un poids, même quand la cible meurt.
+    this.recoil(this.unitViews.get(unit.id), 1);
+
     for (const hit of hits) {
       if (hit.killed) continue;
       this.flashFighter(this.enemyViews.get(hit.enemy.id));
     }
   }
 
+  /** Corps à corps ennemi : l'unité touchée encaisse, et recule dans l'autre sens. */
+  onEnemyAttack(unit) {
+    const view = this.unitViews.get(unit.id);
+    this.flashFighter(view);
+    this.recoil(view, 1);
+  }
+
+  /**
+   * Petit recul du corps du combattant, **dans son conteneur**.
+   *
+   * La position du conteneur est réécrite à chaque frame depuis le modèle : c'est donc la
+   * forme qui recule, pas la vue. Sans cette ruse, le recul serait effacé à la frame
+   * suivante et on ne verrait rien.
+   */
+  recoil(view, direction) {
+    if (!view?.active) return;
+    const zone = this.zone;
+    const shape = view.getData('shape');
+    if (!shape) return;
+
+    const combat = this.juiceConfig.combat;
+    const axis = zone.horizontal ? 'x' : 'y';
+    // On arrête **le recul précédent**, pas tous les tweens de la forme : un
+    // `killTweensOf` global tuerait le flash de touche en cours et laisserait le
+    // combattant à demi transparent pour toujours.
+    view.getData('recoilTween')?.stop();
+    shape[axis] = combat.recoilPx * direction;
+    view.setData(
+      'recoilTween',
+      this.scene.tweens.add({
+        targets: shape,
+        [axis]: 0,
+        duration: combat.recoilMs,
+        ease: 'Quad.easeOut',
+      })
+    );
+  }
+
   /** Éclair blanc sur un combattant touché — même feedback des deux côtés. */
   flashFighter(view) {
     if (!view?.active) return;
     const shape = view.getData('shape');
-    this.scene.tweens.killTweensOf(shape);
+    if (!shape) return;
+
+    // Même précaution que pour le recul : on ne coupe que le flash précédent.
+    view.getData('flashTween')?.stop();
     shape.setAlpha(0.45);
-    this.scene.tweens.add({ targets: shape, alpha: 1, duration: FEEL.hitFlashMs });
+    view.setData(
+      'flashTween',
+      this.scene.tweens.add({
+        targets: shape,
+        alpha: 1,
+        duration: this.juiceConfig.combat.hitFlashMs,
+      })
+    );
+  }
+
+  /** Arrête les tweens posés sur la **forme** d'un combattant, avant de le détruire. */
+  stopFighterTweens(view) {
+    view.getData('recoilTween')?.stop();
+    view.getData('flashTween')?.stop();
   }
 
   drawTracers(deltaMs) {
@@ -583,10 +757,11 @@ export class BattleView {
     graphics.clear();
     if (this.tracers.length === 0) return;
 
+    const tracerMs = this.juiceConfig.combat.tracerMs;
     for (let i = this.tracers.length - 1; i >= 0; i -= 1) {
       const tracer = this.tracers[i];
       tracer.age += deltaMs;
-      const life = 1 - tracer.age / FEEL.tracerMs;
+      const life = 1 - tracer.age / tracerMs;
       if (life <= 0) {
         this.tracers.splice(i, 1);
         continue;
@@ -602,40 +777,52 @@ export class BattleView {
 
   // ------------------------------------------------------------------ feedback
 
+  onWaveStart(wave, label) {
+    // La texture de la vague est annoncée avec son numéro : « Vague 4 / Rush » laisse une
+    // chance de préparer le bon type d'unité, ce qu'un simple numéro ne fait pas.
+    this.showBanner(label ? `Vague ${wave}\n${label}` : `Vague ${wave}`);
+    this.juice.play('wave');
+  }
+
   showBanner(text) {
+    const ui = this.juiceConfig.ui;
     this.banner.setText(text).setAlpha(0).setScale(0.7);
     this.scene.tweens.killTweensOf(this.banner);
-    this.scene.tweens.add({
+    this.scene.tweens.chain({
       targets: this.banner,
-      alpha: { from: 0, to: 1 },
-      scale: 1,
-      duration: 180,
-      ease: 'Back.easeOut',
-      yoyo: true,
-      hold: FEEL.bannerMs,
+      tweens: [
+        { alpha: 1, scale: 1, duration: ui.bannerInMs, ease: 'Back.easeOut' },
+        { alpha: 0, scale: 1.15, duration: ui.bannerOutMs, ease: 'Quad.easeIn', delay: ui.bannerHoldMs },
+      ],
     });
   }
 
   /** Feedback du tap refusé : la file crie qu'elle est pleine — mais plus pour longtemps. */
   showBlockedHint() {
+    const hintMs = this.juiceConfig.ui.hintMs;
     this.scene.tweens.killTweensOf(this.hint);
     this.hint.setAlpha(1).setScale(1);
     this.scene.tweens.add({
       targets: this.hint,
       alpha: 0,
-      duration: FEEL.hintMs,
+      duration: hintMs,
       ease: 'Quad.easeIn',
     });
 
     for (const view of this.slotViews) view.setFillStyle(COLORS.slotBlocked, 1);
+    this.pulseGauge();
+    this.scene.time.delayedCall(hintMs * 0.6, () => this.restoreSlotColors());
+  }
+
+  /** La jauge de sortie sursaute : quelque chose vient de partir, ou de se bloquer. */
+  pulseGauge() {
     this.scene.tweens.killTweensOf(this.gauge);
     this.scene.tweens.add({
       targets: this.gauge,
       scaleY: { from: 2.4, to: 1 },
-      duration: 320,
+      duration: this.juiceConfig.ui.gaugePulseMs,
       ease: 'Back.easeOut',
     });
-    this.scene.time.delayedCall(FEEL.hintMs * 0.6, () => this.restoreSlotColors());
   }
 
   restoreSlotColors() {
@@ -698,6 +885,7 @@ export class BattleView {
       ...this.unitViews.values(),
       ...this.queueViews.values(),
     ]) {
+      this.stopFighterTweens(view);
       this.scene.tweens.killTweensOf(view);
       view.destroy();
     }

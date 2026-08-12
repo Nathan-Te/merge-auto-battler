@@ -6,6 +6,7 @@ import {
   waveSpawnOrder,
   waveEnemyCount,
   waveSpawnGapMs,
+  waveLabel,
   describeWave,
 } from '../src/systems/waves.js';
 
@@ -15,7 +16,7 @@ const scriptedCount = balance.waves.scripted.length;
 describe('waveComposition', () => {
   it('rend exactement la composition scriptée pour les premières vagues', () => {
     for (let wave = 1; wave <= scriptedCount; wave += 1) {
-      expect(waveComposition(config, wave)).toEqual(balance.waves.scripted[wave - 1]);
+      expect(waveComposition(config, wave)).toEqual(balance.waves.scripted[wave - 1].composition);
     }
   });
 
@@ -67,10 +68,37 @@ describe('waveSpawnOrder', () => {
 });
 
 describe('waveSpawnGapMs', () => {
-  it('resserre les apparitions vague après vague, jusqu’à un plancher', () => {
-    expect(waveSpawnGapMs(config, 1)).toBeCloseTo(balance.waves.spawnGapMs);
-    expect(waveSpawnGapMs(config, 10)).toBeLessThan(waveSpawnGapMs(config, 1));
+  it('respecte la cadence déclarée par une vague scriptée, sans la faire dériver', () => {
+    balance.waves.scripted.forEach((wave, index) => {
+      if (typeof wave.spawnGapMs === 'number') {
+        expect(waveSpawnGapMs(config, index + 1)).toBe(wave.spawnGapMs);
+      }
+    });
+  });
+
+  it('resserre les vagues générées, jusqu’à un plancher', () => {
+    const firstGenerated = scriptedCount + 1;
+    expect(waveSpawnGapMs(config, firstGenerated + 10)).toBeLessThan(
+      waveSpawnGapMs(config, firstGenerated)
+    );
     expect(waveSpawnGapMs(config, 500)).toBe(balance.waves.scaling.minSpawnGapMs);
+  });
+
+  it('sépare bien les textures : un rush arrive plus serré qu’un mur', () => {
+    const gaps = balance.waves.scripted.map((_, index) => waveSpawnGapMs(config, index + 1));
+    const rush = Math.min(...gaps);
+    const wall = Math.max(...gaps);
+    // Sans cet écart, toutes les vagues auraient le même goût quel que soit leur contenu.
+    expect(wall).toBeGreaterThan(rush * 2);
+  });
+});
+
+describe('waveLabel', () => {
+  it('donne sa texture à chaque vague scriptée, et rien aux vagues générées', () => {
+    for (let wave = 1; wave <= scriptedCount; wave += 1) {
+      expect(waveLabel(config, wave)).toBe(balance.waves.scripted[wave - 1].label ?? '');
+    }
+    expect(waveLabel(config, scriptedCount + 1)).toBe('');
   });
 });
 

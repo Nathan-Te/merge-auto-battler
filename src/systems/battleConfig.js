@@ -207,8 +207,8 @@ function parseWaves(raw, enemies) {
     firstWaveDelayMs: num(raw, 'waves', 'firstWaveDelayMs', { min: 0 }),
     interWavePauseMs: num(raw, 'waves', 'interWavePauseMs', { min: 0 }),
     spawnGapMs: num(raw, 'waves', 'spawnGapMs', { min: 1 }),
-    scripted: scripted.map((composition, index) =>
-      parseComposition(composition, `waves.scripted[${index}]`, enemies)
+    scripted: scripted.map((entry, index) =>
+      parseScriptedWave(entry, `waves.scripted[${index}]`, enemies)
     ),
     infinite: parseComposition(raw.infinite, 'waves.infinite', enemies),
     scaling: {
@@ -226,6 +226,36 @@ function parseWaves(raw, enemies) {
         integer: true,
       }),
     },
+  };
+}
+
+/**
+ * Une vague scriptée, sous l'une de ses deux formes :
+ *
+ *   - **liste** : la composition seule, cadence et libellé par défaut ;
+ *   - **objet** `{ label, spawnGapMs, composition }` : la forme complète, qui permet de
+ *     donner à chaque vague sa **texture**. C'est `spawnGapMs` qui fait la différence
+ *     entre un rush (arrivées serrées) et un mur (arrivées espacées mais épaisses) — à
+ *     nombre d'ennemis égal, ce ne sont pas les mêmes vagues du tout.
+ *
+ * L'override de cadence est **littéral** : il ne subit pas `spawnGapPerWave`, sinon une
+ * texture réglée à la main dériverait avec le numéro de vague.
+ */
+function parseScriptedWave(raw, path, enemies) {
+  if (Array.isArray(raw)) {
+    return { label: '', spawnGapMs: null, composition: parseComposition(raw, path, enemies) };
+  }
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`balance.json : ${path} doit être une liste ou un objet de vague`);
+  }
+  if (raw.label !== undefined && typeof raw.label !== 'string') {
+    throw new Error(`balance.json : ${path}.label doit être une chaîne`);
+  }
+  return {
+    label: raw.label ?? '',
+    spawnGapMs:
+      raw.spawnGapMs === undefined ? null : num(raw, path, 'spawnGapMs', { min: 16 }),
+    composition: parseComposition(raw.composition, `${path}.composition`, enemies),
   };
 }
 

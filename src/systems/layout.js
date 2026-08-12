@@ -89,9 +89,13 @@ function laneThickness(available, slotSize) {
  * @param {number} [options.cols]
  * @param {number} [options.rows]
  * @param {number} [options.slotCount] Slots de déploiement (`battle.slotCount`)
+ * @param {number} [options.debugRowPx] Hauteur réservée sous l'en-tête au panneau de debug
+ *   (0 en jeu normal). Le contenu descend d'autant : les boutons de réglage ne doivent
+ *   **jamais** recouvrir une case de la grille, même en mode debug.
  * @returns {{
  *   width: number, height: number, landscape: boolean, pad: number,
  *   header: {x: number, y: number, width: number, height: number},
+ *   debugRow: {x: number, y: number, width: number, height: number},
  *   grid: {x: number, y: number, size: number, cell: number, cols: number, rows: number},
  *   battle: {x: number, y: number, width: number, height: number},
  *   battleZone: object,
@@ -101,7 +105,7 @@ function laneThickness(available, slotSize) {
 export function computeLayout(
   width,
   height,
-  { cols = GRID_COLS, rows = GRID_ROWS, slotCount = 5 } = {}
+  { cols = GRID_COLS, rows = GRID_ROWS, slotCount = 5, debugRowPx = 0 } = {}
 ) {
   const w = Math.max(1, width);
   const h = Math.max(1, height);
@@ -115,7 +119,9 @@ export function computeLayout(
   );
   const gap = pad;
 
-  const contentTop = pad + headerHeight + Math.round(gap / 2);
+  const debugRowHeight = Math.max(0, debugRowPx);
+  const debugRowTop = pad + headerHeight + Math.round(gap / 2);
+  const contentTop = debugRowTop + debugRowHeight;
   const availableWidth = Math.max(1, w - pad * 2);
   const availableHeight = Math.max(1, h - contentTop - pad);
 
@@ -158,6 +164,7 @@ export function computeLayout(
     landscape,
     pad,
     header: { x: pad, y: pad, width: availableWidth, height: headerHeight },
+    debugRow: { x: pad, y: debugRowTop, width: availableWidth, height: debugRowHeight },
     grid: { ...grid, cell, cols, rows },
     battle,
     battleZone: computeBattleZone(battle, { slotCount }),

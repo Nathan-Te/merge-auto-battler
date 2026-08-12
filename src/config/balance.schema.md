@@ -23,8 +23,15 @@ un défaut.
   retouche de valeur), pour repérer un `balance.json` périmé.
 - Une valeur absente est une erreur, pas un défaut implicite : le chargement doit crier
   plutôt que d'inventer.
-- **Ce qui est purement visuel n'est pas ici** : taille des formes à l'écran, couleurs,
-  durées de tween. Ces valeurs n'influencent aucune règle et vivent dans `src/render/`.
+- **Ce qui est purement visuel n'est pas ici** : taille des formes à l'écran et couleurs
+  vivent dans `src/render/` ; **les intensités de feedback** (durées de tween, particules,
+  secousses, sons) vivent dans `src/config/juice.json`, documenté par
+  `src/config/juice.schema.md`. Deux fichiers parce que ce sont deux métiers : `balance.json`
+  se règle au harness de simulation (`npm run sim`), `juice.json` se règle au doigt sur un
+  téléphone. Les mélanger, c'est casser un équilibrage en cherchant une secousse plus douce.
+- **Toute retouche de ce fichier se valide au harness** : `npm run sim` joue des dizaines de
+  parties automatiques et vérifie les objectifs chiffrés du Lot 3 — dont l'invariant
+  intouchable « merger bat spammer » (cf. `docs/balance-notes.md`).
 
 ## `input` — seuils de geste (Lot 2.5)
 
@@ -164,37 +171,59 @@ scaling, sans limite.
 
 ```jsonc
 "waves": {
-  "firstWaveDelayMs": 6000,   // temps laissé au joueur avant la vague 1 (≈ 2 sorties d'unité)
-  "interWavePauseMs": 2200,   // pause entre deux vagues (bandeau « Vague N »)
-  "spawnGapMs": 700,          // délai entre deux ennemis d'une même vague, vague 1
+  "firstWaveDelayMs": 7000,   // temps laissé au joueur avant la vague 1 (≈ 2 sorties d'unité)
+  "interWavePauseMs": 4000,   // pause entre deux vagues (bandeau « Vague N »)
+  "spawnGapMs": 820,          // cadence par défaut des vagues **générées**
   "scripted": [               // scripted[0] = vague 1, scripted[1] = vague 2…
-    [{ "type": "basic", "count": 3 }],
-    [{ "type": "basic", "count": 3 }, { "type": "fast", "count": 2 }]
+    {
+      "label": "Rush",        // texture, annoncée dans le bandeau (facultatif)
+      "spawnGapMs": 220,      // cadence propre à cette vague (facultatif)
+      "composition": [{ "type": "fast", "count": 14 }]
+    },
+    [{ "type": "basic", "count": 3 }]   // forme courte : composition seule
   ],
   "infinite": [               // modèle des vagues au-delà de `scripted`
-    { "type": "basic", "count": 6 },
-    { "type": "fast", "count": 4 },
-    { "type": "tank", "count": 2 }
+    { "type": "basic", "count": 12 },
+    { "type": "fast", "count": 14 },
+    { "type": "tank", "count": 6 }
   ],
   "scaling": {
-    "hpPerWave": 1.21,        // hp(vague) = hp × hpPerWave^(vague - 1)
+    "hpPerWave": 1.48,        // hp(vague) = hp × hpPerWave^(vague - 1)
     "speedPerWave": 1.02,
-    "damagePerWave": 1.2,     // dégâts aux unités ; `damageToBase`, lui, ne scale pas
-    "countPerWave": 1.18,     // ne s'applique qu'aux vagues générées (au-delà de `scripted`)
-    "spawnGapPerWave": 0.98,  // les ennemis d'une vague arrivent de plus en plus serrés
+    "damagePerWave": 1.28,    // dégâts aux unités ; `damageToBase`, lui, ne scale pas
+    "countPerWave": 1.24,     // ne s'applique qu'aux vagues générées (au-delà de `scripted`)
+    "spawnGapPerWave": 0.98,  // les vagues générées arrivent de plus en plus serrées
     "minSpawnGapMs": 320,     // plancher de `spawnGapMs`
     "maxCountPerEntry": 24    // garde-fou : nombre max d'ennemis par entrée de composition
   }
 }
 ```
 
-`firstWaveDelayMs` se lit en nombre de sorties : à 3,5 s de cooldown, 6 s laissent au
+`firstWaveDelayMs` se lit en nombre de sorties : à 3,5 s de cooldown, 7 s laissent au
 joueur le temps de poser deux unités avant le premier contact. C'est le premier réglage à
-revoir si le début de partie paraît brutal.
+revoir si le début de partie paraît brutal. `interWavePauseMs` est un levier de puissance
+sous-estimé : une pause vaut un déploiement gratuit (cf. `docs/balance-notes.md`).
 
-**Composition d'une vague** : `scripted[n-1]` si elle existe, sinon `infinite` dont chaque
-`count` est multiplié par `countPerWave^(n - scripted.length)` puis arrondi et plafonné.
-L'ordre d'apparition suit l'ordre des entrées de la composition.
+**Textures de vagues (Lot 3).** Une vague scriptée s'écrit sous deux formes :
+
+- **liste** — la composition seule, cadence par défaut et pas de libellé ;
+- **objet** `{ label, spawnGapMs, composition }` — la forme complète. C'est `spawnGapMs`
+  qui donne sa **texture** à une vague : à nombre d'ennemis égal, 14 rapides à 220 ms
+  (« Rush ») et 14 rapides à 900 ms ne sont pas la même vague du tout. Le `label` est
+  annoncé dans le bandeau (« Vague 4 / Rush »), ce qui laisse au joueur une chance de
+  préparer le bon type d'unité.
+
+L'override de cadence est **littéral** : il ne subit pas `spawnGapPerWave`, sinon une
+texture réglée à la main dériverait avec le numéro de vague. Les vagues générées, elles,
+suivent la formule.
+
+**Composition d'une vague** : `scripted[n-1].composition` si elle existe, sinon `infinite`
+dont chaque `count` est multiplié par `countPerWave^(n - scripted.length)` puis arrondi et
+plafonné. L'ordre d'apparition suit l'ordre des entrées de la composition.
+
+Le modèle `infinite` doit **reprendre l'intensité de la dernière vague scriptée**, pas
+repartir plus bas : sans ça, la première vague générée est plus douce que la précédente et
+la courbe fait un palier mou au pire moment.
 
 **Stats d'une vague** : les multiplicateurs `hpPerWave` / `speedPerWave` s'appliquent à
 **toutes** les vagues, scriptées comprises (`^(n - 1)`). Les vagues scriptées pilotent donc
@@ -209,10 +238,10 @@ bloquer sur un tank increvable.
 ```jsonc
 "itemSpawner": {
   "maxTier": 11,              // tier maximum atteignable (cf. seed doc : 11 tiers)
-  "startingItems": 4,         // items posés sur la grille au démarrage
+  "startingItems": 8,         // items posés sur la grille au démarrage
   "firstSpawnDelayMs": 500,   // délai avant la première apparition automatique
-  "intervalMs": 2400,         // intervalle d'apparition initial
-  "minIntervalMs": 900,       // plancher : l'accélération ne descend jamais en dessous
+  "intervalMs": 1200,         // intervalle d'apparition initial
+  "minIntervalMs": 780,       // plancher : l'accélération ne descend jamais en dessous
   "intervalDecay": 0.985,     // facteur appliqué à l'intervalle après chaque apparition
   "gridFullRetryMs": 400,     // grille pleine : fréquence de re-vérification (spawn en pause)
   "spawnTierWeights": {       // poids relatifs du tier tiré à l'apparition
@@ -224,8 +253,17 @@ bloquer sur un tank increvable.
 
 **Courbe d'accélération** : le délai avant la n-ième apparition vaut
 `max(minIntervalMs, intervalMs × intervalDecay^n)`. Avec les valeurs ci-dessus, le rythme
-passe de 2,4 s à 900 ms en une soixantaine d'items — soit environ deux minutes de jeu.
+passe de 1,2 s à 780 ms en une trentaine d'items — soit environ quarante secondes de jeu.
 Baisser `intervalDecay` accélère la montée en pression ; le régler à `1` la supprime.
+
+**`minIntervalMs` est le levier le plus violent de tout le fichier** (Lot 3). Le repère qui
+le cadre : un envoi de tier 3 coûte **4 items**, un envoi part toutes les
+`battle.deployCooldownMs`, donc suivre le rythme demande `4 / deployCooldownMs` items par
+seconde — soit un item toutes les **875 ms** aux valeurs actuelles. Le plancher est réglé
+**juste en dessous** (780 ms), pour que le goulot d'étranglement reste le cooldown de sortie
+— le métronome du jeu — et non la grille. Descendre nettement plus bas donne au joueur un
+surplus qui monte en tiers sans limite, et la difficulté s'effondre : mesuré à 650 ms, la
+partie moyenne passait de 10 à 29 vagues. Ces deux valeurs se règlent **ensemble**.
 
 **Grille pleine** : ce n'est pas un game over — le spawn se met simplement en pause
 (feedback : bordure de grille qui pulse) et reprend dès qu'une case se libère.

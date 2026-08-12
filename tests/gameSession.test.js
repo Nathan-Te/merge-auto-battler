@@ -341,3 +341,84 @@ describe('GameSession — démarrage et remise à zéro', () => {
     expect(play()).toEqual(play());
   });
 });
+
+/**
+ * L'horloge d'apparition des items vit dans la session depuis le Lot 3 (elle était dans
+ * la scène Phaser). C'est ce qui permet au harness headless de produire **exactement** le
+ * même rythme que le jeu — sans quoi ses conclusions d'équilibrage ne vaudraient rien.
+ */
+describe('GameSession — horloge d’apparition des items', () => {
+  const SPAWNER = balance.itemSpawner;
+
+  it('n’ajoute rien avant le premier délai, puis pose un item', () => {
+    const session = makeSession().start();
+    const start = session.grid.count();
+
+    session.update(SPAWNER.firstSpawnDelayMs - 1);
+    expect(session.grid.count()).toBe(start);
+
+    session.update(1);
+    expect(session.grid.count()).toBe(start + 1);
+  });
+
+  it('rattrape plusieurs apparitions dans une frame longue, sans en perdre', () => {
+    const session = makeSession().start();
+    const start = session.grid.count();
+    // Une seconde et demie couvre le premier délai puis plusieurs intervalles.
+    session.update(SPAWNER.firstSpawnDelayMs + SPAWNER.intervalMs * 3);
+    expect(session.grid.count()).toBeGreaterThan(start + 2);
+  });
+
+  it('s’arrête net au game over', () => {
+    const session = makeSession().start();
+    session.battle.endGame();
+    const count = session.grid.count();
+    session.update(60_000);
+    expect(session.grid.count()).toBe(count);
+  });
+
+  it('met le spawn en pause sur grille pleine, et le reprend dès qu’une case se libère', () => {
+    const session = makeSession().start();
+    for (let i = 0; i < session.grid.size; i += 1) {
+      session.grid.placeItem(i, 1, { silent: true });
+    }
+    expect(session.grid.isFull()).toBe(true);
+
+    session.update(10_000);
+    expect(session.grid.count()).toBe(session.grid.size);
+
+    session.grid.removeItem(0);
+    session.update(SPAWNER.gridFullRetryMs + SPAWNER.intervalMs);
+    expect(session.grid.isFull()).toBe(true);
+  });
+});
+
+describe('GameSession — récap de fin de partie', () => {
+  it('rend de quoi lire une partie sans fouiller les modèles', () => {
+    // Sans `start()` : la grille reste vide, donc chaque case posée ici est bien celle
+    // qu'on tape (les items de départ occuperaient les premiers index).
+    const session = makeSession();
+    tapItem(session, 0, 3);
+    tapItem(session, 1, 3);
+    session.grid.placeItem(2, 5, { silent: true });
+    session.grid.placeItem(3, 5, { silent: true });
+    session.applyDrop(2, 3);
+
+    const recap = session.recap();
+    expect(recap.sent).toBe(2);
+    expect(recap.sentByTier).toEqual({ 3: 2 });
+    expect(recap.merges).toBe(1);
+    expect(recap.gridFullShare).toBeGreaterThanOrEqual(0);
+    expect(Object.keys(recap.damageByType).sort()).toEqual(
+      Object.keys(balance.units).sort()
+    );
+  });
+
+  it('compte les taps refusés, pour repérer une file trop courte au réglage', () => {
+    const session = makeSession();
+    fillDeployQueue(session);
+    session.grid.placeItem(20, 1, { silent: true });
+    session.applyTap(20);
+    expect(session.recap().blockedTaps).toBe(1);
+  });
+});

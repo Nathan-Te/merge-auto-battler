@@ -113,3 +113,29 @@ describe('nearestCellIndex — tolérance de drop pensée pour le doigt', () => 
     expect(nearestCellIndex(layout, layout.header.x, layout.header.y)).toBe(-1);
   });
 });
+
+describe('computeLayout — bande de debug', () => {
+  it('ne réserve rien en jeu normal', () => {
+    const normal = computeLayout(390, 844);
+    expect(normal.debugRow.height).toBe(0);
+  });
+
+  it('descend le contenu d’autant : les boutons ne recouvrent jamais la grille', () => {
+    const normal = computeLayout(390, 844);
+    const withDebug = computeLayout(390, 844, { debugRowPx: 30 });
+
+    expect(withDebug.debugRow.height).toBe(30);
+    expect(withDebug.grid.y).toBeGreaterThanOrEqual(
+      withDebug.debugRow.y + withDebug.debugRow.height
+    );
+    expect(withDebug.grid.y).toBeGreaterThan(normal.grid.y);
+    // L'en-tête, lui, ne bouge pas : le titre reste où le joueur l'a vu.
+    expect(withDebug.header).toEqual(normal.header);
+  });
+
+  it('la bande se glisse entre l’en-tête et le contenu', () => {
+    const layout = computeLayout(844, 390, { debugRowPx: 24 });
+    expect(layout.debugRow.y).toBeGreaterThanOrEqual(layout.header.y + layout.header.height);
+    expect(layout.debugRow.width).toBe(layout.header.width);
+  });
+});
