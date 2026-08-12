@@ -412,6 +412,25 @@ describe('GameSession — horloge d’apparition des items', () => {
     expect(session.grid.count() / session.grid.size).toBeLessThanOrEqual(stopFill + 0.05);
   });
 
+  it('ne met rien en réserve pendant que la grille est pleine', () => {
+    // Sans cette remise à zéro, le temps passé bloqué serait capitalisé et le premier merge
+    // ferait tomber un item **instantanément** — la punition arriverait pile au moment où le
+    // joueur vient de se dégager de la place.
+    const session = makeSession().start();
+    for (let i = 0; i < session.grid.size; i += 1) {
+      session.grid.placeItem(i, 1, { silent: true });
+    }
+
+    session.update(60_000);
+    expect(session.spawnProgress).toBe(0);
+
+    // Une case se libère : le décompte démarre **maintenant**, à zéro.
+    session.grid.removeItem(0);
+    session.update(1);
+    expect(session.grid.count()).toBe(session.grid.size - 1);
+    expect(session.spawnProgress).toBeLessThan(0.05);
+  });
+
   it('reprend le rythme quand le joueur vide sa grille', () => {
     const session = makeSession().start();
     // Grille chargée : la cadence est freinée, presque rien n'apparaît.

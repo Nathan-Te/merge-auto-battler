@@ -623,7 +623,10 @@ Trois détails de conception qui comptent :
   juste après les subirait quand même. La jauge relit l'intervalle **à chaque pas**, donc la
   régulation est réversible instantanément ;
 - **la pause « grille pleine » disparaît en tant que cas particulier** : c'est le dernier cran
-  de la même courbe. L'apparition y est *retenue* (jauge à fond) et non perdue.
+  de la même courbe. Rien n'y est mis en réserve — la jauge est **remise à zéro** tant que la
+  grille est pleine, et le décompte du prochain item démarre à la fusion qui rouvre une case.
+  Capitaliser le temps passé bloqué ferait tomber un item instantanément au premier merge,
+  c'est-à-dire repunir le joueur à la seconde où il vient de se dégager.
 
 ### 9.5 Résultats — 30 parties par politique, graines 1..30
 

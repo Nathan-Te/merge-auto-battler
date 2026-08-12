@@ -157,6 +157,11 @@ export class GameSession {
      * route (Lot 4.5 : il dépend du remplissage de la grille). Un compte à rebours figerait
      * la valeur au moment où il est armé — une grille pleine programmerait vingt secondes
      * d'attente, et le joueur qui la vide juste après les subirait quand même.
+     *
+     * Elle est **remise à zéro tant que la grille est pleine** : le temps passé bloqué ne se
+     * met pas en réserve, et le décompte du prochain item démarre à la fusion qui rouvre une
+     * case. C'est la différence entre « le jeu attendait que tu te dégages » et « le jeu te
+     * repunit à la seconde où tu t'es dégagé ».
      */
     this.spawnProgress = 0;
 
@@ -318,6 +323,16 @@ export class GameSession {
 
     // Régime 2 — la jauge régulée.
     while (remaining > 0) {
+      // **Grille pleine : rien ne se prépare.** La jauge est remise à zéro et le décompte du
+      // prochain item ne démarre qu'à la libération d'une case. Sans cette remise à zéro, le
+      // temps passé bloqué serait mis en réserve et le premier merge ferait tomber un item
+      // instantanément — un effet de « stock » que rien n'annonce et que le joueur subit
+      // pile au moment où il vient de se dégager de la place.
+      if (this.grid.isFull()) {
+        this.spawnProgress = 0;
+        return;
+      }
+
       const delay = this.spawner.currentDelayMs();
       const needed = (1 - this.spawnProgress) * delay;
 
@@ -327,11 +342,10 @@ export class GameSession {
       }
       remaining -= needed;
 
-      // Grille pleine : l'apparition est **retenue**, pas perdue. La jauge reste à fond et
-      // l'item tombe à la frame où une case se libère — c'est le dernier cran de la
-      // régulation, et le seul qui soit un arrêt franc.
+      // Filet : la grille a été testée juste au-dessus, mais si une apparition échouait pour
+      // une autre raison, mieux vaut repartir de zéro que boucler sur une jauge pleine.
       if (this.spawner.trySpawn() === null) {
-        this.spawnProgress = 1;
+        this.spawnProgress = 0;
         return;
       }
       this.spawnProgress = 0;

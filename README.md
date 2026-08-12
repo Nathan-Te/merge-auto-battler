@@ -1036,7 +1036,10 @@ Trois choix de conception :
   secondes d'attente, que le joueur subirait même après l'avoir vidée. La jauge relit
   l'intervalle à chaque pas — la régulation est donc réversible instantanément ;
 - **la pause « grille pleine » disparaît en tant que cas particulier.** C'est le dernier cran
-  de la même courbe, et l'apparition y est *retenue* (jauge à fond), pas perdue.
+  de la même courbe, et rien n'y est mis en réserve : la jauge est **remise à zéro** tant que
+  la grille est pleine, donc le décompte du prochain item démarre à la fusion qui rouvre une
+  case. Capitaliser le temps bloqué ferait tomber un item instantanément au premier merge —
+  repunir le joueur à la seconde où il vient de se dégager.
 
 ### Une politique de harness pour mesurer la main, pas la stratégie
 
@@ -1101,6 +1104,22 @@ Un joueur totalement passif, qui ne touche à rien et se contente de regarder :
 Avant, la grille était noyée **avant la vague 2**. Après, elle plafonne à 20 cases sur 25 et
 n'en bouge plus : cinq cases restent libres quoi qu'il arrive, donc la situation reste
 toujours rattrapable. On peut suivre une vague entière des yeux.
+
+### Se dégager d'une grille pleine ne coûte rien
+
+Corollaire mesuré du point précédent. Grille saturée, le joueur fusionne une paire par
+seconde pour s'en sortir :
+
+| temps | grille | frein | intervalle | apparition |
+| ----- | ------ | ----- | ---------- | ---------- |
+| 1-5 s | 24 → 20/25 | ×14 | 24,5 s | — |
+| 6-12 s | 19 → 13/25 | ×11,7 → ×2,7 | 20,6 → 4,8 s | — |
+| 13 s | 13/25 | ×2,7 | 4,7 s | **1er item** |
+| 14-20 s | 12 → 9/25 | ×2,0 → ×1,0 | 3,4 → 1,7 s | 3 items |
+
+**Douze secondes de fusions sans qu'un seul item ne tombe** : le joueur qui se dégage a le
+champ libre pour le faire, et le rythme ne revient qu'une fois la place réellement reprise.
+Quatre items en vingt secondes de remontée, au lieu d'une reprise immédiate.
 
 ### Glisser sur un item qui ne fusionne pas : les deux échangent leur place
 

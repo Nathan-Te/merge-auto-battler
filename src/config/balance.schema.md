@@ -431,9 +431,11 @@ en tête :
   qui fait de la régulation un réglage de confort et non de difficulté ;
 - **elle se compose avec la progression de la partie**, par produit. La pression monte donc
   toujours au fil des vagues (`intervalDecay`), mais elle ne peut plus noyer la grille ;
-- **le dernier cran est un arrêt franc.** Grille pleine, `trySpawn` ne pose rien et
-  l'apparition est **retenue** : la jauge d'avancement reste à fond et l'item tombe à la
-  frame où une case se libère.
+- **le dernier cran est un arrêt franc, et il ne capitalise rien.** Grille pleine, la jauge
+  d'avancement est **remise à zéro** : le temps passé bloqué n'est pas mis en réserve, et le
+  décompte du prochain item démarre à la fusion qui rouvre une case. L'alternative (garder la
+  jauge à fond) ferait tomber un item instantanément au premier merge — soit repunir le
+  joueur à la seconde où il vient de se dégager de la place.
 
 **Le curseur de la pression de grille, c'est cette courbe — jamais `intervalMs`.** Un
 ralentissement global paraît équivalent et ne l'est pas : il pénalise d'abord le joueur qui
