@@ -1,22 +1,29 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "ee1e516d5b70a9ac3b741dec92531d806bbfbbcbc7acf1300a26f62150ab9abb",
+  "inputHash": "56e8c74c6e3bad393036ec5e18809926a37d996c7c61099c84d2a26f3e8a1373",
   "pipelineVersion": 1,
   "outputs": [
+    "public/assets/atlas-orbs.json",
+    "public/assets/atlas-orbs.webp",
     "public/assets/index.json",
     "public/gallery/index.html"
   ],
-  "atlases": [],
+  "atlases": [
+    {
+      "name": "orbs",
+      "bytes": 102154,
+      "width": 512,
+      "height": 2048,
+      "count": 11
+    }
+  ],
   "extras": [],
-  "totalBytes": 0,
+  "totalBytes": 102154,
   "budgetKb": {
     "target": 10240,
     "max": 20480
   },
   "missing": [
-    "orb.1",
-    "orb.2",
-    "orb.3",
     "power.heal.1",
     "power.heal.2",
     "power.heal.3",
@@ -67,5 +74,14 @@
     "icon.draft.power",
     "icon.draft.orb"
   ],
-  "orphans": []
+  "orphans": [
+    "orb.10",
+    "orb.11",
+    "orb.4",
+    "orb.5",
+    "orb.6",
+    "orb.7",
+    "orb.8",
+    "orb.9"
+  ]
 }

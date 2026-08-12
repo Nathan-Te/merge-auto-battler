@@ -1,0 +1,235 @@
+{
+  "frames": {
+    "orb.1": {
+      "frame": {
+        "x": 189,
+        "y": 776,
+        "w": 169,
+        "h": 180
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 169,
+        "h": 180
+      },
+      "sourceSize": {
+        "w": 169,
+        "h": 180
+      }
+    },
+    "orb.10": {
+      "frame": {
+        "x": 186,
+        "y": 196,
+        "w": 192,
+        "h": 191
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 191
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 191
+      }
+    },
+    "orb.11": {
+      "frame": {
+        "x": 2,
+        "y": 962,
+        "w": 192,
+        "h": 158
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 158
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 158
+      }
+    },
+    "orb.2": {
+      "frame": {
+        "x": 2,
+        "y": 776,
+        "w": 185,
+        "h": 184
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 185,
+        "h": 184
+      },
+      "sourceSize": {
+        "w": 185,
+        "h": 184
+      }
+    },
+    "orb.3": {
+      "frame": {
+        "x": 2,
+        "y": 583,
+        "w": 190,
+        "h": 191
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 190,
+        "h": 191
+      },
+      "sourceSize": {
+        "w": 190,
+        "h": 191
+      }
+    },
+    "orb.4": {
+      "frame": {
+        "x": 2,
+        "y": 2,
+        "w": 191,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 191,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 191,
+        "h": 192
+      }
+    },
+    "orb.5": {
+      "frame": {
+        "x": 2,
+        "y": 390,
+        "w": 192,
+        "h": 191
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 191
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 191
+      }
+    },
+    "orb.6": {
+      "frame": {
+        "x": 194,
+        "y": 583,
+        "w": 192,
+        "h": 189
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 189
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 189
+      }
+    },
+    "orb.7": {
+      "frame": {
+        "x": 2,
+        "y": 196,
+        "w": 182,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 182,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 182,
+        "h": 192
+      }
+    },
+    "orb.8": {
+      "frame": {
+        "x": 196,
+        "y": 390,
+        "w": 192,
+        "h": 191
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 191
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 191
+      }
+    },
+    "orb.9": {
+      "frame": {
+        "x": 195,
+        "y": 2,
+        "w": 191,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 191,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 191,
+        "h": 192
+      }
+    }
+  },
+  "meta": {
+    "app": "npm run assets",
+    "note": "Fichier généré — ne pas éditer. Source : assets-src/ + manifest.json",
+    "image": "atlas-orbs.webp",
+    "format": "RGBA8888",
+    "size": {
+      "w": 512,
+      "h": 2048
+    },
+    "scale": "1"
+  }
+}

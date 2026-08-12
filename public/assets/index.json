@@ -1,6 +1,12 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "atlases": [],
+  "atlases": [
+    {
+      "key": "orbs",
+      "image": "atlas-orbs.webp",
+      "json": "atlas-orbs.json"
+    }
+  ],
   "tierBands": {
     "unit": [
       [
@@ -33,5 +39,17 @@
   },
   "audio": [],
   "fonts": [],
-  "frames": {}
+  "frames": {
+    "orb.1": "orbs",
+    "orb.10": "orbs",
+    "orb.11": "orbs",
+    "orb.2": "orbs",
+    "orb.3": "orbs",
+    "orb.4": "orbs",
+    "orb.5": "orbs",
+    "orb.6": "orbs",
+    "orb.7": "orbs",
+    "orb.8": "orbs",
+    "orb.9": "orbs"
+  }
 }
