@@ -1,8 +1,118 @@
 {
-  "version": 1,
-  "units": {},
-  "enemies": {},
-  "waves": {},
+  "version": 2,
+  "battle": {
+    "tickMs": 100,
+    "maxTicksPerFrame": 5,
+    "laneLength": 1000,
+    "slotCount": 8,
+    "queueSize": 3,
+    "baseHp": 100,
+    "unitTypePattern": [
+      "single",
+      "single",
+      "aoe",
+      "slow",
+      "single",
+      "support",
+      "aoe",
+      "single",
+      "slow",
+      "single"
+    ],
+    "unitBuff": {
+      "damage": 1.8,
+      "fireRateMs": 0.85,
+      "range": 1.1,
+      "effect": 1.3
+    },
+    "maxSupportFireRateBonus": 0.6
+  },
+  "units": {
+    "single": {
+      "label": "Mono-cible",
+      "role": "damage",
+      "damage": 8,
+      "fireRateMs": 700,
+      "range": 220,
+      "tierScaling": { "damage": 1.55, "fireRateMs": 0.97, "range": 1.05, "effect": 1.12 }
+    },
+    "aoe": {
+      "label": "Zone",
+      "role": "aoe",
+      "damage": 5,
+      "fireRateMs": 1100,
+      "range": 200,
+      "splashRadius": 90,
+      "tierScaling": { "damage": 1.5, "fireRateMs": 0.98, "range": 1.04, "effect": 1.1 }
+    },
+    "slow": {
+      "label": "Ralentisseur",
+      "role": "slow",
+      "damage": 2,
+      "fireRateMs": 900,
+      "range": 240,
+      "slowFactor": 0.55,
+      "slowDurationMs": 1200,
+      "tierScaling": { "damage": 1.4, "fireRateMs": 0.97, "range": 1.04, "effect": 1.14 }
+    },
+    "support": {
+      "label": "Soutien",
+      "role": "support",
+      "damage": 0,
+      "fireRateMs": 0,
+      "range": 0,
+      "buff": { "damage": 0.3, "fireRate": 0.18 },
+      "tierScaling": { "damage": 1, "fireRateMs": 1, "range": 1, "effect": 1.18 }
+    }
+  },
+  "enemies": {
+    "basic": { "label": "Basique", "hp": 24, "speed": 55, "damageToBase": 6 },
+    "fast": { "label": "Rapide", "hp": 13, "speed": 115, "damageToBase": 4 },
+    "tank": { "label": "Tank", "hp": 95, "speed": 32, "damageToBase": 14 }
+  },
+  "waves": {
+    "firstWaveDelayMs": 4000,
+    "interWavePauseMs": 2600,
+    "spawnGapMs": 900,
+    "scripted": [
+      [{ "type": "basic", "count": 3 }],
+      [{ "type": "basic", "count": 5 }],
+      [
+        { "type": "basic", "count": 3 },
+        { "type": "fast", "count": 2 }
+      ],
+      [
+        { "type": "basic", "count": 4 },
+        { "type": "fast", "count": 4 }
+      ],
+      [
+        { "type": "tank", "count": 1 },
+        { "type": "basic", "count": 4 }
+      ],
+      [
+        { "type": "basic", "count": 5 },
+        { "type": "fast", "count": 5 }
+      ],
+      [
+        { "type": "tank", "count": 2 },
+        { "type": "basic", "count": 4 },
+        { "type": "fast", "count": 3 }
+      ]
+    ],
+    "infinite": [
+      { "type": "basic", "count": 6 },
+      { "type": "fast", "count": 4 },
+      { "type": "tank", "count": 2 }
+    ],
+    "scaling": {
+      "hpPerWave": 1.16,
+      "speedPerWave": 1.02,
+      "countPerWave": 1.12,
+      "spawnGapPerWave": 0.98,
+      "minSpawnGapMs": 320,
+      "maxCountPerEntry": 24
+    }
+  },
   "itemSpawner": {
     "maxTier": 11,
     "startingItems": 3,

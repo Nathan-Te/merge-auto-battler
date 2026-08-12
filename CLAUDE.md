@@ -48,34 +48,81 @@ input (pointeur)  ->  scène Phaser  ->  modèle pur  ->  bus d'événements  ->
 
 - **`src/systems/` — logique pure, sans Phaser.** `GridModel` détient l'état de la grille
   et toutes ses règles (placement, validité d'une fusion, déplacement, spawn sur case
-  libre, grille pleine, tier maximum) ; `itemSpawner` détient la cadence et le tirage des
-  tiers ; `layout` calcule les rectangles de l'écran. Ces modules tournent dans vitest sans
-  canvas ni DOM, et c'est là que se trouvent les tests.
-- **`src/scenes/` — rendu et orchestration.** La scène crée le modèle, lui envoie les
-  gestes du joueur (`model.applyDrop(from, to)`), et met en images ce qu'il émet. Elle ne
-  décide jamais si une fusion est légale : elle demande.
-- **`src/render/` — greybox.** Formes et couleurs par tier. Aucune règle, aucun état.
+  libre, grille pleine, tier maximum) ; `BattleModel` celles de la bande de combat
+  (unités, ennemis, tirs, vagues, PV de la base) ; `GameSession` possède les deux et porte
+  le pont entre eux ; `itemSpawner` détient la cadence et le tirage des tiers ;
+  `battleConfig` / `waves` valident `balance.json` et portent **toutes** les formules ;
+  `layout` calcule les rectangles de l'écran. Ces modules tournent dans vitest sans canvas
+  ni DOM, et c'est là que se trouvent les tests.
+- **`src/scenes/` — rendu et orchestration.** `GameScene` crée la session, lui envoie les
+  gestes du joueur (`session.applyDrop`, `session.applyUnitDrop`), et met en images ce
+  qu'elle émet ; `BattleView` fait de même pour la moitié droite ; `GameOverScene` est
+  lancée par-dessus la scène de jeu mise en pause. Une scène ne décide jamais si une
+  fusion est légale : elle demande.
+- **`src/render/` — greybox.** Formes et couleurs par tier (items) et par type (unités,
+  ennemis), profondeurs d'affichage. Aucune règle, aucun état. Les tailles à l'écran
+  vivent ici et non dans `balance.json` : elles n'influencent aucun calcul.
 - **Bus d'événements** (`src/systems/eventBus.js`) : seul canal modèle → rendu. Le modèle
   n'appelle jamais la scène. Un système peut donc s'y brancher sans que le modèle le sache.
 
-### Contrat d'entrée du Lot 2
+### Le pont grille → bande
 
-L'événement **`merge`** est le pont entre la grille et la bande de combat :
+L'événement **`merge`** relie les deux moitiés du jeu :
 
 ```js
 model.events.on('merge', ({ tier, resultTier, index, from, to, item, consumed }) => { … });
 ```
 
-- `tier` — tier **des deux items fusionnés**, donc le tier de l'unité à faire apparaître
-  sur la bande (seed doc : « fusionner deux items de tier N fait apparaître une unité de
-  tier N »).
+- `tier` — tier **des deux items fusionnés**, donc le tier de l'unité qui naît sur la
+  bande (seed doc : « fusionner deux items de tier N fait apparaître une unité de tier N »).
 - `resultTier` (= `tier + 1`) et `item` — l'item qui reste sur la grille.
 - `index` / `to` — case du résultat, point de départ du vol grille → bande.
 
-Le Lot 1 s'y branche déjà pour le compteur de debug affiché à l'écran ; le Lot 2 s'y
-branche pour faire naître les unités, **sans modifier `GridModel`**. Les autres événements
-du modèle (`spawn`, `move`, `full`, `unfull`, `remove`) sont documentés dans
-`src/systems/GridModel.js`.
+**`GameSession`** (`src/systems/GameSession.js`) est le propriétaire d'une partie : elle
+possède `GridModel`, `BattleModel`, le spawner et la file de types, s'abonne à `merge`, et
+porte les règles qui appartiennent aux deux moitiés à la fois. `GridModel` n'a **pas** été
+modifié par le Lot 2. Deux règles y vivent :
+
+- une fusion de tier N produit une unité de tier N, du type dicté par `UnitQueue` ;
+- **bande pleine** : quand ni les slots ni la file d'attente n'ont de place,
+  `session.applyDrop()` renvoie `SESSION_DROP.BLOCKED` et émet `mergeBlocked` — la fusion
+  n'a pas lieu, les deux items restent sur la grille. C'est la boucle de pression du jeu :
+  pour débloquer sa grille, le joueur doit fusionner ses unités.
+
+Rejouer = `session.destroy()` puis une session neuve. Aucun état, aucun écouteur ne
+survit à une partie — c'est ce qui rend le bug classique du « rejouer » impossible par
+construction, et testable sans Phaser (`tests/gameSession.test.js`).
+
+### La bande de combat
+
+`BattleModel` (`src/systems/BattleModel.js`) détient les slots d'unités, les ennemis, les
+PV de la base et les vagues. Comme `GridModel` : aucune dépendance à Phaser, tout passe
+par le bus (`enemySpawn`, `enemyDeath`, `enemyLeak`, `shot`, `baseDamage`, `waveStart`,
+`waveCleared`, `unitSpawn`, `unitQueued`, `unitMerge`, `gameOver`… — liste complète en
+tête du fichier).
+
+- **Tick logique fixe.** `update(dtMs)` accumule le temps réel et exécute des pas de
+  `battle.tickMs` (100 ms = 10 Hz). La simulation ne dépend donc pas du framerate et se
+  rejoue à l'identique dans vitest. Le rendu **interpole** entre `enemy.prevProgress` et
+  `enemy.progress` avec `model.alpha`. Au-delà de `maxTicksPerFrame`, le retard est jeté
+  plutôt que rattrapé (onglet masqué).
+- **Unités de couloir.** Le modèle ignore les pixels : les ennemis parcourent
+  `battle.laneLength` unités, le slot k est planté à `laneLength × (k + 0.5) / slotCount`.
+  C'est `computeBattleZone()` / `lanePoint()` (`src/systems/layout.js`) qui convertit en
+  pixels. Une portée dans `balance.json` veut donc dire la même chose sur tous les écrans.
+- **File de types** (`src/systems/unitQueue.js`) : le type de la prochaine unité suit un
+  motif déterministe de `balance.json`, affiché dans le HUD. Les items de la grille ne
+  sont pas typés — c'est la file qui rend la fusion planifiable.
+- **Fusion d'unités** : deux unités identiques **adjacentes** donnent une version
+  renforcée (★). Un lâcher sur un slot libre déplace, sur un slot occupé non fusionnable
+  échange — c'est l'échange qui évite l'impasse « bande pleine, aucune paire adjacente ».
+
+### Mode debug
+
+`?debug=1` dans l'URL allume tout l'affichage de diagnostic (compteur de merges, fps,
+ticks logiques, ennemis vivants, unités en place). Sans ce paramètre, l'écran est celui
+que verra un joueur de Crazy Games. Le drapeau est lu par `isDebugEnabled()`
+(`src/systems/debug.js`) ; tout nouvel affichage de debug passe derrière.
 
 ## Commandes utiles
 
@@ -89,9 +136,9 @@ npm run preview  # sert le build de production en local
 ## Structure
 
 ```
-src/scenes/       scènes Phaser (une par écran : jeu, game over…)
-src/systems/      logique pure et testable (grille, merge, vagues, spawner, layout)
-src/render/       greybox : formes et couleurs par tier (aucune règle)
+src/scenes/       scènes Phaser + vues (jeu, bande de combat, game over)
+src/systems/      logique pure et testable (grille, bande, session, vagues, spawner, layout)
+src/render/       greybox : formes, couleurs, profondeurs (aucune règle)
 src/config/       balance.json + son schéma documenté
 public/           fichiers copiés tels quels dans dist/
 tests/            tests vitest
@@ -107,6 +154,11 @@ fonctions pures ; les scènes orchestrent et affichent.
 - **Lot 1 — Grille de merge** ✅ `GridModel` pur + bus d'événements, spawner piloté par
   `balance.json`, drag souris/tactile (fusion, déplacement, retour animé), 11 tiers en
   greybox, place de la bande de combat réservée, compteur de merges de debug.
-- Lot 2 — Bande de combat + pont grille → bande + game over (greybox). Lot critique.
-- Lot 3 — Équilibrage & feel.
+- **Lot 2 — Bande de combat** ✅ `BattleModel` pur à tick fixe 10 Hz (4 types d'unités,
+  3 types d'ennemis, vagues scriptées puis formule infinie), pont `merge` → unité avec vol
+  grille → bande, file de types visible, fusion d'unités en version ★, file d'attente et
+  refus de fusion quand la bande sature, game over + record local + rejouer, mode
+  `?debug=1`. Une partie complète se joue de bout en bout.
+- Lot 3 — Équilibrage & feel. Toutes les valeurs sont dans `balance.json` ; la première
+  question du playtest est la boucle de pression « bande pleine » (voir le README).
 - Lot 4 — Assets IA, vignette, soumission Basic Launch.
