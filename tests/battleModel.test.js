@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { parseBattleConfig } from '../src/systems/battleConfig.js';
-import { BattleModel, UNIT_DROP, PHASE } from '../src/systems/BattleModel.js';
+import { BattleModel, PHASE } from '../src/systems/BattleModel.js';
+import { EventBus } from '../src/systems/eventBus.js';
 
 /**
  * Config de test : des nombres ronds pour que chaque assertion se calcule de tête.
  * Couloir de 1000 unités, tick de 100 ms, donc un ennemi à 100 u/s avance de 10 par tick
  * et met exactement 100 ticks à atteindre la base.
+ *
+ * Les unités entrent à la progression 1000 (la base) et marchent vers 0 ; les ennemis
+ * font le trajet inverse.
  */
 const TEST_BALANCE = {
   battle: {
@@ -13,54 +17,88 @@ const TEST_BALANCE = {
     maxTicksPerFrame: 5,
     laneLength: 1000,
     slotCount: 4,
-    queueSize: 2,
+    deployCooldownMs: 1000,
+    maxFieldUnits: 6,
     baseHp: 100,
     unitTypePattern: ['single'],
-    unitBuff: { damage: 2, fireRateMs: 0.5, range: 1, effect: 2 },
     maxSupportFireRateBonus: 0.6,
   },
   units: {
     single: {
       label: 'Mono',
       role: 'damage',
+      hp: 100,
+      speed: 100,
       damage: 10,
       fireRateMs: 1000,
-      range: 1000,
-      tierScaling: { damage: 2, fireRateMs: 1, range: 1, effect: 1 },
+      range: 200,
+      tierScaling: { hp: 2, damage: 2, fireRateMs: 1, range: 1, effect: 1 },
     },
     aoe: {
       label: 'Zone',
       role: 'aoe',
+      hp: 100,
+      speed: 100,
       damage: 5,
       fireRateMs: 1000,
-      range: 1000,
+      range: 200,
       splashRadius: 100,
-      tierScaling: { damage: 1, fireRateMs: 1, range: 1, effect: 1 },
+      tierScaling: { hp: 1, damage: 1, fireRateMs: 1, range: 1, effect: 1 },
     },
     slow: {
       label: 'Ralenti',
       role: 'slow',
+      hp: 100,
+      speed: 100,
       damage: 1,
       fireRateMs: 1000,
-      range: 1000,
+      range: 200,
       slowFactor: 0.5,
       slowDurationMs: 1000,
-      tierScaling: { damage: 1, fireRateMs: 1, range: 1, effect: 1 },
+      slowRadius: 100,
+      tierScaling: { hp: 1, damage: 1, fireRateMs: 1, range: 1, effect: 1 },
     },
     support: {
       label: 'Soutien',
       role: 'support',
+      hp: 100,
+      speed: 100,
       damage: 0,
       fireRateMs: 0,
-      range: 0,
+      range: 150,
+      auraRadius: 100,
       buff: { damage: 1, fireRate: 0.5 },
-      tierScaling: { damage: 1, fireRateMs: 1, range: 1, effect: 1 },
+      tierScaling: { hp: 1, damage: 1, fireRateMs: 1, range: 1, effect: 1 },
     },
   },
   enemies: {
-    basic: { label: 'Basique', hp: 100, speed: 100, damageToBase: 10 },
-    fast: { label: 'Rapide', hp: 10, speed: 200, damageToBase: 5 },
-    tank: { label: 'Tank', hp: 1000, speed: 50, damageToBase: 50 },
+    basic: {
+      label: 'Basique',
+      hp: 100,
+      speed: 100,
+      damageToBase: 10,
+      damage: 10,
+      attackRateMs: 1000,
+      attackRange: 50,
+    },
+    fast: {
+      label: 'Rapide',
+      hp: 10,
+      speed: 200,
+      damageToBase: 5,
+      damage: 5,
+      attackRateMs: 500,
+      attackRange: 50,
+    },
+    tank: {
+      label: 'Tank',
+      hp: 1000,
+      speed: 50,
+      damageToBase: 50,
+      damage: 50,
+      attackRateMs: 1000,
+      attackRange: 50,
+    },
   },
   waves: {
     firstWaveDelayMs: 0,
@@ -71,6 +109,7 @@ const TEST_BALANCE = {
     scaling: {
       hpPerWave: 1,
       speedPerWave: 1,
+      damagePerWave: 1,
       countPerWave: 1,
       spawnGapPerWave: 1,
       minSpawnGapMs: 100,
@@ -106,10 +145,11 @@ function runTicks(model, count) {
   for (let i = 0; i < count; i += 1) model.tick();
 }
 
-/** Pose une unité directement dans un slot (le pont grille → bande est testé ailleurs). */
-function placeUnit(model, slot, { type = 'single', tier = 1, buffed = false } = {}) {
-  const unit = { id: model.nextUnitId++, type, tier, buffed, slot, cooldownMs: 0 };
-  model.slots[slot] = unit;
+/** Pose une unité directement à une position de couloir donnée. */
+function placeUnit(model, progress, { type = 'single', tier = 1 } = {}) {
+  const unit = model.spawnUnit(tier, type);
+  unit.progress = progress;
+  unit.prevProgress = progress;
   return unit;
 }
 
@@ -239,16 +279,6 @@ describe('BattleModel — vagues', () => {
     expect(model.phase).toBe(PHASE.WAVE);
   });
 
-  it('ne considère pas une vague terminée tant qu’il reste des ennemis à faire apparaître', () => {
-    const wave = makeModel({ waves: { scripted: [[{ type: 'basic', count: 3 }]] } });
-    wave.start();
-    runTicks(wave, 2);
-    wave.killEnemy(wave.enemies[0]);
-    wave.tick();
-    expect(wave.phase).toBe(PHASE.WAVE);
-    expect(wave.wavesCleared).toBe(0);
-  });
-
   it('continue indéfiniment au-delà des vagues scriptées', () => {
     const infinite = makeModel({ waves: { interWavePauseMs: 0 } });
     infinite.start();
@@ -330,13 +360,14 @@ describe('BattleModel — ennemis et base', () => {
       waves: {
         interWavePauseMs: 0,
         scripted: [[{ type: 'basic', count: 1 }]],
-        scaling: { hpPerWave: 2, speedPerWave: 1.5 },
+        scaling: { hpPerWave: 2, speedPerWave: 1.5, damagePerWave: 3 },
       },
     });
     scaled.start();
     scaled.tick();
     scaled.tick();
     expect(scaled.enemies[0].maxHp).toBe(100);
+    expect(scaled.enemies[0].damage).toBeCloseTo(10);
 
     scaled.killEnemy(scaled.enemies[0]);
     scaled.tick(); // fin de vague 1
@@ -344,12 +375,13 @@ describe('BattleModel — ennemis et base', () => {
     scaled.tick(); // premier ennemi de la vague 2
     expect(scaled.enemies[0].maxHp).toBe(200);
     expect(scaled.enemies[0].speed).toBeCloseTo(150);
+    expect(scaled.enemies[0].damage).toBeCloseTo(30);
   });
 });
 
 /**
- * Les tests de combat pilotent les ennemis à la main : la vague est repoussée très loin
- * pour qu'aucune apparition automatique ne vienne brouiller les assertions.
+ * Les tests de combat pilotent les combattants à la main : la vague est repoussée très
+ * loin pour qu'aucune apparition automatique ne vienne brouiller les assertions.
  */
 function makeCombatModel(patch) {
   const model = makeModel(deepMerge({ waves: { firstWaveDelayMs: 10_000_000 } }, patch));
@@ -357,86 +389,138 @@ function makeCombatModel(patch) {
   return model;
 }
 
-describe('BattleModel — combat', () => {
-  it('tire sur l’ennemi le plus avancé à portée', () => {
+describe('BattleModel — entrée des unités', () => {
+  it('ne fait entrer une unité que par l’événement `deployUnit`', () => {
+    const bus = new EventBus();
+    const model = new BattleModel({ config: parseBattleConfig(TEST_BALANCE), bus });
+    const spawns = record(model, 'unitSpawn');
+
+    bus.emit('deployUnit', { tier: 3, type: 'single', origin: { kind: 'deploy' } });
+
+    expect(model.units).toHaveLength(1);
+    expect(model.units[0]).toMatchObject({ tier: 3, type: 'single' });
+    expect(spawns[0].origin).toEqual({ kind: 'deploy' });
+  });
+
+  it('fait entrer l’unité au bout « base » du couloir, PV pleins', () => {
     const model = makeCombatModel();
-    placeUnit(model, 0);
-
-    const behind = model.spawnEnemy('basic');
-    const ahead = model.spawnEnemy('basic');
-    behind.progress = 100;
-    ahead.progress = 400;
-
-    const shots = record(model, 'shot');
-    model.tick();
-
-    expect(shots).toHaveLength(1);
-    expect(shots[0].target).toBe(ahead);
-    expect(ahead.hp).toBe(90);
-    expect(behind.hp).toBe(100);
+    const unit = model.spawnUnit(2, 'single');
+    // hp(tier 2) = 100 × 2 = 200
+    expect(unit).toMatchObject({ progress: 1000, prevProgress: 1000, hp: 200, maxHp: 200 });
   });
 
-  it('ignore les ennemis hors de portée, même très avancés', () => {
-    const model = makeCombatModel({ units: { single: { range: 100 } } });
-    placeUnit(model, 0); // slot 0 -> position 125
-
-    const far = model.spawnEnemy('basic');
-    far.progress = 800;
-    const near = model.spawnEnemy('basic');
-    near.progress = 150;
-
-    const shots = record(model, 'shot');
-    model.tick();
-    expect(shots[0].target).toBe(near);
-  });
-
-  it('peut achever un ennemi qui a déjà dépassé l’unité', () => {
-    const model = makeCombatModel({ units: { single: { range: 100 } } });
-    placeUnit(model, 0); // position 125
-
-    const passed = model.spawnEnemy('basic');
-    passed.progress = 200;
-
-    const shots = record(model, 'shot');
-    model.tick();
-    expect(shots).toHaveLength(1);
-    expect(shots[0].target).toBe(passed);
-  });
-
-  it('respecte la cadence de tir, tick après tick', () => {
+  it('plafonne le nombre d’unités simultanées et le signale', () => {
     const model = makeCombatModel();
-    placeUnit(model, 0);
+    const rejected = record(model, 'unitRejected');
+
+    for (let i = 0; i < TEST_BALANCE.battle.maxFieldUnits; i += 1) {
+      expect(model.canAcceptUnit()).toBe(true);
+      expect(model.spawnUnit(1, 'single')).not.toBeNull();
+    }
+
+    expect(model.canAcceptUnit()).toBe(false);
+    expect(model.spawnUnit(1, 'single')).toBeNull();
+    expect(model.units).toHaveLength(TEST_BALANCE.battle.maxFieldUnits);
+    expect(rejected).toHaveLength(1);
+  });
+
+  it('n’accepte plus rien après le game over', () => {
+    const model = makeCombatModel();
+    model.endGame();
+    expect(model.canAcceptUnit()).toBe(false);
+    expect(model.spawnUnit(1, 'single')).toBeNull();
+  });
+
+  it('se désabonne du bus à la destruction', () => {
+    const bus = new EventBus();
+    const model = new BattleModel({ config: parseBattleConfig(TEST_BALANCE), bus });
+    model.destroy();
+    bus.emit('deployUnit', { tier: 1, type: 'single' });
+    expect(model.units).toHaveLength(0);
+  });
+});
+
+describe('BattleModel — marche des deux camps', () => {
+  it('fait marcher les unités vers les ennemis tant que personne n’est à portée', () => {
+    const model = makeCombatModel();
+    const unit = model.spawnUnit(1, 'single');
+
+    model.tick();
+    expect(unit.progress).toBeCloseTo(990); // 100 u/s × 0,1 s, vers l'entrée du couloir
+    runTicks(model, 4);
+    expect(unit.progress).toBeCloseTo(950);
+    expect(unit.engaged).toBe(false);
+  });
+
+  it('arrête l’unité à distance de tir, sans la coller à l’ennemi', () => {
+    const model = makeCombatModel();
+    const unit = placeUnit(model, 500);
     const enemy = model.spawnEnemy('basic');
-    enemy.progress = 200;
+    enemy.progress = 250; // à 250, hors de la portée de 200
 
-    const shots = record(model, 'shot');
-    runTicks(model, 10);
-    // 1000 ms de cadence, 100 ms par tick : un tir au premier tick, puis un tous les 10.
-    expect(shots).toHaveLength(1);
     model.tick();
-    expect(shots).toHaveLength(2);
+    expect(unit.progress).toBeCloseTo(490);
+
+    unit.progress = 440; // à 190 de l'ennemi : à portée
+    model.tick();
+    expect(unit.progress).toBe(440); // elle ne bouge plus
+    expect(unit.engaged).toBe(true);
   });
 
-  it('reste prête à tirer tant qu’aucun ennemi n’est à portée', () => {
+  it('ne laisse pas une unité dépasser l’entrée des ennemis', () => {
     const model = makeCombatModel();
-    const unit = placeUnit(model, 0);
+    const unit = placeUnit(model, 50);
+    runTicks(model, 20);
+    expect(unit.progress).toBe(0);
+  });
 
-    runTicks(model, 30);
-    expect(unit.cooldownMs).toBe(0);
+  it('arrête l’ennemi au contact d’une unité au lieu de le laisser filer', () => {
+    const model = makeCombatModel();
+    placeUnit(model, 400);
+    const enemy = model.spawnEnemy('basic');
+    enemy.progress = 370; // dans la portée de contact (50)
 
-    const shots = record(model, 'shot');
-    model.spawnEnemy('basic').progress = 200;
+    model.tick(); // le tick d'apparition ne compte pas
     model.tick();
-    expect(shots).toHaveLength(1);
+    expect(enemy.progress).toBe(370);
+  });
+});
+
+describe('BattleModel — combat mutuel', () => {
+  it('inflige des dégâts dans les deux sens quand personne ne meurt', () => {
+    const model = makeCombatModel({ units: { single: { hp: 1000 } } });
+    const unit = placeUnit(model, 400);
+    const enemy = model.spawnEnemy('basic');
+    enemy.progress = 380;
+    enemy.hp = 1000;
+
+    model.tick(); // l'ennemi vient d'apparaître : il ne frappe pas encore
+    model.tick();
+
+    expect(enemy.hp).toBeLessThan(1000);
+    expect(unit.hp).toBeLessThan(1000);
+  });
+
+  it('tue l’unité dont les PV tombent à zéro et émet `unitDeath`', () => {
+    const model = makeCombatModel({ units: { single: { hp: 10 } } });
+    const deaths = record(model, 'unitDeath');
+    const unit = placeUnit(model, 400);
+    const enemy = model.spawnEnemy('tank'); // 50 de dégâts
+    enemy.progress = 390;
+
+    runTicks(model, 2);
+
+    expect(deaths).toHaveLength(1);
+    expect(deaths[0].unit).toBe(unit);
+    expect(model.units).toHaveLength(0);
   });
 
   it('tue l’ennemi dont les PV tombent à zéro et émet `enemyDeath`', () => {
     const model = makeCombatModel({ units: { single: { damage: 100 } } });
-    placeUnit(model, 0);
-
     const deaths = record(model, 'enemyDeath');
+    placeUnit(model, 400);
     const enemy = model.spawnEnemy('basic');
-    enemy.progress = 200;
+    enemy.progress = 300;
 
     model.tick();
     expect(deaths).toHaveLength(1);
@@ -444,19 +528,78 @@ describe('BattleModel — combat', () => {
     expect(model.enemies).toHaveLength(0);
   });
 
-  it('monte en dégâts avec le tier', () => {
+  it('émet `enemyAttack` avec sa cible et l’issue du coup', () => {
+    const model = makeCombatModel({ units: { single: { hp: 5 } } });
+    const attacks = record(model, 'enemyAttack');
+    const unit = placeUnit(model, 400);
+    const enemy = model.spawnEnemy('basic');
+    enemy.progress = 390;
+
+    runTicks(model, 2);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0]).toMatchObject({ enemy, unit, damage: 10, killed: true });
+  });
+
+  it('respecte la cadence des deux camps, tick après tick', () => {
+    const model = makeCombatModel({ units: { single: { hp: 10_000 } } });
+    const unitAttacks = record(model, 'unitAttack');
+    const enemyAttacks = record(model, 'enemyAttack');
+    placeUnit(model, 400);
+    const enemy = model.spawnEnemy('basic');
+    enemy.progress = 390;
+    enemy.hp = 10_000;
+
+    runTicks(model, 10);
+    // 1000 ms de cadence, 100 ms par tick : une frappe puis une toutes les 10.
+    expect(unitAttacks).toHaveLength(1);
+    expect(enemyAttacks).toHaveLength(1);
+
+    model.tick();
+    expect(unitAttacks).toHaveLength(2);
+    expect(enemyAttacks).toHaveLength(2);
+  });
+
+  it('vise l’ennemi le plus proche, à portée', () => {
     const model = makeCombatModel();
-    placeUnit(model, 0, { tier: 3 }); // 10 × 2^2
+    placeUnit(model, 500);
+
+    const near = model.spawnEnemy('basic');
+    const far = model.spawnEnemy('basic');
+    near.progress = 400;
+    far.progress = 340;
+
+    const attacks = record(model, 'unitAttack');
+    model.tick();
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].target).toBe(near);
+  });
+
+  it('ignore les ennemis hors de portée', () => {
+    const model = makeCombatModel();
+    const unit = placeUnit(model, 500);
+    const far = model.spawnEnemy('basic');
+    far.progress = 100;
+
+    const attacks = record(model, 'unitAttack');
+    model.tick();
+    expect(attacks).toHaveLength(0);
+    expect(unit.progress).toBeCloseTo(490); // elle avance vers lui
+  });
+
+  it('monte en dégâts et en PV avec le tier', () => {
+    const model = makeCombatModel();
+    const tier3 = placeUnit(model, 400, { tier: 3 }); // 10 × 2², 100 × 2²
+    expect(tier3.maxHp).toBe(400);
 
     const enemy = model.spawnEnemy('tank');
-    enemy.progress = 200;
+    enemy.progress = 350;
     model.tick();
     expect(enemy.hp).toBe(1000 - 40);
   });
 
   it('touche tous les ennemis dans le rayon de la zone, et eux seuls', () => {
     const model = makeCombatModel();
-    placeUnit(model, 0, { type: 'aoe' });
+    placeUnit(model, 500, { type: 'aoe' });
 
     const target = model.spawnEnemy('tank');
     const near = model.spawnEnemy('tank');
@@ -471,201 +614,76 @@ describe('BattleModel — combat', () => {
     expect(far.hp).toBe(1000);
   });
 
-  it('ralentit sa cible pendant la durée configurée, puis la relâche', () => {
+  it('ralentit toute la zone autour de sa cible, puis la relâche', () => {
     const model = makeCombatModel();
-    placeUnit(model, 0, { type: 'slow' });
+    placeUnit(model, 500, { type: 'slow' });
 
-    const enemy = model.spawnEnemy('basic');
-    enemy.progress = 200;
+    const target = model.spawnEnemy('basic');
+    const near = model.spawnEnemy('basic');
+    const far = model.spawnEnemy('basic');
+    target.progress = 400;
+    near.progress = 330;
+    far.progress = 100;
 
-    model.tick(); // tir + ralentissement, puis déplacement à vitesse réduite
-    expect(enemy.slowFactor).toBe(0.5);
-    expect(enemy.progress).toBeCloseTo(205);
+    model.tick();
+    expect(target.slowFactor).toBe(0.5);
+    expect(near.slowFactor).toBe(0.5);
+    expect(far.slowFactor).toBe(1);
 
-    runTicks(model, 9); // le ralentissement expire (1000 ms)
-    expect(enemy.slowFactor).toBe(1);
+    // Le ralentisseur retombé, plus rien ne renouvelle l'effet : il expire (1000 ms).
+    model.killUnit(model.units[0]);
+    runTicks(model, 11);
+    expect(target.slowFactor).toBe(1);
   });
 
   it('ne laisse pas un ralentissement court écraser un ralentissement long', () => {
     const model = makeCombatModel();
-    placeUnit(model, 0, { type: 'slow', buffed: true }); // effect ×2 -> durée 2000 ms
-    placeUnit(model, 1, { type: 'slow' }); // durée 1000 ms, tire sur la même cible
+    placeUnit(model, 500, { type: 'slow', tier: 1 });
+    const enemy = model.spawnEnemy('basic');
+    enemy.progress = 450;
+
+    model.tick();
+    enemy.slowMsLeft = 5000; // un ralentissement bien plus long est déjà en cours
+    model.tick();
+    expect(enemy.slowMsLeft).toBeGreaterThanOrEqual(4800);
+  });
+});
+
+describe('BattleModel — aura du soutien', () => {
+  it('buffe les alliés dans son aura, et eux seuls', () => {
+    const model = makeCombatModel();
+    const near = placeUnit(model, 400);
+    const far = placeUnit(model, 700);
+    placeUnit(model, 450, { type: 'support' }); // aura de 100
+
+    // buff.damage = 1 -> +100 % pour l'unité à 50, rien pour celle à 250.
+    expect(model.statsFor(near).damage).toBeCloseTo(20);
+    expect(model.statsFor(far).damage).toBeCloseTo(10);
+    expect(model.statsFor(near).fireRateMs).toBeCloseTo(500);
+  });
+
+  it('suit ses alliés : l’aura se fait et se défait avec la marche', () => {
+    const model = makeCombatModel();
+    const ally = placeUnit(model, 400);
+    const support = placeUnit(model, 700, { type: 'support' });
+
+    expect(model.statsFor(ally).damage).toBeCloseTo(10);
+    support.progress = 460;
+    expect(model.statsFor(ally).damage).toBeCloseTo(20);
+  });
+
+  it('ne frappe jamais, mais garde sa distance face aux ennemis', () => {
+    const model = makeCombatModel();
+    const support = placeUnit(model, 400, { type: 'support' });
+    const attacks = record(model, 'unitAttack');
 
     const enemy = model.spawnEnemy('basic');
-    enemy.progress = 300;
+    enemy.progress = 300; // à 100, dans son standoff de 150
+
     model.tick();
-
-    expect(enemy.slowFactor).toBe(0.5);
-    expect(enemy.slowMsLeft).toBeGreaterThanOrEqual(1900);
-  });
-
-  it('fait buffer les slots voisins par un soutien, et eux seuls', () => {
-    const model = makeCombatModel();
-    placeUnit(model, 0);
-    placeUnit(model, 1, { type: 'support' });
-    placeUnit(model, 3);
-
-    // buff.damage = 1 -> +100 % pour le slot 0 (voisin), rien pour le slot 3.
-    expect(model.statsFor(model.slots[0]).damage).toBeCloseTo(20);
-    expect(model.statsFor(model.slots[3]).damage).toBeCloseTo(10);
-    expect(model.statsFor(model.slots[0]).fireRateMs).toBeCloseTo(500);
-  });
-
-  it('multiplie les stats d’une unité renforcée', () => {
-    const model = makeModel();
-    const plain = placeUnit(model, 0);
-    const buffed = placeUnit(model, 2, { buffed: true });
-    expect(model.statsFor(buffed).damage).toBeCloseTo(model.statsFor(plain).damage * 2);
-    expect(model.statsFor(buffed).fireRateMs).toBeCloseTo(500);
-  });
-});
-
-describe('BattleModel — accueil des unités', () => {
-  let model;
-  beforeEach(() => {
-    model = makeModel();
-    model.start();
-  });
-
-  it('remplit les slots dans l’ordre, du plus éloigné de la base au plus proche', () => {
-    const spawns = record(model, 'unitSpawn');
-    for (let i = 0; i < 4; i += 1) model.addUnit(1, 'single');
-
-    expect(model.slots.map((unit) => unit.slot)).toEqual([0, 1, 2, 3]);
-    expect(spawns.map((payload) => payload.slot)).toEqual([0, 1, 2, 3]);
-    expect(model.unitCount()).toBe(4);
-  });
-
-  it('transmet l’origine du vol telle quelle au rendu', () => {
-    const spawns = record(model, 'unitSpawn');
-    model.addUnit(2, 'single', { kind: 'merge', gridIndex: 17 });
-    expect(spawns[0].origin).toEqual({ kind: 'merge', gridIndex: 17 });
-    expect(spawns[0].unit).toMatchObject({ tier: 2, type: 'single', buffed: false });
-  });
-
-  it('met les unités en surplus dans la file d’attente', () => {
-    const queued = record(model, 'unitQueued');
-    for (let i = 0; i < 6; i += 1) model.addUnit(1, 'single');
-
-    expect(model.unitCount()).toBe(4);
-    expect(model.pending).toHaveLength(2);
-    expect(queued.map((payload) => payload.position)).toEqual([0, 1]);
-  });
-
-  it('refuse une unité de plus quand la bande et la file sont pleines', () => {
-    const rejected = record(model, 'unitRejected');
-    for (let i = 0; i < 6; i += 1) model.addUnit(1, 'single');
-
-    expect(model.canAcceptUnit()).toBe(false);
-    expect(model.addUnit(1, 'single')).toBeNull();
-    expect(rejected).toHaveLength(1);
-    expect(model.pending).toHaveLength(2);
-  });
-
-  it('accepte tant qu’il reste un slot ou une place en file', () => {
-    for (let i = 0; i < 5; i += 1) {
-      expect(model.canAcceptUnit()).toBe(true);
-      model.addUnit(1, 'single');
-    }
-    expect(model.canAcceptUnit()).toBe(true);
-    model.addUnit(1, 'single');
-    expect(model.canAcceptUnit()).toBe(false);
-  });
-
-  it('n’accepte plus rien après le game over', () => {
-    model.endGame();
-    expect(model.addUnit(1, 'single')).toBeNull();
-  });
-});
-
-describe('BattleModel — geste sur la bande', () => {
-  let model;
-  beforeEach(() => {
-    model = makeModel();
-    model.start();
-  });
-
-  it('déplace une unité vers un slot libre', () => {
-    const unit = placeUnit(model, 0);
-    const moves = record(model, 'unitMove');
-
-    expect(model.applyUnitDrop(0, 2)).toMatchObject({ type: UNIT_DROP.MOVE });
-    expect(model.slots[0]).toBeNull();
-    expect(model.slots[2]).toBe(unit);
-    expect(unit.slot).toBe(2);
-    expect(moves).toHaveLength(1);
-  });
-
-  it('échange deux unités qui ne peuvent pas fusionner', () => {
-    const a = placeUnit(model, 0, { tier: 1 });
-    const b = placeUnit(model, 3, { tier: 5 });
-
-    expect(model.applyUnitDrop(0, 3)).toMatchObject({ type: UNIT_DROP.SWAP });
-    expect(model.slots[0]).toBe(b);
-    expect(model.slots[3]).toBe(a);
-    expect(a.slot).toBe(3);
-    expect(b.slot).toBe(0);
-  });
-
-  it('fusionne deux unités identiques adjacentes en une version renforcée', () => {
-    placeUnit(model, 1, { tier: 4 });
-    const target = placeUnit(model, 2, { tier: 4 });
-    const merges = record(model, 'unitMerge');
-
-    const result = model.applyUnitDrop(1, 2);
-    expect(result.type).toBe(UNIT_DROP.MERGE);
-    expect(model.slots[1]).toBeNull();
-    expect(model.slots[2]).toBe(target);
-    expect(target.buffed).toBe(true);
-    expect(target.tier).toBe(4);
-    expect(merges).toHaveLength(1);
-  });
-
-  it('refuse de fusionner des unités non adjacentes, de types ou de tiers différents', () => {
-    placeUnit(model, 0, { tier: 2 });
-    placeUnit(model, 3, { tier: 2 });
-    expect(model.canMergeUnits(0, 3)).toBe(false);
-    expect(model.applyUnitDrop(0, 3).type).toBe(UNIT_DROP.SWAP);
-
-    const model2 = makeModel();
-    placeUnit(model2, 0, { tier: 2 });
-    placeUnit(model2, 1, { tier: 3 });
-    expect(model2.canMergeUnits(0, 1)).toBe(false);
-
-    const model3 = makeModel();
-    placeUnit(model3, 0, { type: 'aoe', tier: 2 });
-    placeUnit(model3, 1, { type: 'single', tier: 2 });
-    expect(model3.canMergeUnits(0, 1)).toBe(false);
-  });
-
-  it('ne renforce qu’une fois : une unité ★ ne refusionne pas', () => {
-    placeUnit(model, 0, { tier: 2 });
-    placeUnit(model, 1, { tier: 2, buffed: true });
-    expect(model.canMergeUnits(0, 1)).toBe(false);
-    expect(model.applyUnitDrop(0, 1).type).toBe(UNIT_DROP.SWAP);
-  });
-
-  it('fait entrer une unité en attente dans le slot libéré par une fusion', () => {
-    for (let i = 0; i < 4; i += 1) model.addUnit(3, 'single');
-    model.addUnit(7, 'single'); // part en file
-    expect(model.pending).toHaveLength(1);
-
-    const spawns = record(model, 'unitSpawn');
-    model.applyUnitDrop(0, 1);
-
-    expect(model.pending).toHaveLength(0);
-    expect(spawns).toHaveLength(1);
-    expect(spawns[0].origin).toEqual({ kind: 'queue' });
-    expect(spawns[0].unit.tier).toBe(7);
-    expect(model.unitCount()).toBe(4);
-  });
-
-  it('rend un résultat neutre sur les gestes sans effet', () => {
-    placeUnit(model, 1);
-    expect(model.applyUnitDrop(1, 1).type).toBe(UNIT_DROP.CANCEL);
-    expect(model.applyUnitDrop(0, 1).type).toBe(UNIT_DROP.INVALID);
-    expect(model.applyUnitDrop(1, 99).type).toBe(UNIT_DROP.INVALID);
-    expect(model.applyUnitDrop(-1, 1).type).toBe(UNIT_DROP.INVALID);
+    expect(attacks).toHaveLength(0);
+    expect(support.progress).toBe(400);
+    expect(support.engaged).toBe(true);
   });
 });
 
@@ -674,7 +692,7 @@ describe('BattleModel — remise à zéro', () => {
     const model = makeModel();
     model.start();
     runTicks(model, 5);
-    model.addUnit(4, 'single');
+    model.spawnUnit(4, 'single');
     model.spawnEnemy('basic');
     model.damageBase(50);
 
@@ -682,8 +700,7 @@ describe('BattleModel — remise à zéro', () => {
 
     expect(model.baseHp).toBe(100);
     expect(model.enemies).toEqual([]);
-    expect(model.slots.every((slot) => slot === null)).toBe(true);
-    expect(model.pending).toEqual([]);
+    expect(model.units).toEqual([]);
     expect(model.wave).toBe(0);
     expect(model.wavesCleared).toBe(0);
     expect(model.tickCount).toBe(0);

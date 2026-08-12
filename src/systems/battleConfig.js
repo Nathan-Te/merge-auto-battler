@@ -11,17 +11,20 @@
  * Choix assumé : les stats par tier sont **calculées** (`stat(1) × facteur^(tier-1)`) et
  * non listées. 4 types × 11 tiers feraient 44 lignes à maintenir à la main au Lot 3, pour
  * une courbe que le seed doc veut de toute façon régulière.
+ *
+ * Depuis le Lot 2.5, les unités **vivent et meurent** : elles ont des PV et une vitesse de
+ * marche, et les ennemis ont de quoi les frapper (`damage`, `attackRateMs`, `attackRange`).
  */
 
 /** Rôles reconnus, et clés supplémentaires que chacun exige. */
 const ROLE_KEYS = {
   damage: [],
   aoe: ['splashRadius'],
-  slow: ['slowFactor', 'slowDurationMs'],
-  support: [],
+  slow: ['slowFactor', 'slowDurationMs', 'slowRadius'],
+  support: ['auraRadius'],
 };
 
-const TIER_SCALING_KEYS = ['damage', 'fireRateMs', 'range', 'effect'];
+const TIER_SCALING_KEYS = ['hp', 'damage', 'fireRateMs', 'range', 'effect'];
 
 /** Lit un nombre obligatoire, avec un message d'erreur qui pointe la clé fautive. */
 function num(obj, path, key, { min = 0, max = Infinity, integer = false } = {}) {
@@ -50,7 +53,7 @@ function section(balance, key) {
  * Valide et normalise les sections `battle`, `units`, `enemies` et `waves`.
  *
  * @param {object} balance Contenu de `balance.json`
- * @returns {object} Config normalisée, consommée par `BattleModel`
+ * @returns {object} Config normalisée, consommée par `BattleModel` et `DeployQueue`
  */
 export function parseBattleConfig(balance) {
   const rawBattle = section(balance, 'battle');
@@ -58,26 +61,26 @@ export function parseBattleConfig(balance) {
   const enemies = parseEnemies(section(balance, 'enemies'));
   const waves = parseWaves(section(balance, 'waves'), enemies);
 
-  const tickMs = num(rawBattle, 'battle', 'tickMs', { min: 10, max: 500 });
-  const config = {
-    tickMs,
+  return {
+    tickMs: num(rawBattle, 'battle', 'tickMs', { min: 10, max: 500 }),
     maxTicksPerFrame: num(rawBattle, 'battle', 'maxTicksPerFrame', { min: 1, integer: true }),
     laneLength: num(rawBattle, 'battle', 'laneLength', { min: 1 }),
-    slotCount: num(rawBattle, 'battle', 'slotCount', { min: 2, integer: true }),
-    queueSize: num(rawBattle, 'battle', 'queueSize', { min: 0, integer: true }),
+    /** Places de la file de déploiement (les « slots » du Lot 2 ont changé de rôle). */
+    slotCount: num(rawBattle, 'battle', 'slotCount', { min: 1, integer: true }),
+    /** Rythme de sortie : une unité quitte la file tous les `deployCooldownMs`. */
+    deployCooldownMs: num(rawBattle, 'battle', 'deployCooldownMs', { min: 1 }),
+    /** Garde-fou de performance : unités simultanées sur le champ de bataille. */
+    maxFieldUnits: num(rawBattle, 'battle', 'maxFieldUnits', { min: 1, integer: true }),
     baseHp: num(rawBattle, 'battle', 'baseHp', { min: 1 }),
     maxSupportFireRateBonus: num(rawBattle, 'battle', 'maxSupportFireRateBonus', {
       min: 0,
       max: 0.95,
     }),
     unitTypePattern: parseTypePattern(rawBattle.unitTypePattern, units),
-    unitBuff: parseBuff(rawBattle.unitBuff),
     units,
     enemies,
     waves,
   };
-
-  return config;
 }
 
 function parseTypePattern(pattern, units) {
@@ -90,18 +93,6 @@ function parseTypePattern(pattern, units) {
     }
   }
   return [...pattern];
-}
-
-function parseBuff(raw) {
-  if (!raw || typeof raw !== 'object') {
-    throw new Error('balance.json : battle.unitBuff manquant');
-  }
-  return {
-    damage: num(raw, 'battle.unitBuff', 'damage', { min: 1 }),
-    fireRateMs: num(raw, 'battle.unitBuff', 'fireRateMs', { min: 0.1, max: 1 }),
-    range: num(raw, 'battle.unitBuff', 'range', { min: 1 }),
-    effect: num(raw, 'battle.unitBuff', 'effect', { min: 1 }),
-  };
 }
 
 function parseUnits(raw) {
@@ -124,16 +115,24 @@ function parseUnits(raw) {
       id,
       label: def.label,
       role: def.role,
+      hp: num(def, path, 'hp', { min: 1 }),
+      /** Vitesse de marche, en unités de couloir par seconde. Ne dépend pas du tier. */
+      speed: num(def, path, 'speed', { min: 1 }),
       damage: num(def, path, 'damage', { min: 0 }),
-      // Une unité de soutien ne tire pas : cadence et portée à 0 sont légales pour elle
-      // seule, et signifient « ne cherche jamais de cible ».
+      // Une unité de soutien ne frappe pas : une cadence à 0 est légale pour elle seule,
+      // et signifie « ne cherche jamais de cible à frapper ».
       fireRateMs: num(def, path, 'fireRateMs', { min: def.role === 'support' ? 0 : 1 }),
-      range: num(def, path, 'range', { min: 0 }),
+      // Portée d'attaque — et, pour tous les rôles, distance à laquelle l'unité **s'arrête**
+      // de marcher face à un ennemi. Le soutien ne tire pas mais garde sa distance.
+      range: num(def, path, 'range', { min: 1 }),
       tierScaling: parseTierScaling(def.tierScaling, path),
     };
 
     for (const key of ROLE_KEYS[def.role]) {
-      unit[key] = num(def, path, key, { min: key === 'slowFactor' ? 0.05 : 1, max: key === 'slowFactor' ? 1 : Infinity });
+      unit[key] = num(def, path, key, {
+        min: key === 'slowFactor' ? 0.05 : 1,
+        max: key === 'slowFactor' ? 1 : Infinity,
+      });
     }
     if (def.role === 'support') unit.buff = parseSupportBuff(def.buff, path);
     if (def.role !== 'support' && unit.fireRateMs <= 0) {
@@ -184,6 +183,10 @@ function parseEnemies(raw) {
       hp: num(def, path, 'hp', { min: 1 }),
       speed: num(def, path, 'speed', { min: 1 }),
       damageToBase: num(def, path, 'damageToBase', { min: 0 }),
+      /** Dégâts infligés **aux unités** au contact (Lot 2.5 : le combat est mutuel). */
+      damage: num(def, path, 'damage', { min: 0 }),
+      attackRateMs: num(def, path, 'attackRateMs', { min: 1 }),
+      attackRange: num(def, path, 'attackRange', { min: 1 }),
     };
   }
   return enemies;
@@ -211,6 +214,7 @@ function parseWaves(raw, enemies) {
     scaling: {
       hpPerWave: num(rawScaling, 'waves.scaling', 'hpPerWave', { min: 1, max: 3 }),
       speedPerWave: num(rawScaling, 'waves.scaling', 'speedPerWave', { min: 1, max: 3 }),
+      damagePerWave: num(rawScaling, 'waves.scaling', 'damagePerWave', { min: 1, max: 3 }),
       countPerWave: num(rawScaling, 'waves.scaling', 'countPerWave', { min: 1, max: 3 }),
       spawnGapPerWave: num(rawScaling, 'waves.scaling', 'spawnGapPerWave', {
         min: 0.5,
@@ -244,95 +248,101 @@ function parseComposition(raw, path, enemies) {
 // --------------------------------------------------------------------- formules
 
 /**
- * Stats effectives d'une unité, tier, renfort et soutiens voisins compris.
+ * Stats effectives d'une unité, tier et auras de soutien comprises.
  *
  * @param {object} config Config normalisée
  * @param {string} type Id du type d'unité
  * @param {number} tier Tier de l'unité (1 -> maxTier)
  * @param {object} [options]
- * @param {boolean} [options.buffed] Unité renforcée (★)
- * @param {number} [options.supportDamage] Bonus de dégâts cumulé des soutiens voisins (0.3 = +30 %)
- * @param {number} [options.supportFireRate] Bonus de cadence cumulé des soutiens voisins
- * @returns {{damage: number, fireRateMs: number, range: number, splashRadius: number,
- *            slowFactor: number, slowDurationMs: number, role: string}}
+ * @param {number} [options.supportDamage] Bonus de dégâts cumulé des soutiens à portée (0.3 = +30 %)
+ * @param {number} [options.supportFireRate] Bonus de cadence cumulé des soutiens à portée
+ * @returns {{role: string, label: string, hp: number, speed: number, damage: number,
+ *            fireRateMs: number, range: number, splashRadius: number, slowFactor: number,
+ *            slowDurationMs: number, slowRadius: number, auraRadius: number}}
  */
 export function unitStats(config, type, tier, options = {}) {
   const def = config.units[type];
   if (!def) throw new Error(`type d'unité inconnu « ${type} »`);
 
-  const { buffed = false, supportDamage = 0, supportFireRate = 0 } = options;
+  const { supportDamage = 0, supportFireRate = 0 } = options;
   const steps = Math.max(0, tier - 1);
-  const buff = config.unitBuff;
 
-  const damageScale = def.tierScaling.damage ** steps * (buffed ? buff.damage : 1);
-  const fireRateScale = def.tierScaling.fireRateMs ** steps * (buffed ? buff.fireRateMs : 1);
-  const rangeScale = def.tierScaling.range ** steps * (buffed ? buff.range : 1);
-  const effectScale = def.tierScaling.effect ** steps * (buffed ? buff.effect : 1);
+  const hpScale = def.tierScaling.hp ** steps;
+  const damageScale = def.tierScaling.damage ** steps;
+  const fireRateScale = def.tierScaling.fireRateMs ** steps;
+  const rangeScale = def.tierScaling.range ** steps;
+  const effectScale = def.tierScaling.effect ** steps;
 
   const fireRateBonus = Math.min(supportFireRate, config.maxSupportFireRateBonus);
   const fireRateMs =
     def.fireRateMs <= 0
       ? 0
-      : // Jamais plus vite qu'un tick : le modèle ne saurait pas tirer deux fois dans le
+      : // Jamais plus vite qu'un tick : le modèle ne saurait pas frapper deux fois dans le
         // même pas de temps, et la valeur mentirait sur les DPS réels.
         Math.max(config.tickMs, def.fireRateMs * fireRateScale * (1 - fireRateBonus));
 
   return {
     role: def.role,
     label: def.label,
+    hp: def.hp * hpScale,
+    speed: def.speed,
     damage: def.damage * damageScale * (1 + supportDamage),
     fireRateMs,
     range: def.range * rangeScale,
     splashRadius: def.role === 'aoe' ? def.splashRadius * effectScale : 0,
     slowFactor: def.role === 'slow' ? def.slowFactor : 1,
     slowDurationMs: def.role === 'slow' ? def.slowDurationMs * effectScale : 0,
+    slowRadius: def.role === 'slow' ? def.slowRadius * effectScale : 0,
+    auraRadius: def.role === 'support' ? def.auraRadius * rangeScale : 0,
   };
 }
 
 /**
- * Bonus apportés par une unité de soutien à **chacun** de ses slots voisins.
+ * PV maximum d'une unité — raccourci de `unitStats().hp`, appelé à la naissance.
+ */
+export function unitMaxHp(config, type, tier) {
+  return unitStats(config, type, tier).hp;
+}
+
+/**
+ * Bonus apportés par une unité de soutien à **chaque allié dans son aura**.
  *
  * @returns {{damage: number, fireRate: number}} fractions (0.3 = +30 %)
  */
-export function supportBonus(config, type, tier, { buffed = false } = {}) {
+export function supportBonus(config, type, tier) {
   const def = config.units[type];
   if (!def || def.role !== 'support') return { damage: 0, fireRate: 0 };
 
-  const steps = Math.max(0, tier - 1);
-  const scale = def.tierScaling.effect ** steps * (buffed ? config.unitBuff.effect : 1);
+  const scale = def.tierScaling.effect ** Math.max(0, tier - 1);
   return { damage: def.buff.damage * scale, fireRate: def.buff.fireRate * scale };
 }
 
 /**
  * Stats d'un ennemi d'un type donné, à une vague donnée.
  *
- * `damageToBase` ne scale pas : la pression monte par les PV, la vitesse et le nombre
+ * `damageToBase` ne scale pas : la pression sur la base monte par les PV, la vitesse et le
+ * nombre. Les dégâts **aux unités**, eux, suivent `damagePerWave` — sans quoi une unité de
+ * haut tier deviendrait immortelle et le champ de bataille se figerait
  * (cf. `balance.schema.md`).
  *
- * @returns {{hp: number, speed: number, damageToBase: number, label: string}}
+ * @returns {{label: string, hp: number, speed: number, damageToBase: number,
+ *            damage: number, attackRateMs: number, attackRange: number}}
  */
 export function enemyStats(config, type, wave) {
   const def = config.enemies[type];
   if (!def) throw new Error(`type d'ennemi inconnu « ${type} »`);
 
   const steps = Math.max(0, wave - 1);
-  const { hpPerWave, speedPerWave } = config.waves.scaling;
+  const { hpPerWave, speedPerWave, damagePerWave } = config.waves.scaling;
   return {
     label: def.label,
     hp: Math.max(1, Math.round(def.hp * hpPerWave ** steps)),
     speed: def.speed * speedPerWave ** steps,
     damageToBase: def.damageToBase,
+    damage: def.damage * damagePerWave ** steps,
+    attackRateMs: def.attackRateMs,
+    attackRange: def.attackRange,
   };
-}
-
-/**
- * Position d'un slot le long du couloir, en unités de couloir.
- *
- * Le slot 0 est le plus éloigné de la base (premier contact avec les ennemis), le
- * dernier la défend de près.
- */
-export function slotLanePosition(config, slot) {
-  return (config.laneLength * (slot + 0.5)) / config.slotCount;
 }
 
 export default parseBattleConfig;

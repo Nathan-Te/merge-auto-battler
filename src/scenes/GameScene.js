@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 
 import balance from '../config/balance.json';
-import { GameSession, SESSION_DROP } from '../systems/GameSession.js';
-import { UNIT_DROP } from '../systems/BattleModel.js';
-import { computeLayout, cellCenterAt, nearestCellIndex, nearestSlotIndex } from '../systems/layout.js';
+import { GameSession, SESSION_DROP, SESSION_TAP } from '../systems/GameSession.js';
+import { computeLayout, cellCenterAt, nearestCellIndex } from '../systems/layout.js';
+import { isTap } from '../systems/tapGesture.js';
 import { drawTierShape, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { isDebugEnabled } from '../systems/debug.js';
@@ -11,12 +11,17 @@ import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
 
 /**
- * Scène de jeu — grille de merge (Lot 1) + bande de combat (Lot 2).
+ * Scène de jeu — grille de merge + champ de bataille.
  *
  * Cette scène ne contient **aucune règle** : elle affiche les modèles portés par
- * `GameSession`, lui transmet les gestes du joueur (`applyDrop`, `applyUnitDrop`), et met
- * en images ce qu'ils émettent sur le bus. Que la bande sature, qu'une fusion soit
- * refusée ou qu'une unité naisse d'une fusion : c'est la session qui décide, jamais elle.
+ * `GameSession`, lui transmet les gestes du joueur (`applyTap`, `applyDrop`), et met en
+ * images ce qu'ils émettent sur le bus. Qu'un tap soit refusé ou qu'une fusion soit
+ * légale : c'est la session qui décide, jamais elle.
+ *
+ * **Deux gestes, un seul doigt** (Lot 2.5) : un tap envoie l'item en file de déploiement,
+ * un glisser fusionne ou déplace. Les deux ne doivent jamais se confondre — c'est le rôle
+ * du seuil de `isTap()`, le même que celui donné à `input.dragDistanceThreshold` pour que
+ * Phaser ne démarre pas un drag pendant qu'on juge encore d'un tap.
  *
  * Le rendu de la moitié droite est délégué à `BattleView`, qui possède ses propres objets
  * d'affichage mais partage le layout et le bus.
@@ -46,9 +51,11 @@ const FEEL = {
   dropTolerance: 0.9,
   /** Délai au-delà duquel un pointeur « perdu » (drag interrompu) annule le drag. */
   lostPointerMs: 140,
-  /** Sursaut des deux items quand une fusion est refusée par une bande saturée. */
-  rejectMs: 90,
-  rejectPx: 7,
+  /** Secousse de l'item quand le tap est refusé (file de déploiement pleine). */
+  rejectMs: 60,
+  rejectPx: 8,
+  /** Aspiration de l'item tapé : il rétrécit pendant que la vignette s'envole. */
+  sendMs: 130,
   /** Délai avant l'écran de game over : le dernier ennemi doit avoir le temps d'arriver. */
   gameOverDelayMs: 650,
 };
@@ -72,6 +79,8 @@ export default class GameScene extends Phaser.Scene {
     this.views = new Map();
     /** Drag en cours, ou null. Un seul à la fois : le second doigt est ignoré. */
     this.dragState = null;
+    /** Item sous le doigt tant que le geste peut encore devenir un tap. */
+    this.tapCandidate = null;
     this.pulseTween = null;
     this.spawnTimer = null;
     this.gameOverStarted = false;
@@ -167,7 +176,6 @@ export default class GameScene extends Phaser.Scene {
       cols: this.model.cols,
       rows: this.model.rows,
       slotCount: this.session.battleConfig.slotCount,
-      queueSize: this.session.battleConfig.queueSize,
     });
     this.layoutData = layout;
 
@@ -224,6 +232,9 @@ export default class GameScene extends Phaser.Scene {
     this.bus.on('spawn', ({ index, item }) => this.createItemView(index, item));
     this.bus.on('move', ({ to, item }) => this.onModelMove(to, item));
     this.bus.on('merge', (payload) => this.onModelMerge(payload));
+    // Un item quitte la grille pour la file de déploiement : sa vue s'aspire pendant que
+    // `BattleView` fait voler sa vignette vers le slot.
+    this.bus.on('remove', ({ item }) => this.onModelRemove(item));
     this.bus.on('full', () => this.startGridPulse());
     this.bus.on('unfull', () => this.stopGridPulse());
     this.bus.on('gameOver', (payload) => this.onGameOver(payload));
@@ -256,6 +267,21 @@ export default class GameScene extends Phaser.Scene {
       scale: 1,
       duration: FEEL.moveMs,
       ease: 'Quad.easeOut',
+    });
+  }
+
+  onModelRemove(item) {
+    const view = this.views.get(item.id);
+    if (!view) return;
+    this.views.delete(item.id);
+    this.tweens.killTweensOf(view);
+    this.tweens.add({
+      targets: view,
+      scale: 0,
+      alpha: 0,
+      duration: FEEL.sendMs,
+      ease: 'Quad.easeIn',
+      onComplete: () => view.destroy(),
     });
   }
 
@@ -369,12 +395,61 @@ export default class GameScene extends Phaser.Scene {
   bindInput() {
     // Phaser unifie souris et tactile derrière les mêmes événements de pointeur :
     // un seul chemin de code couvre les deux entrées exigées par le seed doc.
+    //
+    // Le seuil de distance est confié à Phaser : tant que le doigt n'a pas dépassé
+    // `tapMaxDistancePx`, aucun `dragstart` n'est émis, et le geste peut encore devenir
+    // un tap. C'est ce qui garantit que les deux gestes ne se déclenchent jamais ensemble.
+    this.input.dragDistanceThreshold = this.session.inputConfig.tapMaxDistancePx;
+
+    this.input.on('gameobjectdown', this.onObjectDown, this);
+    this.input.on('pointerup', this.onPointerUp, this);
     this.input.on('dragstart', this.onDragStart, this);
     this.input.on('drag', this.onDragMove, this);
     this.input.on('dragend', this.onDragEnd, this);
   }
 
+  // --------------------------------------------------------------- tap (envoi)
+
+  onObjectDown(pointer, view) {
+    if (this.dragState || this.tapCandidate || this.session.over) return;
+    if (view.getData('kind') !== 'item') return;
+    this.tapCandidate = { view, pointerId: pointer.id };
+  }
+
+  /**
+   * Fin de geste : si le doigt n'a ni bougé ni traîné en longueur, c'est un tap et l'item
+   * part au combat. Sinon, le drag a déjà pris la main (ou rien ne se passe).
+   */
+  onPointerUp(pointer) {
+    const candidate = this.tapCandidate;
+    this.tapCandidate = null;
+    if (!candidate || candidate.pointerId !== pointer.id) return;
+    if (!candidate.view.active || this.session.over) return;
+
+    const gesture = {
+      startX: pointer.downX,
+      startY: pointer.downY,
+      endX: pointer.upX,
+      endY: pointer.upY,
+      startTime: pointer.downTime,
+      endTime: pointer.upTime,
+    };
+    if (!isTap(gesture, this.session.inputConfig)) return;
+
+    const index = candidate.view.getData('index');
+    const result = this.session.applyTap(index);
+    // Refus : la file de déploiement est pleine. L'item secoue et reste en place —
+    // `BattleView` met la jauge en évidence de son côté.
+    if (result.type === SESSION_TAP.BLOCKED) this.shake(candidate.view);
+  }
+
+  // --------------------------------------------------------------- drag (merge)
+
   onDragStart(pointer, view) {
+    // Ce doigt-là a dépassé le seuil : son geste n'est plus un tap, quoi qu'il arrive
+    // ensuite. Un candidat porté par un **autre** doigt, lui, reste valable.
+    if (this.tapCandidate?.pointerId === pointer.id) this.tapCandidate = null;
+
     // Un seul objet en main à la fois : un second doigt qui en attrape un autre est
     // neutralisé (il repartira chez lui au relâcher) plutôt que de créer deux drags.
     if (this.dragState || this.session.over) {
@@ -382,16 +457,12 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    const kind = view.getData('kind');
     this.dragState = {
-      kind,
       view,
       pointer,
-      fromIndex: kind === 'item' ? view.getData('index') : -1,
-      fromSlot: kind === 'unit' ? this.battleView.slotOfView(view) : -1,
+      fromIndex: view.getData('index'),
       lostSince: 0,
     };
-    if (kind === 'unit') view.setData('dragging', true);
 
     this.tweens.killTweensOf(view);
     view.setDepth(DEPTH.drag);
@@ -414,7 +485,7 @@ export default class GameScene extends Phaser.Scene {
   onDragEnd(pointer, view) {
     if (view.getData('dragIgnored')) {
       view.setData('dragIgnored', false);
-      this.returnDragged(view, view.getData('kind'));
+      this.returnHome(view);
       return;
     }
     if (this.dragState?.view !== view) return;
@@ -423,15 +494,9 @@ export default class GameScene extends Phaser.Scene {
 
   /** Applique le lâcher : la scène demande, la session décide. */
   resolveDrop() {
-    const { view, kind, fromIndex, fromSlot } = this.dragState;
+    const { view, fromIndex } = this.dragState;
     this.dragState = null;
     view.setDepth(DEPTH.item);
-
-    if (kind === 'unit') {
-      view.setData('dragging', false);
-      this.resolveUnitDrop(view, fromSlot);
-      return;
-    }
 
     const target = nearestCellIndex(this.layoutData, view.x, view.y, {
       tolerance: FEEL.dropTolerance,
@@ -439,38 +504,11 @@ export default class GameScene extends Phaser.Scene {
     const result =
       target === -1 ? { type: SESSION_DROP.INVALID } : this.session.applyDrop(fromIndex, target);
 
-    if (result.type === SESSION_DROP.BLOCKED) {
-      // Bande saturée : les deux items se repoussent, `BattleView` affiche le hint.
-      this.returnHome(view, fromIndex);
-      this.pushBack(this.views.get(this.model.itemAt(target)?.id));
-      return;
-    }
-
     // MERGE et MOVE sont déjà rendus par les écouteurs du bus ; tout le reste
     // (case occupée par un autre tier, tier max, lâcher hors grille) revient.
     if (result.type !== SESSION_DROP.MERGE && result.type !== SESSION_DROP.MOVE) {
       this.returnHome(view, fromIndex);
     }
-  }
-
-  resolveUnitDrop(view, fromSlot) {
-    const zone = this.layoutData.battleZone;
-    const target = nearestSlotIndex(zone, view.x, view.y);
-    const result =
-      target === -1
-        ? { type: UNIT_DROP.INVALID }
-        : this.session.applyUnitDrop(fromSlot, target);
-
-    // MOVE, SWAP et MERGE sont rendus par `BattleView` via le bus ; le reste revient.
-    if (result.type === UNIT_DROP.INVALID || result.type === UNIT_DROP.CANCEL) {
-      this.battleView.returnUnitHome(view);
-    }
-  }
-
-  /** Renvoie l'objet traîné chez lui, quelle que soit sa nature. */
-  returnDragged(view, kind) {
-    if (kind === 'unit') this.battleView.returnUnitHome(view);
-    else this.returnHome(view);
   }
 
   /** Ramène une vue d'item à la case que lui donne le modèle. */
@@ -488,8 +526,8 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  /** Petit sursaut de refus sur l'item resté en place. */
-  pushBack(view) {
+  /** Secousse de refus sur l'item resté en place (tap sur une file pleine). */
+  shake(view) {
     if (!view?.active) return;
     const home = cellCenterAt(this.layoutData, view.getData('index'));
     this.tweens.killTweensOf(view);
@@ -498,7 +536,7 @@ export default class GameScene extends Phaser.Scene {
       x: home.x + FEEL.rejectPx,
       duration: FEEL.rejectMs,
       yoyo: true,
-      repeat: 1,
+      repeat: 2,
       ease: 'Sine.easeInOut',
       onComplete: () => view.setPosition(home.x, home.y),
     });
@@ -566,12 +604,7 @@ export default class GameScene extends Phaser.Scene {
     if (time - drag.lostSince > FEEL.lostPointerMs) {
       this.dragState = null;
       drag.view.setDepth(DEPTH.item);
-      if (drag.kind === 'unit') {
-        drag.view.setData('dragging', false);
-        this.battleView.returnUnitHome(drag.view);
-      } else {
-        this.returnHome(drag.view, drag.fromIndex);
-      }
+      this.returnHome(drag.view, drag.fromIndex);
     }
   }
 
@@ -584,20 +617,26 @@ export default class GameScene extends Phaser.Scene {
     const hud = this.session.hud();
     const battle = this.session.battle;
     // Dense à dessein : cette ligne doit tenir à côté du titre sur un écran de 320 px.
-    // m = merges, t = ticks logiques, e = ennemis vivants, u = unités / slots.
+    // m = merges, s = envois, t = ticks logiques, e = ennemis, u = unités au combat,
+    // f = file de déploiement.
     this.debugText.setText(
-      `${Math.round(this.game.loop.actualFps)}fps m${hud.mergeCount} t${battle.tickCount} ` +
-        `e${battle.enemies.length} u${battle.unitCount()}/${battle.slots.length}`
+      `${Math.round(this.game.loop.actualFps)}fps m${hud.mergeCount} s${hud.sentCount} ` +
+        `t${battle.tickCount} e${battle.enemies.length} ` +
+        `u${hud.fieldUnits}/${hud.maxFieldUnits} f${hud.queueLength}/${hud.slotCount}`
     );
   }
 
   teardown() {
     this.scale.off('resize', this.handleResize, this);
+    this.input.off('gameobjectdown', this.onObjectDown, this);
+    this.input.off('pointerup', this.onPointerUp, this);
     this.input.off('dragstart', this.onDragStart, this);
     this.input.off('drag', this.onDragMove, this);
     this.input.off('dragend', this.onDragEnd, this);
     this.spawnTimer?.remove(false);
     this.spawnTimer = null;
+    this.dragState = null;
+    this.tapCandidate = null;
 
     this.battleView?.destroy();
     this.session.destroy();

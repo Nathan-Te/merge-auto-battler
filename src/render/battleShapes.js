@@ -55,16 +55,14 @@ export function enemySize(type, reference) {
 /**
  * Dessine une unité, centrée sur (0, 0).
  *
- * Forme = type, liseré = tier, anneau doré = renfort (★).
+ * Forme = type, liseré = tier.
  *
  * @param {Phaser.GameObjects.Graphics} graphics
  * @param {string} type Type d'unité (`single`, `aoe`, `slow`, `support`)
  * @param {number} tier
  * @param {number} size Diamètre visuel visé
- * @param {object} [options]
- * @param {boolean} [options.buffed]
  */
-export function drawUnitShape(graphics, type, tier, size, { buffed = false } = {}) {
+export function drawUnitShape(graphics, type, tier, size) {
   const radius = size / 2;
   graphics.clear();
   graphics.fillStyle(unitColor(type), 1);
@@ -83,12 +81,6 @@ export function drawUnitShape(graphics, type, tier, size, { buffed = false } = {
     strokeAndFill(graphics, crossPoints(radius));
   } else {
     strokeAndFill(graphics, regularPolygon(4, radius));
-  }
-
-  if (buffed) {
-    // Halo doré : marqueur du renfort, doublé du ★ posé par la vue.
-    graphics.lineStyle(Math.max(1.5, size * 0.09), 0xffd93d, 0.95);
-    graphics.strokeCircle(0, 0, radius * 1.22);
   }
 }
 

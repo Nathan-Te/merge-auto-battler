@@ -7,7 +7,7 @@
  * Deux zones, décidées ici une fois pour toutes :
  *   - la **grille de merge**, toujours carrée ;
  *   - la **bande de combat**, réservée dès le Lot 1 et découpée depuis le Lot 2 en
- *     HUD / couloir / base / slots / file (`computeBattleZone`).
+ *     HUD / couloir / base / slots de déploiement (`computeBattleZone`).
  *
  * Ce ne sont pas des stats de gameplay (aucun impact sur les règles), donc ces
  * proportions vivent dans le code et non dans `balance.json`. Le modèle de combat
@@ -39,12 +39,13 @@ const BATTLE = {
   gapRatio: 0.035,
   minGap: 4,
   maxGap: 12,
-  hudRatio: 0.15,
-  minHud: 18,
-  maxHud: 38,
-  queueRatio: 0.16,
-  minQueue: 20,
-  maxQueue: 44,
+  // Deux lignes de HUD (PV / vague, puis file / prochaine unité) : la hauteur réservée
+  // doit les contenir toutes les deux, même sur le plus petit écran visé.
+  hudRatio: 0.19,
+  minHud: 26,
+  maxHud: 46,
+  /** Écart entre deux slots de déploiement, en multiples de la taille d'un slot. */
+  slotPitchRatio: 1.14,
   /** Épaisseur du bloc « base » au bout du couloir. */
   baseRatio: 0.11,
   minBase: 20,
@@ -87,8 +88,7 @@ function laneThickness(available, slotSize) {
  * @param {object} [options]
  * @param {number} [options.cols]
  * @param {number} [options.rows]
- * @param {number} [options.slotCount] Slots d'unités de la bande (`battle.slotCount`)
- * @param {number} [options.queueSize] Places de la file d'attente (`battle.queueSize`)
+ * @param {number} [options.slotCount] Slots de déploiement (`battle.slotCount`)
  * @returns {{
  *   width: number, height: number, landscape: boolean, pad: number,
  *   header: {x: number, y: number, width: number, height: number},
@@ -101,7 +101,7 @@ function laneThickness(available, slotSize) {
 export function computeLayout(
   width,
   height,
-  { cols = GRID_COLS, rows = GRID_ROWS, slotCount = 8, queueSize = 3 } = {}
+  { cols = GRID_COLS, rows = GRID_ROWS, slotCount = 5 } = {}
 ) {
   const w = Math.max(1, width);
   const h = Math.max(1, height);
@@ -160,7 +160,7 @@ export function computeLayout(
     header: { x: pad, y: pad, width: availableWidth, height: headerHeight },
     grid: { ...grid, cell, cols, rows },
     battle,
-    battleZone: computeBattleZone(battle, { slotCount, queueSize }),
+    battleZone: computeBattleZone(battle, { slotCount }),
     itemSize: cell * LAYOUT.itemRatio,
   };
 }
@@ -170,33 +170,33 @@ export function computeLayout(
  *
  * Le couloir suit le **grand côté** de la bande : horizontal quand elle est plus large
  * que haute (cas le plus courant, portrait comme paysage), vertical sinon. Les ennemis
- * entrent au début du couloir, la base ferme l'autre bout, et les slots d'unités sont
- * alignés le long du couloir — le slot k est exactement en face du segment de couloir
- * qu'il couvre, ce qui rend la portée lisible sans rien afficher.
+ * entrent au début du couloir, la base ferme l'autre bout.
+ *
+ * Depuis le Lot 2.5, les slots **ne sont plus un banc de tir** aligné sur le couloir mais
+ * la **file de déploiement** : une rangée compacte collée au bout « base » du couloir,
+ * le slot 0 (la tête, celle qui part) au plus près de la sortie. La file se lit donc dans
+ * le sens de la marche, et l'endroit d'où sortent les unités est exactement l'endroit où
+ * elles entrent dans le couloir.
  *
  * @param {{x: number, y: number, width: number, height: number}} battle
  * @param {object} [options]
  * @param {number} [options.slotCount]
- * @param {number} [options.queueSize]
  * @returns {{
- *   horizontal: boolean, gap: number, slotSize: number, unitSize: number,
- *   laneThickness: number, laneLengthPx: number,
- *   hud: object, lane: object, base: object,
- *   slots: {x: number, y: number, size: number}[],
- *   queue: {x: number, y: number, size: number}[],
- *   queueLabel: {x: number, y: number}
+ *   horizontal: boolean, gap: number, slotSize: number, slotPitch: number, unitSize: number,
+ *   fieldUnitSize: number, laneThickness: number, laneLengthPx: number,
+ *   hud: object, lane: object, base: object, travel: object,
+ *   slots: {x: number, y: number, size: number}[]
  * }}
  */
-export function computeBattleZone(battle, { slotCount = 8, queueSize = 3 } = {}) {
+export function computeBattleZone(battle, { slotCount = 5 } = {}) {
   const { x, y, width: w, height: h } = battle;
   const horizontal = w >= h;
   const gap = clamp(Math.round(Math.min(w, h) * BATTLE.gapRatio), BATTLE.minGap, BATTLE.maxGap);
   const hudHeight = clamp(Math.round(h * BATTLE.hudRatio), BATTLE.minHud, BATTLE.maxHud);
-  const queueHeight = clamp(Math.round(h * BATTLE.queueRatio), BATTLE.minQueue, BATTLE.maxQueue);
 
   const hud = { x, y, width: w, height: Math.min(hudHeight, h) };
   const contentTop = hud.y + hud.height + gap;
-  const contentHeight = Math.max(1, h - hud.height - queueHeight - gap * 3);
+  const contentHeight = Math.max(1, h - hud.height - gap * 2);
 
   let lane;
   let base;
@@ -249,56 +249,49 @@ export function computeBattleZone(battle, { slotCount = 8, queueSize = 3 } = {})
     };
   }
 
-  // Un slot par unité, planté en face du segment de couloir qu'il couvre.
-  const slots = Array.from({ length: slotCount }, (_, i) => {
-    const t = (i + 0.5) / slotCount;
-    return {
-      x: horizontal
-        ? travel.from.x + (travel.to.x - travel.from.x) * t
-        : travel.slotX,
-      y: horizontal ? travel.slotY : travel.from.y + (travel.to.y - travel.from.y) * t,
-      size: slotSize,
-    };
-  });
+  const laneLengthPx = Math.hypot(travel.to.x - travel.from.x, travel.to.y - travel.from.y);
+  const fighterReference = Math.min(lane.height, lane.width, laneLengthPx / 8);
 
-  // File d'attente : une rangée de petites cases sous tout le reste, précédée d'un
-  // libellé. Elle doit rester visible en permanence — c'est le signal « ça sature ».
-  const queueItemSize = Math.max(8, Math.min(queueHeight * 0.8, slotSize * 0.72));
-  const queueY = y + h - queueHeight / 2;
-  const queueLeft = x + Math.min(w * 0.3, 84);
-  const queue = Array.from({ length: queueSize }, (_, i) => ({
-    x: queueLeft + queueItemSize / 2 + i * queueItemSize * 1.25,
-    y: queueY,
-    size: queueItemSize,
+  // File de déploiement : une rangée compacte qui remonte depuis le bout « base » du
+  // couloir. Le slot 0 est le plus proche de la sortie — la file se lit dans le sens
+  // où elle se vide.
+  const slotPitch = Math.max(
+    slotSize,
+    Math.min(slotSize * BATTLE.slotPitchRatio, laneLengthPx / slotCount)
+  );
+  const slots = Array.from({ length: slotCount }, (_, i) => ({
+    x: horizontal ? travel.to.x - (i + 0.5) * slotPitch : travel.slotX,
+    y: horizontal ? travel.slotY : travel.to.y - (i + 0.5) * slotPitch,
+    size: slotSize,
   }));
 
   return {
     horizontal,
     gap,
     slotSize,
-    /**
-     * Écart entre deux centres de slots : c'est la plus grande zone de saisie possible
-     * sans que deux slots voisins se marchent dessus. Au doigt, viser la forme seule
-     * serait trop exigeant — la vue attrape sur cette largeur.
-     */
-    slotPitch: (horizontal ? travel.to.x - travel.from.x : travel.to.y - travel.from.y) / slotCount,
+    /** Écart entre deux centres de slots de déploiement. */
+    slotPitch,
     unitSize: slotSize * BATTLE.unitRatio,
     laneThickness: horizontal ? lane.height : lane.width,
-    laneLengthPx: Math.hypot(travel.to.x - travel.from.x, travel.to.y - travel.from.y),
+    laneLengthPx,
     /**
-     * Taille de référence des ennemis : bornée par l'épaisseur du couloir **et** par la
-     * taille d'un slot, sinon un couloir épais produit des ennemis énormes qui débordent
-     * de la bande.
+     * Taille de référence des combattants : bornée par l'épaisseur du couloir **et** par
+     * une fraction de sa longueur. La seconde borne est ce qui garde le couloir lisible —
+     * sans elle, un couloir épais mais court produit des combattants qui l'occupent
+     * entièrement, et on ne voit plus qui avance.
      */
-    enemyReference: Math.min(lane.height, lane.width, slotSize * 1.5),
+    enemyReference: fighterReference,
+    /** Diamètre d'une unité **sur le champ de bataille** (celles des slots font `unitSize`). */
+    fieldUnitSize: fighterReference * 0.78,
     hud,
     lane,
     base,
-    /** Segment parcouru par les ennemis, de leur entrée à la face de la base. */
+    /**
+     * Segment parcouru par les combattants. `from` = entrée des ennemis (progression 0),
+     * `to` = face de la base (progression `laneLength`), d'où **sortent les unités**.
+     */
     travel,
     slots,
-    queue,
-    queueLabel: { x, y: queueY },
   };
 }
 
@@ -318,31 +311,10 @@ export function lanePoint(zone, t) {
   };
 }
 
-/** Centre du slot `index`, ou null hors bande. */
+/** Centre du slot de déploiement `index`, ou null hors file. */
 export function slotCenter(zone, index) {
   const slot = zone.slots[index];
   return slot ? { x: slot.x, y: slot.y } : null;
-}
-
-/**
- * Slot le plus proche d'un point — même logique de tolérance « pensée pour le doigt »
- * que `nearestCellIndex` sur la grille.
- *
- * @returns {number} Index du slot, ou -1 si le point est trop loin de tous
- */
-export function nearestSlotIndex(zone, px, py, { tolerance = 0.85 } = {}) {
-  let best = -1;
-  let bestDistance = Infinity;
-  const limit = zone.slotSize * (0.5 + tolerance);
-
-  zone.slots.forEach((slot, index) => {
-    const distance = Math.max(Math.abs(px - slot.x), Math.abs(py - slot.y));
-    if (distance <= limit && distance < bestDistance) {
-      bestDistance = distance;
-      best = index;
-    }
-  });
-  return best;
 }
 
 /**

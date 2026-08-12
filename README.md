@@ -252,3 +252,113 @@ en bout en greybox**, de la première fusion au game over, puis à la partie sui
   Lot 3. Le Lot 2 ne pose que le vol grille → bande, les traceurs et les bandeaux.
 - Slots à 42 px en portrait : la zone de saisie est élargie à l'écart entre deux slots,
   mais c'est à confirmer au doigt sur un vrai téléphone.
+
+## Lot 2.5 — ce qui est livré
+
+**Refonte du cœur.** Le playtest du Lot 2 a validé le concept mais montré deux défauts
+structurels : la bande en slots de tir statiques se remplissait puis se bloquait, et
+l'envoi automatique à chaque merge retirait toute décision au joueur. Ce lot refait le pont
+grille → combat et le combat lui-même. Le périmètre V1 du seed doc est inchangé par
+ailleurs.
+
+### Ce qui est testable
+
+- **Tap = envoyer, glisser = fusionner.** Taper un item le consomme et l'envoie en file de
+  déploiement (vol grille → slot) ; glisser fusionne ou déplace comme au Lot 1. Le merge ne
+  produit plus rien tout seul : **c'est le joueur qui décide quand et quoi envoyer**.
+- **File de déploiement** (5 places) à la place du banc de tir : les unités sortent **une
+  par une toutes les 3,5 s**, dans l'ordre FIFO, avec une jauge de cooldown sur le slot de
+  tête. File vide, le cooldown reste prêt et la prochaine unité tapée part immédiatement.
+- **Le type se fige au tap**, pris sur la file de types affichée dans le HUD (« Unité :
+  Zone ») : l'unité en attente montre déjà son type et son tier, on voit exactement ce qui
+  va partir.
+- **File pleine** → le tap est refusé : l'item secoue, la jauge sursaute, l'item reste sur
+  la grille et la file de types n'avance pas. **Jamais bloquant** : la file se vide d'elle-
+  même, et merges et déplacements restent libres en permanence.
+- **Combat mutuel** : les unités marchent vers les ennemis, les ennemis vers la base. Au
+  contact, les deux camps se frappent — les unités ont des PV, des barres de vie fines, et
+  **meurent**. Les unités à distance s'arrêtent à leur portée, le ralentisseur ralentit en
+  zone, le soutien projette une aura de buff sur les alliés proches **en marchant**.
+- **Une grosse unité vaut mieux qu'un tas de petites** : voir les chiffres de simulation
+  plus bas.
+- Retiré : la **fusion d'unités ★**. Elle appartenait au banc de tir statique — on ne
+  manipule plus rien sur la bande. Candidate à revenir après la V1, probablement en
+  fusionnant **dans les slots de déploiement**.
+
+### Décisions prises
+
+- **Seuils tap/drag retenus : 12 px et 600 ms**, dans `balance.json` (section `input`),
+  logique dans `src/systems/tapGesture.js`. Le seuil de distance est **aussi** donné à
+  Phaser (`input.dragDistanceThreshold`) : aucun `dragstart` n'est émis tant que le doigt
+  n'a pas franchi les 12 px, donc les deux gestes ne peuvent structurellement pas se
+  déclencher ensemble — ce n'est pas un arbitrage a posteriori. Vérifié au doigt et à la
+  souris dans la passe navigateur : un glisser ne part jamais au combat, un tap ne fusionne
+  jamais. Le seuil de durée a une conséquence assumée : un appui long immobile ne fait
+  **rien** (ni tap, ni merge). À juger au playtest.
+- **Scaling par tier : ×2,3 en PV et en dégâts** (×2,25 pour zone et ralentisseur). Un item
+  de tier N+1 coûtant exactement deux items de tier N, un facteur de 2 rendrait la fusion
+  neutre ; au-delà, préparer est **strictement** gagnant. Le spam est puni deux fois : la
+  petite unité vaut moins, et elle a consommé le même créneau de sortie. Un test verrouille
+  la règle sur les vraies valeurs.
+- **Deux contrats de bus, deux modules.** `enqueueUnit` (émis au tap) est consommé par
+  `DeployQueue` ; `deployUnit` (émis à la sortie) est consommé par `BattleModel`. Chacun
+  s'abonne lui-même et se désabonne dans son `destroy()`. Une unité n'entre en jeu **que**
+  par `deployUnit` : le rythme de sortie est impossible à contourner par erreur.
+- **Le cap d'unités est un garde-fou, pas un levier.** `maxFieldUnits` (20) retient la
+  sortie **sans consommer le cooldown** : dès qu'une place se libère, la file repart. Un
+  cap qui mangerait le cooldown serait une punition invisible.
+- **Les unités marchent depuis la base.** Elles entrent là où elles sortent des slots, ce
+  qui rend le lien file → champ lisible sans rien afficher, et donne au joueur le temps de
+  voir ce qu'il a envoyé traverser le couloir.
+- **`damagePerWave` ajouté au scaling.** Sans lui, une unité de haut tier devenait
+  invulnérable et le champ se figeait en mur imprenable — la partie ne finissait jamais.
+  `damageToBase`, lui, reste constant : les deux pressions se règlent séparément.
+- **La jauge de cooldown est dans le slot de tête**, pas sous lui : tout ce qui déborde
+  d'un slot finit hors du panneau sur un écran de 320 px.
+
+### Vérifications
+
+- `npm test` : **284 tests** verts (14 fichiers). Nouveaux : `DeployQueue` (FIFO, sortie au
+  cooldown, sortie immédiate file vide, refus file pleine, champ saturé), `tapGesture`
+  (seuils de distance et de durée, cas limites), combat mutuel (dégâts croisés, morts des
+  deux camps, arrêt à portée, aura du soutien, ralentissement de zone, cap d'unités), tap
+  qui consomme l'item et respecte la file de types, enchaînement de deux parties.
+- **Passe navigateur** (Chromium, portrait 390×844, paysage 844×390, étroit 320×568,
+  événements tactiles réels) : tap au doigt **et** à la souris, glisser qui fusionne sans
+  envoyer, file saturée puis tap refusé, sortie au cooldown, unités qui marchent et
+  meurent, dégâts des deux côtés, rotation d'écran en cours de partie, game over, rejouer,
+  seconde partie jouable — **aucune erreur console**.
+- **Durée de partie simulée** sur les modèles purs, trois profils de joueur (3 graines
+  chacun) :
+
+  | profil                                  | durée         | vague de défaite | tier moyen envoyé |
+  | --------------------------------------- | ------------- | ---------------- | ----------------- |
+  | spam (n'fusionne jamais, envoie tout)   | 2,3–2,5 min   | 8                | 1,0               |
+  | mixte (fusionne, envoie tout)           | 4,1–5,6 min   | 15               | 2,7               |
+  | prépare (fusionne, n'envoie que du gros)| 3,3–6,8 min   | 13–21            | 4,1               |
+
+  La cible du seed doc (session de 3-5 min) est tenue, et **le spam est puni sans
+  ambiguïté** : deux fois moins de vagues, deux fois moins de temps de jeu.
+- Poids de `dist/` : **1,26 Mo** (336 Ko gzip), contre 1,25 Mo au Lot 2 — la refonte est à
+  peu près neutre en poids. L'essentiel reste Phaser. Sous le budget de 2 Mo.
+
+### Ce qui reste ouvert pour le Lot 3
+
+- **Le cooldown de sortie (3,5 s) est le premier réglage à juger au doigt.** C'est le
+  métronome du jeu : trop lent, on attend ; trop rapide, la file ne sert plus à rien et le
+  spam redevient viable. Il se règle seul, dans `battle.deployCooldownMs`.
+- **Le seuil de durée du tap (600 ms)** : un appui long immobile ne fait rien aujourd'hui.
+  Si ça surprend au doigt, deux options — allonger le seuil, ou traiter tout appui immobile
+  comme un tap quelle que soit sa durée (une ligne dans `isTap`).
+- **Hoarder n'est pas toujours gagnant.** Le profil « prépare » (n'envoie qu'à partir du
+  tier 4) varie de 3,3 à 6,8 min selon la graine : trop attendre affame le champ et laisse
+  passer une vague. La tension est saine, mais elle est peut-être trop punitive — à
+  confirmer, leviers : `deployCooldownMs`, `firstWaveDelayMs`, courbe de `waves.scaling`.
+- **Le soutien reste difficile à lire** : son aura ne se voit que sur les cadences des
+  voisins. Candidat à un cercle d'aura discret au Lot 3 (il en a un maintenant :
+  `auraRadius`, donc c'est affichable sans nouvelle donnée).
+- **Les 5 slots sont peut-être trop peu ou trop.** 5 places à 3,5 s = 17,5 s de réserve. Le
+  bon réglage dépend de la cadence d'apparition des items, qui se règle à part.
+- **Juice** : squash à la fusion, particules, impacts, screenshake sont toujours au Lot 3.
+  Le Lot 2.5 ne pose que le vol grille → slot, les traceurs, les flashs de touche et la
+  jauge de sortie.

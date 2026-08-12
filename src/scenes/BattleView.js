@@ -6,15 +6,16 @@ import { drawUnitShape, drawEnemyShape, enemySize, unitColor } from '../render/b
 import { DEPTH } from '../render/depths.js';
 
 /**
- * Rendu de la bande de combat — **aucune règle de gameplay**.
+ * Rendu du champ de bataille et de la file de déploiement — **aucune règle de gameplay**.
  *
- * La vue s'abonne aux événements de `BattleModel` (via le bus de la session) et met en
- * images ce qu'ils décrivent ; entre deux ticks logiques, elle **interpole** la position
- * des ennemis avec `model.alpha`, ce qui donne un mouvement fluide à 60 fps au-dessus
- * d'une simulation à 10 Hz.
+ * La vue s'abonne aux événements de `BattleModel` et de `DeployQueue` (via le bus de la
+ * session) et met en images ce qu'ils décrivent ; entre deux ticks logiques, elle
+ * **interpole** la position des deux camps avec `model.alpha`, ce qui donne un mouvement
+ * fluide à 60 fps au-dessus d'une simulation à 10 Hz.
  *
- * Ce n'est pas une scène Phaser : c'est un objet de rendu possédé par `GameScene`, qui
- * lui transmet les gestes du joueur et le relayoute à chaque `resize`.
+ * Ce n'est pas une scène Phaser : c'est un objet de rendu possédé par `GameScene`, qui le
+ * relayoute à chaque `resize`. Depuis le Lot 2.5, la vue ne reçoit plus aucun geste : on
+ * ne manipule plus rien sur la bande, tout se joue sur la grille.
  */
 
 const COLORS = {
@@ -24,28 +25,32 @@ const COLORS = {
   laneStroke: 0x2c3350,
   slot: 0x1e2333,
   slotStroke: 0x333b5c,
+  slotHead: 0x28304a,
   slotBlocked: 0x5a2b34,
+  gauge: 0x4d96ff,
+  gaugeReady: 0x6bcb77,
   base: 0x2c3350,
   baseFill: 0x6bcb77,
   baseFillLow: 0xff6b6b,
-  queue: 0x1a1f2e,
   text: '#eef1f8',
   textDim: '#8f97b0',
   textWarn: '#ff9f43',
-  enemyHpBg: 0x14161f,
+  hpBg: 0x14161f,
   enemyHpFill: 0xff6b6b,
+  unitHpFill: 0x6bcb77,
 };
 
 const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
 
 /** Réglages de feel du rendu de combat (le polish complet est au Lot 3). */
 const FEEL = {
-  flightMs: 320,
+  flightMs: 300,
   unitPopMs: 200,
   tracerMs: 140,
   bannerMs: 900,
   hintMs: 1100,
   hitFlashMs: 90,
+  slotShiftMs: 160,
 };
 
 export class BattleView {
@@ -57,11 +62,12 @@ export class BattleView {
     this.scene = scene;
     this.session = session;
     this.model = session.battle;
+    this.queue = session.deployQueue;
     this.config = session.battleConfig;
 
     /** @type {Map<number, Phaser.GameObjects.Container>} vues d'ennemis, par id */
     this.enemyViews = new Map();
-    /** @type {Map<number, Phaser.GameObjects.Container>} vues d'unités, par id */
+    /** @type {Map<number, Phaser.GameObjects.Container>} vues d'unités au combat, par id */
     this.unitViews = new Map();
     /** @type {Map<number, Phaser.GameObjects.Container>} vues des unités en file, par id */
     this.queueViews = new Map();
@@ -106,21 +112,18 @@ export class BattleView {
       .setDepth(DEPTH.cell);
     this.baseFill = scene.add.rectangle(0, 0, 10, 10, COLORS.baseFill).setDepth(DEPTH.cell + 1);
 
-    /** @type {Phaser.GameObjects.Rectangle[]} fonds de slots, un par slot du modèle */
-    this.slotViews = this.model.slots.map(() =>
+    /** @type {Phaser.GameObjects.Rectangle[]} fonds des slots de déploiement */
+    this.slotViews = Array.from({ length: this.config.slotCount }, (_, index) =>
       scene.add
-        .rectangle(0, 0, 10, 10, COLORS.slot)
+        .rectangle(0, 0, 10, 10, index === 0 ? COLORS.slotHead : COLORS.slot)
         .setStrokeStyle(1, COLORS.slotStroke, 1)
         .setDepth(DEPTH.cell)
     );
 
-    /** @type {Phaser.GameObjects.Rectangle[]} cases de la file d'attente */
-    this.queueSlotViews = Array.from({ length: this.config.queueSize }, () =>
-      scene.add
-        .rectangle(0, 0, 10, 10, COLORS.queue)
-        .setStrokeStyle(1, COLORS.slotStroke, 1)
-        .setDepth(DEPTH.cell)
-    );
+    // Jauge de sortie : un liseré qui se remplit sous le slot de tête. C'est le seul
+    // repère de rythme du jeu, il doit être lisible du coin de l'œil.
+    this.gaugeBg = scene.add.rectangle(0, 0, 10, 3, COLORS.hpBg).setOrigin(0, 0.5).setDepth(DEPTH.hud);
+    this.gauge = scene.add.rectangle(0, 0, 10, 3, COLORS.gauge).setOrigin(0, 0.5).setDepth(DEPTH.hud);
 
     this.tracerGraphics = scene.add.graphics().setDepth(DEPTH.tracer);
 
@@ -129,8 +132,8 @@ export class BattleView {
     const dim = { fontFamily: FONT, color: COLORS.textDim };
     this.hpText = scene.add.text(0, 0, '', { ...dim, color: COLORS.text }).setDepth(DEPTH.hud);
     this.waveText = scene.add.text(0, 0, '', dim).setOrigin(1, 0).setDepth(DEPTH.hud);
-    this.queueText = scene.add.text(0, 0, 'File', dim).setOrigin(0, 0.5).setDepth(DEPTH.hud);
-    this.nextText = scene.add.text(0, 0, '', dim).setOrigin(1, 0.5).setDepth(DEPTH.hud);
+    this.queueText = scene.add.text(0, 0, '', dim).setOrigin(0, 1).setDepth(DEPTH.hud);
+    this.nextText = scene.add.text(0, 0, '', dim).setOrigin(1, 1).setDepth(DEPTH.hud);
 
     this.banner = scene.add
       .text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text })
@@ -139,7 +142,7 @@ export class BattleView {
       .setDepth(DEPTH.banner);
 
     this.hint = scene.add
-      .text(0, 0, 'Fusionne tes unités !', {
+      .text(0, 0, 'File pleine — ça part dans un instant', {
         fontFamily: FONT,
         fontStyle: 'bold',
         color: COLORS.textWarn,
@@ -168,72 +171,90 @@ export class BattleView {
       const slot = zone.slots[index];
       view.setPosition(slot.x, slot.y).setSize(slot.size, slot.size);
     });
-    this.queueSlotViews.forEach((view, index) => {
-      const cell = zone.queue[index];
-      view.setPosition(cell.x, cell.y).setSize(cell.size, cell.size);
-    });
 
-    // La police tient compte de la largeur : « PV 100/100 » et « Vague 12 » doivent
-    // cohabiter sur une ligne, même sur le plus petit écran visé.
+    // Jauge posée **dans** le slot de tête, le long de son bord bas : sur un petit écran,
+    // tout ce qui déborde d'un slot finit hors du panneau.
+    const head = zone.slots[0];
+    const gaugeWidth = head.size * 0.84;
+    const gaugeHeight = Math.max(3, head.size * 0.11);
+    const gaugeY = head.y + head.size / 2 - gaugeHeight;
+    this.gaugeBg.setPosition(head.x - gaugeWidth / 2, gaugeY).setSize(gaugeWidth, gaugeHeight);
+    this.gauge.setPosition(head.x - gaugeWidth / 2, gaugeY).setSize(gaugeWidth, gaugeHeight);
+    this.gaugeWidth = gaugeWidth;
+
+    // La police tient compte de la largeur (« PV 100/100 » et « Vague 12 » cohabitent sur
+    // une ligne) **et** de la hauteur, qui doit loger les deux lignes sans qu'elles se
+    // chevauchent — d'où le 0,42 plutôt qu'une pleine hauteur de ligne.
     const hudFont = Phaser.Math.Clamp(
-      Math.round(Math.min(zone.hud.height * 0.62, zone.hud.width * 0.06)),
+      Math.round(Math.min(zone.hud.height * 0.42, zone.hud.width * 0.055)),
       9,
       18
     );
-    const smallFont = Phaser.Math.Clamp(Math.round(hudFont * 0.88), 8, 16);
+    const smallFont = Phaser.Math.Clamp(Math.round(hudFont * 0.82), 8, 15);
 
+    // Deux lignes, deux ancrages par ligne : rien ne peut se chevaucher, même à 320 px.
     this.hpText.setFontSize(hudFont).setPosition(zone.hud.x, zone.hud.y);
     this.waveText.setFontSize(hudFont).setPosition(zone.hud.x + zone.hud.width, zone.hud.y);
-    this.queueText.setFontSize(smallFont).setPosition(zone.queueLabel.x, zone.queueLabel.y);
+    this.queueText.setFontSize(smallFont).setPosition(zone.hud.x, zone.hud.y + zone.hud.height);
     this.nextText
       .setFontSize(smallFont)
-      .setPosition(zone.hud.x + zone.hud.width, zone.queueLabel.y);
+      .setPosition(zone.hud.x + zone.hud.width, zone.hud.y + zone.hud.height);
 
-    const bannerFont = Phaser.Math.Clamp(Math.round(zone.laneThickness * 0.4), 14, 34);
+    // Le bandeau se plie à la **largeur** du couloir : en portrait, celui-ci est une
+    // colonne étroite, et « en approche » déborderait sur la grille à pleine taille.
+    const bannerFont = Phaser.Math.Clamp(
+      Math.round(Math.min(zone.laneThickness * 0.4, zone.lane.width / 7)),
+      12,
+      34
+    );
     const laneCenter = lanePoint(zone, 0.5);
     this.banner.setFontSize(bannerFont).setPosition(laneCenter.x, laneCenter.y);
     this.hint
-      .setFontSize(Phaser.Math.Clamp(Math.round(bannerFont * 0.62), 10, 20))
+      .setFontSize(Phaser.Math.Clamp(Math.round(bannerFont * 0.55), 10, 18))
       .setWordWrapWidth(Math.max(60, zone.lane.width))
       .setPosition(laneCenter.x, laneCenter.y);
 
     this.refreshBaseBar();
+    this.refreshQueueViews({ immediate: true });
     this.refreshUnitViews();
-    this.refreshQueueViews();
     this.refreshEnemyViews();
     this.refreshHud();
   }
 
-  /** Taille de la zone de saisie d'une unité : l'écart entre deux slots, au minimum. */
-  grabSize() {
+  /** Repositionne et redimensionne les vignettes de la file de déploiement. */
+  refreshQueueViews({ immediate = false } = {}) {
     const zone = this.zone;
-    return Math.max(zone.slotSize, zone.slotPitch * 0.98);
+    if (!zone) return;
+
+    this.queue.slots.forEach((unit, position) => {
+      const view = this.queueViews.get(unit.id);
+      if (!view) return;
+      const slot = zone.slots[position] ?? zone.slots[zone.slots.length - 1];
+      this.resizeUnitView(view, zone.unitSize);
+      if (immediate || view.getData('flying')) {
+        view.setPosition(slot.x, slot.y);
+        return;
+      }
+      if (view.x === slot.x && view.y === slot.y) return;
+      // La file avance d'un cran : les vignettes glissent vers la sortie.
+      this.scene.tweens.killTweensOf(view);
+      this.scene.tweens.add({
+        targets: view,
+        x: slot.x,
+        y: slot.y,
+        duration: FEEL.slotShiftMs,
+        ease: 'Quad.easeOut',
+      });
+    });
   }
 
   refreshUnitViews() {
     const zone = this.zone;
     if (!zone) return;
-    for (const unit of this.model.slots) {
-      if (!unit) continue;
+    for (const unit of this.model.units) {
       const view = this.unitViews.get(unit.id);
-      if (!view) continue;
-      this.resizeUnitView(view, zone.unitSize, this.grabSize());
-      if (view.getData('dragging')) continue;
-      const slot = zone.slots[unit.slot];
-      view.setPosition(slot.x, slot.y);
+      if (view) this.resizeFighterView(view, zone.fieldUnitSize, unit.type, unit.tier);
     }
-  }
-
-  refreshQueueViews() {
-    const zone = this.zone;
-    if (!zone) return;
-    this.model.pending.forEach((unit, position) => {
-      const view = this.queueViews.get(unit.id);
-      if (!view) return;
-      const cell = zone.queue[position] ?? zone.queue[zone.queue.length - 1];
-      this.resizeUnitView(view, cell.size * 0.86, cell.size);
-      view.setPosition(cell.x, cell.y);
-    });
   }
 
   refreshEnemyViews() {
@@ -253,24 +274,194 @@ export class BattleView {
     on('enemySpawn', ({ enemy }) => this.createEnemyView(enemy));
     on('enemyDeath', ({ enemy }) => this.popEnemyView(enemy, { leaked: false }));
     on('enemyLeak', ({ enemy }) => this.popEnemyView(enemy, { leaked: true }));
+    on('enemyAttack', ({ unit }) => this.flashFighter(this.unitViews.get(unit.id)));
     on('baseDamage', () => this.onBaseDamage());
-    on('shot', (payload) => this.onShot(payload));
+    on('unitAttack', (payload) => this.onUnitAttack(payload));
 
-    on('unitSpawn', ({ unit, slot, origin }) => this.onUnitSpawn(unit, slot, origin));
     on('unitQueued', ({ unit, position, origin }) => this.onUnitQueued(unit, position, origin));
-    on('unitMove', ({ unit }) => this.moveUnitView(unit));
-    on('unitSwap', ({ source, target }) => {
-      this.moveUnitView(source);
-      this.moveUnitView(target);
-    });
-    on('unitMerge', (payload) => this.onUnitMerge(payload));
+    on('deployUnit', ({ unit }) => this.onDeployed(unit));
+    on('unitSpawn', ({ unit }) => this.createUnitView(unit));
+    on('unitDeath', ({ unit }) => this.popUnitView(unit));
 
     on('waveStart', ({ wave }) => this.showBanner(`Vague ${wave}`));
     on('waveCountdown', ({ wave }) => {
       if (wave > 1) this.showBanner(`Vague ${wave}\nen approche`);
     });
-    on('mergeBlocked', () => this.showBlockedHint());
-    on('unitRejected', () => this.showBlockedHint());
+    on('tapRejected', () => this.showBlockedHint());
+    on('queueRejected', () => this.showBlockedHint());
+  }
+
+  // ------------------------------------------------------------------ file de déploiement
+
+  onUnitQueued(unit, position, origin) {
+    const zone = this.zone;
+    if (!zone) return;
+    const slot = zone.slots[position] ?? zone.slots[zone.slots.length - 1];
+
+    const view = this.buildFighterView(unit.type, unit.tier, zone.unitSize);
+    view.setDepth(DEPTH.item).setPosition(slot.x, slot.y).setVisible(false);
+    this.queueViews.set(unit.id, view);
+
+    // Le vol grille → slot : c'est le lien que le seed doc veut lisible en permanence.
+    const start = this.flightOrigin(origin);
+    if (!start) {
+      this.revealView(view);
+      return;
+    }
+    view.setData('flying', true);
+    this.flight(start, slot, unit.tier, () => {
+      view.setData('flying', false);
+      if (view.active) this.revealView(view);
+    });
+  }
+
+  /** La tête de file part au combat : sa vignette disparaît, la file se resserre. */
+  onDeployed(unit) {
+    const view = this.queueViews.get(unit.id);
+    if (view) {
+      this.queueViews.delete(unit.id);
+      this.scene.tweens.killTweensOf(view);
+      this.scene.tweens.add({
+        targets: view,
+        scale: 0.4,
+        alpha: 0,
+        duration: 140,
+        ease: 'Quad.easeIn',
+        onComplete: () => view.destroy(),
+      });
+    }
+    this.refreshQueueViews();
+  }
+
+  /** Point de départ d'un vol, d'après l'`origin` transmis par la session. */
+  flightOrigin(origin) {
+    if (!origin || !this.layoutData) return null;
+    if (origin.kind === 'tap' && Number.isInteger(origin.gridIndex)) {
+      return cellCenterAt(this.layoutData, origin.gridIndex);
+    }
+    return null;
+  }
+
+  /** Objet volant temporaire : la forme de l'item de la grille, qui rejoint son slot. */
+  flight(from, to, tier, onComplete) {
+    const zone = this.zone;
+    const shape = this.scene.add.graphics();
+    drawTierShape(shape, tier, this.layoutData.itemSize);
+    const flyer = this.scene.add.container(from.x, from.y, [shape]).setDepth(DEPTH.flight);
+
+    this.scene.tweens.add({
+      targets: flyer,
+      x: to.x,
+      y: to.y,
+      scale: (zone.unitSize / Math.max(1, this.layoutData.itemSize)) * 0.9,
+      duration: FEEL.flightMs,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        flyer.destroy();
+        onComplete?.();
+      },
+    });
+  }
+
+  // ------------------------------------------------------------------ combattants
+
+  /** Conteneur commun aux unités (file et champ) : forme + numéro de tier + barre de vie. */
+  buildFighterView(type, tier, size) {
+    const shape = this.scene.add.graphics();
+    const label = this.scene.add
+      .text(0, 0, String(tier), {
+        fontFamily: FONT,
+        fontStyle: 'bold',
+        color: TIER_LABEL_COLOR,
+      })
+      .setOrigin(0.5, 0.5)
+      .setResolution(this.textResolution());
+    const hpBg = this.scene.add.rectangle(0, 0, 10, 3, COLORS.hpBg).setOrigin(0, 0.5).setVisible(false);
+    const hpFill = this.scene.add
+      .rectangle(0, 0, 10, 3, COLORS.unitHpFill)
+      .setOrigin(0, 0.5)
+      .setVisible(false);
+
+    const view = this.scene.add.container(0, 0, [shape, label, hpBg, hpFill]);
+    view.setData({ shape, label, hpBg, hpFill });
+    this.resizeFighterView(view, size, type, tier);
+    return view;
+  }
+
+  resizeUnitView(view, size) {
+    this.resizeFighterView(view, size, view.getData('type'), view.getData('tier'));
+  }
+
+  resizeFighterView(view, size, type, tier) {
+    view.setData({ type, tier });
+    drawUnitShape(view.getData('shape'), type, tier, size);
+    view.getData('label').setText(String(tier)).setFontSize(Math.max(8, Math.round(size * 0.42)));
+
+    const barWidth = size * 1.15;
+    const barHeight = Math.max(2, size * 0.14);
+    const barY = -size * 0.8;
+    view.getData('hpBg').setPosition(-barWidth / 2, barY).setSize(barWidth, barHeight);
+    view.getData('hpFill').setPosition(-barWidth / 2, barY).setSize(barWidth, barHeight);
+    view.setData('barWidth', barWidth);
+  }
+
+  /** Vue d'une unité **sur le champ de bataille** : elle marche, elle encaisse, elle meurt. */
+  createUnitView(unit) {
+    const zone = this.zone;
+    if (!zone) return null;
+
+    const view = this.buildFighterView(unit.type, unit.tier, zone.fieldUnitSize);
+    view.setDepth(DEPTH.item);
+    this.unitViews.set(unit.id, view);
+    this.positionFighterView(view, unit, 1, COLORS.unitHpFill);
+    this.revealView(view);
+    return view;
+  }
+
+  popUnitView(unit) {
+    const view = this.unitViews.get(unit.id);
+    if (!view) return;
+    this.unitViews.delete(unit.id);
+    this.scene.tweens.killTweensOf(view);
+    this.scene.tweens.add({
+      targets: view,
+      scale: 0.15,
+      alpha: 0,
+      angle: 45,
+      duration: 200,
+      ease: 'Quad.easeOut',
+      onComplete: () => view.destroy(),
+    });
+  }
+
+  revealView(view) {
+    if (!view.active) return;
+    view.setVisible(true).setScale(0.3);
+    this.scene.tweens.add({
+      targets: view,
+      scale: 1,
+      duration: FEEL.unitPopMs,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  /**
+   * Place un combattant sur le couloir d'après sa progression interpolée, et met à jour
+   * sa barre de vie. Unités et ennemis partagent exactement le même code : ils vivent
+   * sur le même axe.
+   */
+  positionFighterView(view, fighter, alpha, fillColor) {
+    const zone = this.zone;
+    const progress = fighter.prevProgress + (fighter.progress - fighter.prevProgress) * alpha;
+    const point = lanePoint(zone, progress / this.config.laneLength);
+    view.setPosition(point.x, point.y);
+
+    const ratio = Phaser.Math.Clamp(fighter.hp / fighter.maxHp, 0, 1);
+    const damaged = ratio < 1;
+    const hpFill = view.getData('hpFill');
+    hpFill.width = view.getData('barWidth') * ratio;
+    hpFill.setFillStyle(fillColor, 1).setVisible(damaged);
+    view.getData('hpBg').setVisible(damaged);
   }
 
   // ------------------------------------------------------------------ ennemis
@@ -280,16 +471,16 @@ export class BattleView {
     if (!zone) return null;
 
     const shape = this.scene.add.graphics();
-    const hpBg = this.scene.add.rectangle(0, 0, 10, 3, COLORS.enemyHpBg).setOrigin(0, 0.5);
+    const hpBg = this.scene.add.rectangle(0, 0, 10, 3, COLORS.hpBg).setOrigin(0, 0.5);
     const hpFill = this.scene.add.rectangle(0, 0, 10, 3, COLORS.enemyHpFill).setOrigin(0, 0.5);
 
     const view = this.scene.add.container(0, 0, [shape, hpBg, hpFill]);
     view.setDepth(DEPTH.enemy);
-    view.setData({ enemyId: enemy.id, shape, hpBg, hpFill });
+    view.setData({ shape, hpBg, hpFill });
 
     this.enemyViews.set(enemy.id, view);
     this.resizeEnemyView(view, enemy);
-    this.positionEnemyView(view, enemy, 1);
+    this.positionFighterView(view, enemy, 1, COLORS.enemyHpFill);
 
     view.setScale(0.4);
     this.scene.tweens.add({ targets: view, scale: 1, duration: 160, ease: 'Back.easeOut' });
@@ -307,19 +498,6 @@ export class BattleView {
     view.getData('hpBg').setPosition(-barWidth / 2, barY).setSize(barWidth, barHeight);
     view.getData('hpFill').setPosition(-barWidth / 2, barY).setSize(barWidth, barHeight);
     view.setData('barWidth', barWidth);
-  }
-
-  positionEnemyView(view, enemy, alpha) {
-    const zone = this.zone;
-    const progress = enemy.prevProgress + (enemy.progress - enemy.prevProgress) * alpha;
-    const point = lanePoint(zone, progress / this.config.laneLength);
-    view.setPosition(point.x, point.y);
-
-    const ratio = Phaser.Math.Clamp(enemy.hp / enemy.maxHp, 0, 1);
-    const hpFill = view.getData('hpFill');
-    hpFill.width = view.getData('barWidth') * ratio;
-    hpFill.setVisible(ratio < 1);
-    view.getData('hpBg').setVisible(ratio < 1);
   }
 
   /**
@@ -368,9 +546,9 @@ export class BattleView {
       .setVisible(height > 0);
   }
 
-  // ------------------------------------------------------------------ tirs
+  // ------------------------------------------------------------------ frappes
 
-  onShot({ from, target, hits, role, splashRadius, unit }) {
+  onUnitAttack({ from, target, hits, unit, splashRadius, role }) {
     const zone = this.zone;
     if (!zone) return;
 
@@ -379,20 +557,25 @@ export class BattleView {
       to: lanePoint(zone, target.progress / this.config.laneLength),
       color: unitColor(unit.type),
       age: 0,
-      splash: role === 'aoe' ? (splashRadius / this.config.laneLength) * zone.laneLengthPx : 0,
+      splash:
+        role === 'aoe' || role === 'slow'
+          ? (splashRadius / this.config.laneLength) * zone.laneLengthPx
+          : 0,
     });
 
     for (const hit of hits) {
-      const view = this.enemyViews.get(hit.enemy.id);
-      if (!view || hit.killed) continue;
-      this.scene.tweens.killTweensOf(view.getData('shape'));
-      view.getData('shape').setAlpha(0.45);
-      this.scene.tweens.add({
-        targets: view.getData('shape'),
-        alpha: 1,
-        duration: FEEL.hitFlashMs,
-      });
+      if (hit.killed) continue;
+      this.flashFighter(this.enemyViews.get(hit.enemy.id));
     }
+  }
+
+  /** Éclair blanc sur un combattant touché — même feedback des deux côtés. */
+  flashFighter(view) {
+    if (!view?.active) return;
+    const shape = view.getData('shape');
+    this.scene.tweens.killTweensOf(shape);
+    shape.setAlpha(0.45);
+    this.scene.tweens.add({ targets: shape, alpha: 1, duration: FEEL.hitFlashMs });
   }
 
   drawTracers(deltaMs) {
@@ -417,231 +600,6 @@ export class BattleView {
     }
   }
 
-  // ------------------------------------------------------------------ unités
-
-  onUnitSpawn(unit, slot, origin) {
-    // L'unité pouvait attendre en file : sa vignette de file cède la place à sa vraie vue.
-    this.releaseQueueView(unit.id);
-    const view = this.createUnitView(unit);
-    if (!view) return;
-
-    const target = this.zone.slots[slot];
-    const start = this.flightOrigin(origin);
-    if (!start) {
-      this.revealUnit(view);
-      return;
-    }
-
-    // Le vol grille → bande : c'est le lien que le seed doc veut lisible en permanence.
-    view.setPosition(target.x, target.y).setScale(0).setVisible(true);
-    this.flight(start, target, unit, () => this.revealUnit(view));
-  }
-
-  onUnitQueued(unit, position, origin) {
-    const zone = this.zone;
-    const cell = zone.queue[position] ?? zone.queue[zone.queue.length - 1];
-    const view = this.createUnitView(unit, { size: cell.size * 0.86, hitSize: cell.size });
-    if (!view) return;
-    this.queueViews.set(unit.id, view);
-    this.unitViews.delete(unit.id);
-    // Une unité en file n'est pas manipulable : elle attend son slot.
-    view.disableInteractive();
-
-    const start = this.flightOrigin(origin);
-    view.setPosition(cell.x, cell.y).setScale(0).setVisible(true);
-    if (!start) {
-      this.revealUnit(view);
-      return;
-    }
-    this.flight(start, cell, unit, () => this.revealUnit(view));
-  }
-
-  /** Point de départ d'un vol, d'après l'`origin` transmis par le modèle. */
-  flightOrigin(origin) {
-    if (!origin || !this.layoutData) return null;
-    if (origin.kind === 'merge' && Number.isInteger(origin.gridIndex)) {
-      return cellCenterAt(this.layoutData, origin.gridIndex);
-    }
-    if (origin.kind === 'queue') {
-      // L'unité sort de la file : elle part de la première case de la file.
-      return this.zone.queue[0];
-    }
-    return null;
-  }
-
-  /** Objet volant temporaire : la forme de l'item de la grille, qui rejoint la bande. */
-  flight(from, to, unit, onComplete) {
-    const zone = this.zone;
-    const shape = this.scene.add.graphics().setDepth(DEPTH.flight);
-    drawTierShape(shape, unit.tier, this.layoutData.itemSize);
-
-    const flyer = this.scene.add.container(from.x, from.y, [shape]).setDepth(DEPTH.flight);
-
-    this.scene.tweens.add({
-      targets: flyer,
-      x: to.x,
-      y: to.y,
-      scale: (zone.unitSize / Math.max(1, this.layoutData.itemSize)) * 0.9,
-      duration: FEEL.flightMs,
-      ease: 'Cubic.easeIn',
-      onComplete: () => {
-        flyer.destroy();
-        onComplete?.();
-      },
-    });
-  }
-
-  createUnitView(unit, { size, hitSize } = {}) {
-    const zone = this.zone;
-    if (!zone) return null;
-
-    const shape = this.scene.add.graphics();
-    const label = this.scene.add
-      .text(0, 0, String(unit.tier), {
-        fontFamily: FONT,
-        fontStyle: 'bold',
-        color: TIER_LABEL_COLOR,
-      })
-      .setOrigin(0.5, 0.5)
-      .setResolution(this.textResolution());
-    const star = this.scene.add
-      .text(0, 0, '★', { fontFamily: FONT, color: '#ffd93d' })
-      .setOrigin(0.5, 0.5)
-      .setVisible(false)
-      .setResolution(this.textResolution());
-
-    const view = this.scene.add.container(0, 0, [shape, label, star]);
-    view.setDepth(DEPTH.item).setVisible(false);
-    view.setData({ kind: 'unit', unitId: unit.id, unit, shape, label, star });
-
-    const grab = hitSize ?? this.grabSize();
-    this.resizeUnitView(view, size ?? zone.unitSize, grab);
-    view.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, grab, grab),
-      Phaser.Geom.Rectangle.Contains
-    );
-    this.scene.input.setDraggable(view);
-
-    this.unitViews.set(unit.id, view);
-    return view;
-  }
-
-  resizeUnitView(view, size, hitSize) {
-    const unit = view.getData('unit');
-    drawUnitShape(view.getData('shape'), unit.type, unit.tier, size, { buffed: unit.buffed });
-
-    const label = view.getData('label');
-    label.setText(String(unit.tier)).setFontSize(Math.max(8, Math.round(size * 0.42)));
-    label.setColor(unit.buffed ? '#14161f' : TIER_LABEL_COLOR);
-
-    const star = view.getData('star');
-    star
-      .setVisible(unit.buffed)
-      .setFontSize(Math.max(8, Math.round(size * 0.34)))
-      .setPosition(0, -size * 0.52);
-
-    view.setSize(hitSize, hitSize);
-    // Même piège que sur la grille : la zone de saisie d'un conteneur se décrit depuis
-    // son coin haut-gauche (Phaser ajoute `displayOrigin` avant le test).
-    if (view.input?.hitArea) view.input.hitArea.setTo(0, 0, hitSize, hitSize);
-  }
-
-  revealUnit(view) {
-    if (!view.active) return;
-    view.setVisible(true).setScale(0.3);
-    this.scene.tweens.add({
-      targets: view,
-      scale: 1,
-      duration: FEEL.unitPopMs,
-      ease: 'Back.easeOut',
-    });
-  }
-
-  moveUnitView(unit) {
-    const view = this.unitViews.get(unit.id);
-    const zone = this.zone;
-    if (!view || !zone) return;
-    const slot = zone.slots[unit.slot];
-    this.scene.tweens.killTweensOf(view);
-    this.scene.tweens.add({
-      targets: view,
-      x: slot.x,
-      y: slot.y,
-      scale: 1,
-      duration: 150,
-      ease: 'Quad.easeOut',
-    });
-  }
-
-  onUnitMerge({ slot, unit, consumed }) {
-    const [source] = consumed;
-    const zone = this.zone;
-    const target = zone.slots[slot];
-
-    const sourceView = this.unitViews.get(source.id);
-    if (sourceView) {
-      this.unitViews.delete(source.id);
-      this.scene.tweens.killTweensOf(sourceView);
-      this.scene.tweens.add({
-        targets: sourceView,
-        x: target.x,
-        y: target.y,
-        scale: 0.3,
-        alpha: 0,
-        duration: 140,
-        ease: 'Quad.easeIn',
-        onComplete: () => sourceView.destroy(),
-      });
-    }
-
-    const view = this.unitViews.get(unit.id);
-    if (view) {
-      this.resizeUnitView(view, zone.unitSize, this.grabSize());
-      this.scene.tweens.add({
-        targets: view,
-        scale: { from: 1.35, to: 1 },
-        duration: 260,
-        ease: 'Back.easeOut',
-      });
-    }
-    // Une unité sortie de la file a pu prendre le slot libéré : on resynchronise.
-    this.refreshQueueViews();
-  }
-
-  /** Retire la vue d'une unité qui quitte la file pour un slot. */
-  releaseQueueView(unitId) {
-    const view = this.queueViews.get(unitId);
-    if (!view) return;
-    this.queueViews.delete(unitId);
-    this.scene.tweens.killTweensOf(view);
-    view.destroy();
-  }
-
-  // ------------------------------------------------------------------ gestes
-
-  /** Slot d'origine d'une vue d'unité en cours de drag. */
-  slotOfView(view) {
-    const unit = view.getData('unit');
-    return unit ? unit.slot : -1;
-  }
-
-  /** Ramène une vue d'unité à son slot. */
-  returnUnitHome(view) {
-    const unit = view.getData('unit');
-    const zone = this.zone;
-    if (!view.active || !unit || !zone) return;
-    const slot = zone.slots[unit.slot] ?? zone.slots[0];
-    this.scene.tweens.killTweensOf(view);
-    this.scene.tweens.add({
-      targets: view,
-      x: slot.x,
-      y: slot.y,
-      scale: 1,
-      duration: 170,
-      ease: 'Back.easeOut',
-    });
-  }
-
   // ------------------------------------------------------------------ feedback
 
   showBanner(text) {
@@ -658,7 +616,7 @@ export class BattleView {
     });
   }
 
-  /** Feedback du refus de fusion : la bande crie qu'elle sature. */
+  /** Feedback du tap refusé : la file crie qu'elle est pleine — mais plus pour longtemps. */
   showBlockedHint() {
     this.scene.tweens.killTweensOf(this.hint);
     this.hint.setAlpha(1).setScale(1);
@@ -669,11 +627,20 @@ export class BattleView {
       ease: 'Quad.easeIn',
     });
 
-    for (const view of this.queueSlotViews) view.setFillStyle(COLORS.slotBlocked, 1);
-    this.scene.time.delayedCall(FEEL.hintMs * 0.6, () => {
-      for (const view of this.queueSlotViews) {
-        if (view.active) view.setFillStyle(COLORS.queue, 1);
-      }
+    for (const view of this.slotViews) view.setFillStyle(COLORS.slotBlocked, 1);
+    this.scene.tweens.killTweensOf(this.gauge);
+    this.scene.tweens.add({
+      targets: this.gauge,
+      scaleY: { from: 2.4, to: 1 },
+      duration: 320,
+      ease: 'Back.easeOut',
+    });
+    this.scene.time.delayedCall(FEEL.hintMs * 0.6, () => this.restoreSlotColors());
+  }
+
+  restoreSlotColors() {
+    this.slotViews.forEach((view, index) => {
+      if (view.active) view.setFillStyle(index === 0 ? COLORS.slotHead : COLORS.slot, 1);
     });
   }
 
@@ -686,23 +653,24 @@ export class BattleView {
     const alpha = this.model.alpha;
     for (const enemy of this.model.enemies) {
       const view = this.enemyViews.get(enemy.id);
-      if (view) this.positionEnemyView(view, enemy, alpha);
+      if (view) this.positionFighterView(view, enemy, alpha, COLORS.enemyHpFill);
+    }
+    for (const unit of this.model.units) {
+      const view = this.unitViews.get(unit.id);
+      if (view) this.positionFighterView(view, unit, alpha, COLORS.unitHpFill);
     }
 
     this.drawTracers(deltaMs);
     this.refreshBaseBar();
+    this.refreshGauge();
     this.refreshHud();
-    this.syncQueueViews();
   }
 
-  /** Les vues de file suivent l'état du modèle (une unité peut en être sortie au tick). */
-  syncQueueViews() {
-    if (this.queueViews.size === 0) return;
-    const pendingIds = new Set(this.model.pending.map((unit) => unit.id));
-    for (const id of [...this.queueViews.keys()]) {
-      if (!pendingIds.has(id)) this.releaseQueueView(id);
-    }
-    this.refreshQueueViews();
+  /** La jauge de sortie suit le cooldown de `DeployQueue`, frame par frame. */
+  refreshGauge() {
+    const ratio = this.queue.slots.length === 0 ? 1 : this.queue.cooldownRatio();
+    this.gauge.width = Math.max(0.5, this.gaugeWidth * ratio);
+    this.gauge.setFillStyle(ratio >= 1 ? COLORS.gaugeReady : COLORS.gauge, 1);
   }
 
   refreshHud() {
@@ -715,8 +683,8 @@ export class BattleView {
 
     this.hpText.setText(`PV ${Math.ceil(hud.baseHp)}/${hud.maxBaseHp}`);
     this.waveText.setText(hud.wave === 0 ? 'Préparation' : `Vague ${hud.wave}`);
-    this.nextText.setText(`→ ${hud.nextUnitLabel}`);
-    this.queueText.setText(`File ${hud.queueLength}/${hud.queueSize}`);
+    this.nextText.setText(`Unité : ${hud.nextUnitLabel}`);
+    this.queueText.setText(`File ${hud.queueLength}/${hud.slotCount}`);
     this.queueText.setColor(hud.blocked ? COLORS.textWarn : COLORS.textDim);
   }
 
@@ -725,7 +693,11 @@ export class BattleView {
   destroy() {
     for (const off of this.unsubscribes) off();
     this.unsubscribes = [];
-    for (const view of [...this.enemyViews.values(), ...this.unitViews.values(), ...this.queueViews.values()]) {
+    for (const view of [
+      ...this.enemyViews.values(),
+      ...this.unitViews.values(),
+      ...this.queueViews.values(),
+    ]) {
       this.scene.tweens.killTweensOf(view);
       view.destroy();
     }

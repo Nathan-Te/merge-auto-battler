@@ -1,18 +1,20 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import balance from '../src/config/balance.json';
-import { GameSession, SESSION_DROP } from '../src/systems/GameSession.js';
-import { UNIT_DROP } from '../src/systems/BattleModel.js';
+import { GameSession, SESSION_TAP } from '../src/systems/GameSession.js';
 import { EventBus } from '../src/systems/eventBus.js';
 import { DROP } from '../src/systems/GridModel.js';
 
 /**
- * Tests du **pont** grille → bande : ce que le Lot 2 ajoute par-dessus deux modèles déjà
- * testés séparément. Tout est déterministe, sans Phaser ni horloge.
+ * Tests du **pont** grille → champ de bataille : ce que le Lot 2.5 pose par-dessus des
+ * modèles déjà testés séparément. Tout est déterministe, sans Phaser ni horloge.
+ *
+ * La chaîne complète est ici : tap → `enqueueUnit` → `DeployQueue` → `deployUnit` →
+ * `BattleModel`.
  */
 
 const PATTERN = balance.battle.unitTypePattern;
 const SLOT_COUNT = balance.battle.slotCount;
-const QUEUE_SIZE = balance.battle.queueSize;
+const COOLDOWN = balance.battle.deployCooldownMs;
 
 function makeSession(overrides) {
   // `rng: () => 0` fige le spawner d'items : les apparitions automatiques ne viennent
@@ -20,126 +22,186 @@ function makeSession(overrides) {
   return new GameSession({ balance, rng: () => 0, ...overrides });
 }
 
-/** Pose deux items de même tier sur deux cases et les fusionne par un lâcher. */
-function mergeOnGrid(session, tier, from = 0, to = 1) {
-  session.grid.placeItem(from, tier, { silent: true });
-  session.grid.placeItem(to, tier, { silent: true });
-  return session.applyDrop(from, to);
+/** Pose un item sur une case et le tape. */
+function tapItem(session, index, tier) {
+  session.grid.placeItem(index, tier, { silent: true });
+  return session.applyTap(index);
 }
 
-describe('GameSession — le pont grille → bande', () => {
+/** Remplit la file de déploiement (la première unité tapée part tout de suite). */
+function fillDeployQueue(session, tier = 1) {
+  for (let i = 0; i < SLOT_COUNT + 1; i += 1) tapItem(session, i, tier);
+}
+
+describe('GameSession — le tap envoie au combat', () => {
   let session;
   beforeEach(() => {
     session = makeSession();
   });
 
-  it('fait naître une unité du **tier fusionné**, pas du tier résultant', () => {
-    const result = mergeOnGrid(session, 4);
+  it('consomme l’item et met une unité **de son tier** en file', () => {
+    const queued = [];
+    session.events.on('unitQueued', (payload) => queued.push(payload));
 
-    expect(result.type).toBe(DROP.MERGE);
-    expect(result.tier).toBe(4);
-    expect(session.grid.itemAt(1).tier).toBe(5); // l'item restant monte d'un cran
-    expect(session.battle.slots[0]).toMatchObject({ tier: 4 });
+    const result = tapItem(session, 0, 4);
+
+    expect(result).toMatchObject({ type: SESSION_TAP.SENT, tier: 4, index: 0 });
+    expect(session.grid.itemAt(0)).toBeNull();
+    expect(queued[0].unit).toMatchObject({ tier: 4 });
   });
 
-  it('donne à l’unité le type annoncé par la file, puis avance la file', () => {
+  it('donne à l’unité le type annoncé par la file de types, puis avance la file', () => {
     expect(session.hud().nextUnitType).toBe(PATTERN[0]);
 
-    mergeOnGrid(session, 1, 0, 1);
-    expect(session.battle.slots[0].type).toBe(PATTERN[0]);
+    expect(tapItem(session, 0, 1).unitType).toBe(PATTERN[0]);
     expect(session.hud().nextUnitType).toBe(PATTERN[1]);
-
-    mergeOnGrid(session, 1, 2, 3);
-    expect(session.battle.slots[1].type).toBe(PATTERN[1]);
+    expect(tapItem(session, 1, 1).unitType).toBe(PATTERN[1]);
   });
 
   it('transmet la case de départ pour que le rendu fasse voler l’item', () => {
     const origins = [];
-    session.events.on('unitSpawn', ({ origin }) => origins.push(origin));
+    session.events.on('unitQueued', ({ origin }) => origins.push(origin));
 
-    mergeOnGrid(session, 2, 7, 12);
-    expect(origins).toEqual([{ kind: 'merge', gridIndex: 12 }]);
+    tapItem(session, 12, 2);
+    expect(origins).toEqual([{ kind: 'tap', gridIndex: 12 }]);
   });
 
-  it('remplit les slots un par un, fusion après fusion', () => {
-    for (let i = 0; i < SLOT_COUNT; i += 1) {
-      mergeOnGrid(session, 1, i * 2, i * 2 + 1);
-    }
-    expect(session.battle.unitCount()).toBe(SLOT_COUNT);
-    expect(session.battle.slots.every((unit) => unit !== null)).toBe(true);
-    expect(session.mergeCount).toBe(SLOT_COUNT);
+  it('fait entrer la première unité au combat sans attendre, puis remplit la file', () => {
+    tapItem(session, 0, 1);
+    expect(session.battle.unitCount()).toBe(1);
+    expect(session.hud().queueLength).toBe(0);
+
+    tapItem(session, 1, 1);
+    tapItem(session, 2, 1);
+    expect(session.battle.unitCount()).toBe(1);
+    expect(session.hud().queueLength).toBe(2);
   });
 
-  it('envoie les unités en surplus dans la file d’attente visible', () => {
-    for (let i = 0; i < SLOT_COUNT + QUEUE_SIZE; i += 1) {
-      session.grid.reset();
-      mergeOnGrid(session, 1);
-    }
-    expect(session.battle.unitCount()).toBe(SLOT_COUNT);
-    expect(session.hud().queueLength).toBe(QUEUE_SIZE);
-    expect(session.hud().blocked).toBe(true);
+  it('ne fait rien sur une case vide ou après le game over', () => {
+    expect(session.applyTap(3).type).toBe(SESSION_TAP.INVALID);
+
+    session.grid.placeItem(0, 1, { silent: true });
+    session.battle.endGame();
+    expect(session.applyTap(0).type).toBe(SESSION_TAP.INVALID);
+    expect(session.grid.itemAt(0)).not.toBeNull();
   });
 });
 
-describe('GameSession — la boucle de pression', () => {
+describe('GameSession — file de déploiement pleine', () => {
   let session;
   beforeEach(() => {
     session = makeSession();
-    // Sature la bande et sa file : c'est l'état que le joueur doit débloquer.
-    for (let i = 0; i < SLOT_COUNT + QUEUE_SIZE; i += 1) {
-      session.grid.reset();
-      mergeOnGrid(session, 1);
-    }
-    session.grid.reset();
+    fillDeployQueue(session);
   });
 
-  it('refuse une fusion de grille quand la bande et la file sont pleines', () => {
-    const blocked = [];
-    session.events.on('mergeBlocked', (payload) => blocked.push(payload));
+  it('refuse le tap et laisse l’item sur la grille', () => {
+    const rejected = [];
+    session.events.on('tapRejected', (payload) => rejected.push(payload));
 
-    session.grid.placeItem(0, 3, { silent: true });
-    session.grid.placeItem(1, 3, { silent: true });
-    const result = session.applyDrop(0, 1);
+    session.grid.placeItem(20, 6, { silent: true });
+    const result = session.applyTap(20);
 
-    expect(result.type).toBe(SESSION_DROP.BLOCKED);
-    expect(blocked).toHaveLength(1);
-    // Les deux items restent en place : rien ne doit disparaître pour rien.
-    expect(session.grid.itemAt(0).tier).toBe(3);
-    expect(session.grid.itemAt(1).tier).toBe(3);
-    expect(session.battle.unitCount()).toBe(SLOT_COUNT);
+    expect(result.type).toBe(SESSION_TAP.BLOCKED);
+    expect(rejected).toHaveLength(1);
+    // Rien ne doit disparaître pour une unité que la file n'accepterait pas.
+    expect(session.grid.itemAt(20).tier).toBe(6);
+    expect(session.hud().queueLength).toBe(SLOT_COUNT);
+    expect(session.hud().blocked).toBe(true);
   });
 
-  it('laisse passer les déplacements et les lâchers invalides', () => {
-    session.grid.placeItem(0, 3, { silent: true });
-    session.grid.placeItem(5, 4, { silent: true });
-
-    expect(session.applyDrop(0, 2).type).toBe(DROP.MOVE);
-    expect(session.applyDrop(2, 5).type).toBe(DROP.INVALID);
+  it('ne consomme pas la file de types sur un tap refusé', () => {
+    const next = session.hud().nextUnitType;
+    session.grid.placeItem(20, 1, { silent: true });
+    session.applyTap(20);
+    expect(session.hud().nextUnitType).toBe(next);
   });
 
-  it('débloque la grille dès qu’une fusion d’unités libère un slot', () => {
-    // Deux unités identiques adjacentes existent : le motif de types se répète.
-    const slots = session.battle.slots;
-    slots[0].type = slots[1].type;
-    slots[0].tier = slots[1].tier;
+  it('laisse merges et déplacements parfaitement libres', () => {
+    session.grid.placeItem(20, 3, { silent: true });
+    session.grid.placeItem(21, 3, { silent: true });
+    expect(session.applyDrop(20, 21).type).toBe(DROP.MERGE);
+    expect(session.grid.itemAt(21).tier).toBe(4);
+    expect(session.applyDrop(21, 22).type).toBe(DROP.MOVE);
+  });
 
-    expect(session.applyUnitDrop(0, 1).type).toBe(UNIT_DROP.MERGE);
-    // Le slot libéré est repris par la file : une place s'ouvre en file, pas sur la bande.
-    expect(session.battle.unitCount()).toBe(SLOT_COUNT);
-    expect(session.hud().queueLength).toBe(QUEUE_SIZE - 1);
+  it('se débloque toute seule au cooldown suivant', () => {
+    expect(session.hud().blocked).toBe(true);
+    session.update(COOLDOWN);
     expect(session.hud().blocked).toBe(false);
 
-    session.grid.placeItem(0, 2, { silent: true });
-    session.grid.placeItem(1, 2, { silent: true });
-    expect(session.applyDrop(0, 1).type).toBe(DROP.MERGE);
+    session.grid.placeItem(20, 2, { silent: true });
+    expect(session.applyTap(20).type).toBe(SESSION_TAP.SENT);
+  });
+});
+
+describe('GameSession — le merge ne déclenche plus rien', () => {
+  it('monte l’item d’un tier sans produire d’unité', () => {
+    const session = makeSession();
+    session.grid.placeItem(0, 3, { silent: true });
+    session.grid.placeItem(1, 3, { silent: true });
+
+    const result = session.applyDrop(0, 1);
+
+    expect(result.type).toBe(DROP.MERGE);
+    expect(session.grid.itemAt(1).tier).toBe(4);
+    expect(session.mergeCount).toBe(1);
+    expect(session.battle.unitCount()).toBe(0);
+    expect(session.hud().queueLength).toBe(0);
+    // La file de types n'avance qu'au tap : le joueur choisit quand la consommer.
+    expect(session.hud().nextUnitType).toBe(PATTERN[0]);
   });
 
-  it('ne bloque plus rien après un game over (la partie est finie, pas coincée)', () => {
-    session.battle.endGame();
+  it('récompense la préparation : merger puis envoyer donne un tier de plus', () => {
+    const session = makeSession();
     session.grid.placeItem(0, 2, { silent: true });
     session.grid.placeItem(1, 2, { silent: true });
-    // La fusion est refusée : la bande sature toujours. Aucune exception, aucun état bancal.
-    expect(session.applyDrop(0, 1).type).toBe(SESSION_DROP.BLOCKED);
+    session.applyDrop(0, 1);
+
+    expect(session.applyTap(1).tier).toBe(3);
+    expect(session.battle.units[0].tier).toBe(3);
+  });
+});
+
+describe('GameSession — rythme de sortie', () => {
+  it('fait sortir les unités une par une, au rythme du cooldown', () => {
+    const session = makeSession();
+    fillDeployQueue(session);
+    expect(session.battle.unitCount()).toBe(1);
+
+    session.update(COOLDOWN);
+    expect(session.battle.unitCount()).toBe(2);
+    session.update(COOLDOWN - 1);
+    expect(session.battle.unitCount()).toBe(2);
+    session.update(1);
+    expect(session.battle.unitCount()).toBe(3);
+  });
+
+  it('ne fait plus sortir personne après le game over', () => {
+    const session = makeSession();
+    fillDeployQueue(session);
+    session.battle.endGame();
+
+    const units = session.battle.unitCount();
+    session.update(COOLDOWN * 3);
+    expect(session.battle.unitCount()).toBe(units);
+  });
+
+  it('retient la sortie quand le champ de bataille est plein, sans rien perdre', () => {
+    const session = makeSession();
+    const max = balance.battle.maxFieldUnits;
+    for (let i = 0; i < max; i += 1) session.battle.spawnUnit(1, 'single');
+    expect(session.battle.canAcceptUnit()).toBe(false);
+
+    tapItem(session, 0, 1);
+    session.update(COOLDOWN * 5);
+    expect(session.battle.unitCount()).toBe(max);
+    expect(session.deployQueue.slots).toHaveLength(1);
+
+    // Une place se libère : la sortie reprend immédiatement.
+    session.battle.killUnit(session.battle.units[0]);
+    session.update(16);
+    expect(session.deployQueue.slots).toHaveLength(0);
+    expect(session.battle.unitCount()).toBe(max);
   });
 });
 
@@ -154,8 +216,11 @@ describe('GameSession — HUD', () => {
       wave: 0,
       wavesCleared: 0,
       queueLength: 0,
-      queueSize: QUEUE_SIZE,
+      slotCount: SLOT_COUNT,
+      fieldUnits: 0,
       mergeCount: 0,
+      sentCount: 0,
+      cooldownRatio: 1,
       blocked: false,
     });
     expect(hud.nextUnitLabel).toBe(balance.units[PATTERN[0]].label);
@@ -192,9 +257,13 @@ describe('GameSession — démarrage et remise à zéro', () => {
     const bus = new EventBus();
     const session = new GameSession({ balance, bus });
     expect(bus.listenerCount('merge')).toBe(1);
+    expect(bus.listenerCount('enqueueUnit')).toBe(1);
+    expect(bus.listenerCount('deployUnit')).toBe(1);
 
     session.destroy();
     expect(bus.listenerCount('merge')).toBe(0);
+    expect(bus.listenerCount('enqueueUnit')).toBe(0);
+    expect(bus.listenerCount('deployUnit')).toBe(0);
     expect(session.destroyed).toBe(true);
 
     // Détruire deux fois ne doit rien casser.
@@ -206,37 +275,39 @@ describe('GameSession — démarrage et remise à zéro', () => {
 
     const first = new GameSession({ balance, bus, rng: () => 0 }).start();
     for (let i = 0; i < SLOT_COUNT; i += 1) {
-      first.grid.reset();
-      mergeOnGrid(first, 3);
+      tapItem(first, i, 3);
+      first.update(COOLDOWN);
     }
     first.update(60_000);
     first.battle.damageBase(balance.battle.baseHp);
 
     expect(first.over).toBe(true);
-    const firstUnits = first.battle.unitCount();
-    const firstMerges = first.mergeCount;
+    const firstSent = first.sentCount;
+    const firstTypes = first.battle.units.map((unit) => unit.type);
     first.destroy();
 
     // Aucun écouteur de la partie 1 ne doit survivre : sinon la partie 2 verrait ses
-    // fusions comptées deux fois. C'est le bug classique du « rejouer ».
-    expect(bus.listenerCount('merge')).toBe(0);
+    // taps comptés deux fois. C'est le bug classique du « rejouer ».
+    expect(bus.listenerCount('enqueueUnit')).toBe(0);
+    expect(bus.listenerCount('deployUnit')).toBe(0);
 
     const second = new GameSession({ balance, bus, rng: () => 0 }).start();
     expect(second.over).toBe(false);
-    expect(second.mergeCount).toBe(0);
+    expect(second.sentCount).toBe(0);
     expect(second.battle.unitCount()).toBe(0);
+    expect(second.deployQueue.slots).toHaveLength(0);
     expect(second.battle.baseHp).toBe(balance.battle.baseHp);
     expect(second.hud().nextUnitType).toBe(PATTERN[0]);
 
     for (let i = 0; i < SLOT_COUNT; i += 1) {
-      second.grid.reset();
-      mergeOnGrid(second, 3);
+      tapItem(second, i, 3);
+      second.update(COOLDOWN);
     }
-    expect(second.mergeCount).toBe(firstMerges);
-    expect(second.battle.unitCount()).toBe(firstUnits);
-    expect(second.battle.slots.map((unit) => unit.type)).toEqual(
-      first.battle.slots.map((unit) => unit.type)
-    );
+    expect(second.sentCount).toBe(firstSent);
+    expect(second.battle.unitCount()).toBe(SLOT_COUNT);
+    // La file de types repart du début : mêmes gestes, mêmes unités.
+    expect(second.battle.units.map((unit) => unit.type)).toEqual(firstTypes);
+    expect(firstTypes).toEqual(PATTERN.slice(0, SLOT_COUNT));
     second.destroy();
   });
 
@@ -245,9 +316,8 @@ describe('GameSession — démarrage et remise à zéro', () => {
       const session = makeSession().start();
       for (let step = 0; step < 40; step += 1) {
         session.update(250);
-        const free = session.grid.emptyIndices();
-        if (free.length > 0) session.trySpawnItem();
-        // Tente systématiquement la première fusion possible.
+        session.trySpawnItem();
+        // Tente systématiquement la première fusion possible, puis envoie la case 0.
         for (let a = 0; a < session.grid.size; a += 1) {
           for (let b = 0; b < session.grid.size; b += 1) {
             if (session.grid.canMerge(a, b)) {
@@ -257,12 +327,14 @@ describe('GameSession — démarrage et remise à zéro', () => {
             }
           }
         }
+        session.applyTap(0);
       }
       return {
         baseHp: session.battle.baseHp,
         wave: session.battle.wave,
         merges: session.mergeCount,
-        units: session.battle.slots.map((unit) => (unit ? `${unit.type}${unit.tier}` : '-')),
+        sent: session.sentCount,
+        units: session.battle.units.map((unit) => `${unit.type}${unit.tier}@${unit.progress}`),
       };
     };
 
