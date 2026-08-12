@@ -6,7 +6,8 @@ import { GameSession, SESSION_DROP, SESSION_TAP } from '../systems/GameSession.j
 import { computeLayout, cellCenterAt, nearestCellIndex } from '../systems/layout.js';
 import { isTap } from '../systems/tapGesture.js';
 import { parseJuiceConfig } from '../systems/juice.js';
-import { drawTierShape, tierColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { drawItemShape, itemColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { powerColor } from '../render/powerShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { JuiceKit } from '../render/juiceKit.js';
 import { isDebugEnabled } from '../systems/debug.js';
@@ -197,6 +198,11 @@ export default class GameScene extends Phaser.Scene {
       // Le panneau ne connaît ni `balance.json` ni les règles : il affiche ce que la
       // session lui donne, comme tout le reste du rendu.
       units: Object.values(this.session.battleConfig.units).map((def) => ({
+        type: def.id,
+        label: def.label,
+        role: def.blurb,
+      })),
+      powers: Object.values(this.session.powersConfig.types).map((def) => ({
         type: def.id,
         label: def.label,
         role: def.blurb,
@@ -469,8 +475,9 @@ export default class GameScene extends Phaser.Scene {
       const view = this.createItemView(payload.index, payload.item, { pop: false });
       this.squashPop(view);
 
-      // La gerbe part à la couleur du tier **produit** : l'œil suit la promotion.
-      this.juice.burst(center.x, center.y, grid.mergeBurst, tierColor(payload.resultTier));
+      // La gerbe part à la couleur de l'item **produit** : l'œil suit la promotion, et un
+      // merge de pouvoirs éclate à la teinte du pouvoir, pas à celle d'un tier d'unité.
+      this.juice.burst(center.x, center.y, grid.mergeBurst, itemColor(payload.item));
       this.juice.play('merge');
     };
 
@@ -545,7 +552,9 @@ export default class GameScene extends Phaser.Scene {
 
     const view = this.add.container(center.x, center.y, [shape, label]);
     view.setDepth(DEPTH.item);
-    view.setData({ kind: 'item', itemId: item.id, index, tier: item.tier, shape, label });
+    // `item` est conservé tel quel : c'est lui qui porte la famille et le type de pouvoir,
+    // donc la silhouette à redessiner à chaque changement de layout.
+    view.setData({ kind: 'item', itemId: item.id, index, item, tier: item.tier, shape, label });
 
     this.resizeItemView(view, layout.itemSize, layout.grid.cell);
 
@@ -578,7 +587,7 @@ export default class GameScene extends Phaser.Scene {
     const shape = view.getData('shape');
     const label = view.getData('label');
 
-    drawTierShape(shape, view.getData('tier'), itemSize);
+    drawItemShape(shape, view.getData('item'), itemSize);
     label.setFontSize(Math.max(9, Math.round(itemSize * 0.4)));
     view.setSize(cellSize, cellSize);
     // Phaser ajoute `displayOrigin` (= moitié de la taille du conteneur) aux
@@ -661,12 +670,32 @@ export default class GameScene extends Phaser.Scene {
       this.juice.play('tap');
       return;
     }
-    // Refus : la file de déploiement est pleine. L'item secoue et reste en place —
-    // `BattleView` met la jauge en évidence de son côté.
+    // Pouvoir dépensé : la case s'illumine sur place. Le reste du feedback (le trajet vers
+    // la bataille, la zone annoncée, l'impact) appartient à `BattleView`, qui écoute
+    // `powerCast` et `powerResolved`.
+    if (result.type === SESSION_TAP.POWER) {
+      this.flashPowerCell(index, result.power);
+      this.juice.play('powerCast');
+      return;
+    }
+    // Refus : file de déploiement pleine, ou pouvoir sans la moindre cible. L'item secoue et
+    // reste en place — `BattleView` met la jauge en évidence de son côté.
     if (result.type === SESSION_TAP.BLOCKED) {
       this.shake(candidate.view);
       this.juice.play('reject');
     }
+  }
+
+  /**
+   * Éclair sur la case d'où part un pouvoir.
+   *
+   * C'est la moitié « grille » de la règle « les deux taps ne se confondent pas » : un envoi
+   * d'unité aspire discrètement son item vers la file, un pouvoir **éclate** sur place à sa
+   * propre teinte. Le son diffère aussi, et le trajet ensuite.
+   */
+  flashPowerCell(index, power) {
+    const center = cellCenterAt(this.layoutData, index);
+    this.juice.burst(center.x, center.y, this.juiceConfig.power.castBurst, powerColor(power));
   }
 
   // --------------------------------------------------------------- drag (merge)
@@ -859,11 +888,11 @@ export default class GameScene extends Phaser.Scene {
     const hud = this.session.hud();
     const battle = this.session.battle;
     // Dense à dessein : cette ligne doit tenir à côté du titre sur un écran de 320 px.
-    // m = merges, s = envois, t = ticks logiques, e = ennemis, u = unités au combat,
-    // f = file de déploiement, g = items sur la grille.
+    // m = merges, s = envois, p = pouvoirs dépensés, t = ticks logiques, e = ennemis,
+    // u = unités au combat, f = file de déploiement, g = items sur la grille.
     this.debugText.setText(
       `${Math.round(this.game.loop.actualFps)}fps m${hud.mergeCount} s${hud.sentCount} ` +
-        `t${battle.tickCount} e${battle.enemies.length} ` +
+        `p${hud.powersUsed} t${battle.tickCount} e${battle.enemies.length} ` +
         `u${hud.fieldUnits}/${hud.maxFieldUnits} f${hud.queueLength}/${hud.slotCount} ` +
         `g${this.model.count()}`
     );

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GridModel, DROP } from '../src/systems/GridModel.js';
+import { GridModel, DROP, ITEM_FAMILY, sameKind } from '../src/systems/GridModel.js';
 
 /** RNG déterministe : renvoie les valeurs fournies, puis 0. */
 function fakeRng(...values) {
@@ -268,5 +268,116 @@ describe('GridModel — fusion', () => {
     expect(model.canMerge(0, 0)).toBe(false);
     expect(model.canMerge(0, 1)).toBe(false);
     expect(model.canMerge(1, 0)).toBe(false);
+  });
+});
+
+describe('GridModel — deux familles d’items (Lot 4)', () => {
+  let model;
+  beforeEach(() => {
+    model = new GridModel({ maxTier: 11, powerMaxTier: 6 });
+  });
+
+  const putUnit = (index, tier) => model.placeItem(index, tier, { silent: true });
+  const putPower = (index, tier, power) =>
+    model.placeItem(index, tier, { silent: true, family: ITEM_FAMILY.POWER, power });
+
+  it('sameKind compare la famille et le type, jamais le tier', () => {
+    const heal1 = { tier: 1, family: ITEM_FAMILY.POWER, power: 'heal' };
+    const heal5 = { tier: 5, family: ITEM_FAMILY.POWER, power: 'heal' };
+    const meteor1 = { tier: 1, family: ITEM_FAMILY.POWER, power: 'meteor' };
+    const unit1 = { tier: 1, family: ITEM_FAMILY.UNIT, power: null };
+
+    expect(sameKind(heal1, heal5)).toBe(true);
+    expect(sameKind(heal1, meteor1)).toBe(false);
+    expect(sameKind(heal1, unit1)).toBe(false);
+  });
+
+  it('marque tout item d’une famille, `unit` par défaut', () => {
+    expect(putUnit(0, 1)).toMatchObject({ family: ITEM_FAMILY.UNIT, power: null });
+    expect(putPower(1, 1, 'heal')).toMatchObject({ family: ITEM_FAMILY.POWER, power: 'heal' });
+  });
+
+  it('refuse un pouvoir sans type : ce serait un item qui ne fusionne avec rien', () => {
+    expect(model.placeItem(0, 1, { family: ITEM_FAMILY.POWER })).toBeNull();
+    expect(model.count()).toBe(0);
+  });
+
+  it('fusionne deux pouvoirs identiques, et conserve leur sorte', () => {
+    putPower(0, 2, 'meteor');
+    putPower(1, 2, 'meteor');
+
+    const result = model.applyDrop(0, 1);
+
+    expect(result.type).toBe(DROP.MERGE);
+    expect(model.itemAt(1)).toMatchObject({
+      tier: 3,
+      family: ITEM_FAMILY.POWER,
+      power: 'meteor',
+    });
+  });
+
+  it('ne fusionne **jamais** un item d’unité avec un pouvoir de même tier', () => {
+    putUnit(0, 3);
+    putPower(1, 3, 'heal');
+
+    expect(model.canMerge(0, 1)).toBe(false);
+    expect(model.canMerge(1, 0)).toBe(false);
+    expect(model.applyDrop(0, 1)).toEqual({
+      type: DROP.INVALID,
+      reason: 'familleDifferente',
+    });
+    expect(model.count()).toBe(2);
+  });
+
+  it('ne fusionne **jamais** deux pouvoirs de types différents', () => {
+    putPower(0, 2, 'heal');
+    putPower(1, 2, 'meteor');
+
+    expect(model.canMerge(0, 1)).toBe(false);
+    expect(model.applyDrop(0, 1)).toEqual({ type: DROP.INVALID, reason: 'pouvoirDifferent' });
+    expect(model.itemAt(0).power).toBe('heal');
+    expect(model.itemAt(1).power).toBe('meteor');
+  });
+
+  it('déplacer reste libre : seule la fusion regarde la sorte', () => {
+    putPower(0, 1, 'heal');
+    expect(model.applyDrop(0, 7)).toMatchObject({ type: DROP.MOVE });
+    expect(model.itemAt(7)).toMatchObject({ family: ITEM_FAMILY.POWER, power: 'heal' });
+  });
+
+  it('les pouvoirs plafonnent à leur propre tier maximum, plus bas que les unités', () => {
+    expect(model.maxTierOf(ITEM_FAMILY.POWER)).toBe(6);
+    expect(model.maxTierOf(ITEM_FAMILY.UNIT)).toBe(11);
+
+    putPower(0, 6, 'heal');
+    putPower(1, 6, 'heal');
+    expect(model.canMerge(0, 1)).toBe(false);
+    expect(model.applyDrop(0, 1)).toEqual({ type: DROP.INVALID, reason: 'tierMax' });
+
+    // Les items d'unité, eux, montent toujours jusqu'à 11.
+    putUnit(2, 6);
+    putUnit(3, 6);
+    expect(model.canMerge(2, 3)).toBe(true);
+  });
+
+  it('refuse de poser un pouvoir au-dessus de son plafond', () => {
+    expect(model.placeItem(0, 7, { family: ITEM_FAMILY.POWER, power: 'heal' })).toBeNull();
+    expect(putUnit(0, 7)).not.toBeNull();
+  });
+
+  it('refuse un plafond de pouvoirs incohérent avec celui de la grille', () => {
+    expect(() => new GridModel({ maxTier: 11, powerMaxTier: 12 })).toThrow();
+    expect(() => new GridModel({ maxTier: 11, powerMaxTier: 1 })).toThrow();
+  });
+
+  it('enchaîne les fusions de pouvoirs comme celles des items d’unité', () => {
+    for (const index of [0, 1, 2, 3]) putPower(index, 1, 'meteor');
+
+    model.applyDrop(0, 1); // case 1 : météorite tier 2
+    model.applyDrop(2, 3); // case 3 : météorite tier 2
+    model.applyDrop(1, 3); // case 3 : météorite tier 3
+
+    expect(model.count()).toBe(1);
+    expect(model.itemAt(3)).toMatchObject({ tier: 3, power: 'meteor' });
   });
 });

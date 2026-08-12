@@ -64,7 +64,7 @@ export function simulateGame({
   const draftRng = makeRng(seed * 7919 + 13);
   const session = new GameSession({ balance, rng: makeRng(seed), draftRng }).start();
 
-  const actions = { tap: 0, merge: 0 };
+  const actions = { tap: 0, merge: 0, power: 0 };
   const drafted = [];
   let elapsedMs = 0;
   let actionAccMs = 0;
@@ -177,6 +177,11 @@ export function runPolicy({ balance, policy, games = 20, seed = 1, ...options } 
   // relative de chaque type / tier qui informe, pas la valeur absolue d'une partie.
   const damageTotals = {};
   const sentByTier = {};
+  /** Pouvoirs utilisés, toutes parties confondues — dit si la mécanique tourne vraiment. */
+  const powersByType = {};
+  let powerDamage = 0;
+  let powerHealing = 0;
+  let unitDamage = 0;
   /** Améliorations prises, toutes parties confondues — dit si le pool tourne vraiment. */
   const draftCounts = {};
   let blockedTaps = 0;
@@ -185,7 +190,13 @@ export function runPolicy({ balance, policy, games = 20, seed = 1, ...options } 
   for (const result of results) {
     for (const [type, value] of Object.entries(result.recap.damageByType)) {
       damageTotals[type] = (damageTotals[type] ?? 0) + value;
+      unitDamage += value;
     }
+    for (const [type, count] of Object.entries(result.recap.powersByType)) {
+      powersByType[type] = (powersByType[type] ?? 0) + count;
+    }
+    powerDamage += result.recap.powerDamage;
+    powerHealing += result.recap.powerHealing;
     for (const [tier, count] of Object.entries(result.recap.sentByTier)) {
       sentByTier[tier] = (sentByTier[tier] ?? 0) + count;
     }
@@ -225,6 +236,12 @@ export function runPolicy({ balance, policy, games = 20, seed = 1, ...options } 
     draftCounts,
     /** Améliorations prises par partie — le rythme du draft, en une valeur. */
     draftsPerGame: mean(results.map((result) => result.drafted.length)),
+    /** Pouvoirs (Lot 4) : combien, lesquels, et ce qu'ils ont réellement pesé. */
+    powersPerGame: mean(results.map((result) => result.recap.powersUsed)),
+    powersByType,
+    /** Part des dégâts aux ennemis venue des pouvoirs, unités comprises au dénominateur. */
+    powerDamageShare: unitDamage + powerDamage > 0 ? powerDamage / (unitDamage + powerDamage) : 0,
+    powerHealingPerGame: powerHealing / Math.max(1, games),
     blockedTaps,
     /** Occupation de la grille : accord entre cadence d'items et cooldown de sortie. */
     gridFullShare,

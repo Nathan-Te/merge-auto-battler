@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import balance from '../src/config/balance.json';
 import { GameSession, SESSION_TAP } from '../src/systems/GameSession.js';
 import { EventBus } from '../src/systems/eventBus.js';
-import { DROP } from '../src/systems/GridModel.js';
+import { DROP, ITEM_FAMILY } from '../src/systems/GridModel.js';
 
 /**
  * Tests du **pont** grille → champ de bataille : ce que le Lot 2.5 pose par-dessus des
@@ -420,5 +420,144 @@ describe('GameSession — récap de fin de partie', () => {
     session.grid.placeItem(20, 1, { silent: true });
     session.applyTap(20);
     expect(session.recap().blockedTaps).toBe(1);
+  });
+});
+
+describe('GameSession — le tap sur un pouvoir (Lot 4)', () => {
+  let session;
+  beforeEach(() => {
+    session = makeSession().start();
+  });
+
+  /** Pose un item de pouvoir sur une case **libérée pour l'occasion**, et le tape. */
+  const tapPower = (session, index, tier, power) => {
+    session.grid.removeItem(index);
+    session.grid.placeItem(index, tier, { silent: true, family: ITEM_FAMILY.POWER, power });
+    return session.applyTap(index);
+  };
+
+  /** Amène une unité sur le champ de bataille (une cible pour le soin). */
+  const deployOneUnit = (session) => {
+    session.grid.removeItem(0);
+    session.grid.placeItem(0, 1, { silent: true });
+    session.applyTap(0);
+    session.update(COOLDOWN);
+    return session.battle.units[0];
+  };
+
+  it('émet `usePower` — le contrat du lot — et consomme l’item', () => {
+    const casts = [];
+    session.events.on('usePower', (payload) => casts.push(payload));
+    deployOneUnit(session);
+
+    const result = tapPower(session, 4, 2, 'heal');
+
+    expect(result.type).toBe(SESSION_TAP.POWER);
+    expect(result).toMatchObject({ power: 'heal', tier: 2, index: 4 });
+    expect(session.grid.itemAt(4)).toBeNull();
+    expect(casts).toEqual([
+      { type: 'heal', tier: 2, origin: { kind: 'tap', gridIndex: 4 } },
+    ]);
+  });
+
+  it('ne passe **ni** par la file de déploiement **ni** par le compteur d’envois', () => {
+    deployOneUnit(session);
+    const queued = session.deployQueue.slots.length;
+    const sent = session.sentCount;
+    const nextType = session.hud().nextUnitType;
+
+    tapPower(session, 5, 1, 'heal');
+
+    expect(session.deployQueue.slots).toHaveLength(queued);
+    expect(session.sentCount).toBe(sent);
+    // La file de types ne doit pas avancer : un pouvoir n'est pas une unité.
+    expect(session.hud().nextUnitType).toBe(nextType);
+    expect(session.powersUsed).toBe(1);
+    expect(session.powersByType).toEqual({ heal: 1 });
+  });
+
+  it('reste utilisable file de déploiement pleine — c’est tout l’intérêt', () => {
+    deployOneUnit(session);
+    fillDeployQueue(session, 1);
+    expect(session.deployQueue.canAccept()).toBe(false);
+
+    // Un item d'unité serait refusé ici…
+    session.grid.removeItem(20);
+    session.grid.placeItem(20, 1, { silent: true });
+    expect(session.applyTap(20).type).toBe(SESSION_TAP.BLOCKED);
+    // …le pouvoir, lui, part.
+    expect(tapPower(session, 21, 1, 'heal').type).toBe(SESSION_TAP.POWER);
+  });
+
+  it('refuse un pouvoir sans cible et laisse l’item sur la grille', () => {
+    // Aucune unité sur le champ : le soin n'a rien à soigner.
+    const rejected = [];
+    session.events.on('tapRejected', (payload) => rejected.push(payload));
+
+    const result = tapPower(session, 6, 1, 'heal');
+
+    expect(result).toMatchObject({ type: SESSION_TAP.BLOCKED, reason: 'aucuneCible' });
+    expect(session.grid.itemAt(6)).not.toBeNull();
+    expect(session.powersUsed).toBe(0);
+    expect(rejected).toHaveLength(1);
+  });
+
+  it('gèle avec le reste pendant un draft', () => {
+    deployOneUnit(session);
+    session.pendingDraft = [{ id: 'fictive' }];
+    expect(tapPower(session, 7, 1, 'heal').type).toBe(SESSION_TAP.INVALID);
+    expect(session.powersUsed).toBe(0);
+  });
+
+  it('fait avancer les télégraphies dans `update`, jamais pendant un draft', () => {
+    const telegraphMs = session.powersConfig.types.meteor.telegraphMs;
+    expect(telegraphMs).toBeGreaterThan(0);
+    session.battle.startWave(1);
+    session.battle.spawnEnemy('basic');
+    const enemy = session.battle.enemies[0];
+
+    tapPower(session, 8, 1, 'meteor');
+    expect(session.powers.pending).toHaveLength(1);
+
+    session.pendingDraft = [{ id: 'fictive' }];
+    session.update(telegraphMs * 3);
+    expect(session.powers.pending).toHaveLength(1);
+    expect(enemy.hp).toBe(enemy.maxHp);
+
+    session.pendingDraft = null;
+    session.update(telegraphMs);
+    expect(session.powers.pending).toHaveLength(0);
+    expect(enemy.hp).toBeLessThan(enemy.maxHp);
+  });
+
+  it('les pouvoirs figurent dans le récap de fin de partie', () => {
+    deployOneUnit(session);
+    tapPower(session, 9, 1, 'heal');
+
+    const recap = session.recap();
+    expect(recap.powersUsed).toBe(1);
+    expect(recap.powersByType).toEqual({ heal: 1 });
+    expect(recap.powerLabels.heal).toBe(balance.powers.types.heal.label);
+  });
+
+  it('ne survit pas à une partie : la seconde repart sans pouvoir en vol', () => {
+    const bus = new EventBus();
+    const first = new GameSession({ balance, bus, rng: () => 0 }).start();
+    first.battle.startWave(1);
+    first.battle.spawnEnemy('basic');
+    first.grid.removeItem(0);
+    first.grid.placeItem(0, 1, { silent: true, family: ITEM_FAMILY.POWER, power: 'meteor' });
+    first.applyTap(0);
+    expect(first.powers.pending).toHaveLength(1);
+    first.destroy();
+
+    // Plus un seul écouteur : un `usePower` égaré ne doit toucher aucune partie.
+    expect(bus.listenerCount('usePower')).toBe(0);
+
+    const second = new GameSession({ balance, bus, rng: () => 0 }).start();
+    expect(second.powers.pending).toHaveLength(0);
+    expect(second.powersUsed).toBe(0);
+    expect(second.recap().powerDamage).toBe(0);
+    second.destroy();
   });
 });

@@ -30,6 +30,19 @@
  *     appliqués par-dessus `balance.json`, jamais des valeurs réécrites : elles meurent
  *     donc avec la session, comme tout le reste.
  *
+ * Le Lot 4 ajoute la dernière mécanique de la V1, et elle tient dans une branche du tap :
+ *
+ *   - **tap sur un pouvoir** — la grille produit deux familles d'items (cf. `GridModel`).
+ *     Taper un item de **pouvoir** ne met rien en file : il est consommé sur-le-champ et la
+ *     session émet `usePower`, que `PowerSystem` résout. Ni file, ni cooldown — la rareté
+ *     du tirage et la case immobilisée sont tout le coût, ce qui fait de « garder une case
+ *     pour un pouvoir » un arbitrage plutôt qu'un automatisme.
+ *
+ * ```
+ * tap sur un item d'unité  ──`enqueueUnit`──▶ DeployQueue ──`deployUnit`──▶ BattleModel
+ * tap sur un item de pouvoir ──`usePower`──▶ PowerSystem ──────────────────▶ BattleModel
+ * ```
+ *
  * Une session possède ses modèles et ses abonnements ; `destroy()` les retire tous.
  * Rejouer = détruire la session et en construire une neuve : aucun état ne survit, ce
  * qui rend le bug classique du « rejouer » impossible par construction (et testable
@@ -45,6 +58,8 @@ import { parseBattleConfig } from './battleConfig.js';
 import { parseInputConfig } from './tapGesture.js';
 import { UnitQueue } from './unitQueue.js';
 import { DraftSystem, parseDraftConfig } from './DraftSystem.js';
+import { PowerSystem, parsePowersConfig } from './PowerSystem.js';
+import { ITEM_FAMILY } from './GridModel.js';
 
 /** Issues d'un lâcher d'item sur la grille — celles de `GridModel`, telles quelles. */
 export const SESSION_DROP = { ...DROP };
@@ -53,7 +68,9 @@ export const SESSION_DROP = { ...DROP };
 export const SESSION_TAP = {
   /** L'item est parti en file de déploiement. */
   SENT: 'sent',
-  /** File de déploiement pleine : l'item reste en place. */
+  /** Un pouvoir a été utilisé : effet immédiat, ni file ni cooldown (Lot 4). */
+  POWER: 'power',
+  /** File de déploiement pleine, ou pouvoir sans cible : l'item reste en place. */
   BLOCKED: 'blocked',
   /** Case vide, index hors grille, partie finie. */
   INVALID: 'invalid',
@@ -71,6 +88,7 @@ export class GameSession {
     this.battleConfig = parseBattleConfig(balance);
     this.inputConfig = parseInputConfig(balance);
     this.draftConfig = parseDraftConfig(balance);
+    this.powersConfig = parsePowersConfig(balance);
 
     this.events = bus ?? new EventBus();
     this.draft = new DraftSystem({ config: this.draftConfig, bus: this.events, rng: draftRng });
@@ -79,8 +97,18 @@ export class GameSession {
     // que personne n'ait à propager quoi que ce soit.
     const getModifiers = () => this.draft.modifiers;
 
-    this.grid = new GridModel({ maxTier: this.spawnerConfig.maxTier, bus: this.events });
+    this.grid = new GridModel({
+      maxTier: this.spawnerConfig.maxTier,
+      powerMaxTier: this.powersConfig.maxTier,
+      bus: this.events,
+    });
     this.battle = new BattleModel({ config: this.battleConfig, bus: this.events, getModifiers });
+    this.powers = new PowerSystem({
+      config: this.powersConfig,
+      battle: this.battle,
+      bus: this.events,
+      getModifiers,
+    });
     this.deployQueue = new DeployQueue({
       config: this.battleConfig,
       bus: this.events,
@@ -93,6 +121,7 @@ export class GameSession {
       model: this.grid,
       rng,
       getModifiers,
+      powers: this.powersConfig,
     });
     this.unitQueue = new UnitQueue(this.battleConfig.unitTypePattern, {
       skipCooldownMs: this.battleConfig.skipCooldownMs,
@@ -105,6 +134,9 @@ export class GameSession {
     this.sentCount = 0;
     /** Envois par tier — lu par le récap de fin de partie et par le harness. */
     this.sentByTier = {};
+    /** Pouvoirs utilisés, total et par type — même usage descriptif (Lot 4). */
+    this.powersUsed = 0;
+    this.powersByType = {};
     this.blockedTaps = 0;
     this.destroyed = false;
 
@@ -158,6 +190,10 @@ export class GameSession {
     if (!this.battle.over && !this.pendingDraft) {
       this.deployQueue.update(dtMs);
       this.unitQueue.update(dtMs);
+      // Les télégraphies de pouvoir avancent au même rythme que tout le reste : un impact ne
+      // tombe donc jamais pendant un draft, et le mode debug à ×4 les accélère comme le
+      // combat qu'elles visent.
+      this.powers.update(dtMs);
       this.updateSpawner(dtMs);
       this.sampleGrid(dtMs);
     }
@@ -291,6 +327,10 @@ export class GameSession {
     const item = this.grid.itemAt(index);
     if (item === null) return { type: SESSION_TAP.INVALID, reason: 'caseVide' };
 
+    // Deux familles, deux taps — et le test vient **avant** celui de la file, parce qu'un
+    // pouvoir ne passe pas par elle : une file pleine n'a jamais à empêcher un soin.
+    if (item.family === ITEM_FAMILY.POWER) return this.applyPowerTap(index, item);
+
     if (!this.deployQueue.canAccept()) {
       this.blockedTaps += 1;
       const blocked = { type: SESSION_TAP.BLOCKED, reason: 'fileDeploiementPleine', index };
@@ -308,6 +348,45 @@ export class GameSession {
     // depuis sa case de grille vers son slot de déploiement.
     this.events.emit('enqueueUnit', { tier, type: unitType, origin: { kind: 'tap', gridIndex: index } });
     return { type: SESSION_TAP.SENT, tier, unitType, index };
+  }
+
+  /**
+   * Tap sur un item de **pouvoir** : effet immédiat, pas de file, pas de cooldown.
+   *
+   * Le refus se décide, ici aussi, **avant** de retirer l'item : un pouvoir sans la moindre
+   * cible (une météorite sans un ennemi, un soin sans une unité) ne consomme rien et laisse
+   * l'item sur la grille. C'est le pendant de « pas de cooldown » — le coût d'un pouvoir est
+   * sa rareté, et le perdre sur un mistap pendant une pause serait une punition que rien
+   * n'annonce.
+   *
+   * @param {number} index Case tapée
+   * @param {object} item Item de pouvoir présent sur cette case
+   * @returns {{type: string, [k: string]: any}}
+   */
+  applyPowerTap(index, item) {
+    if (!this.powers.canCast(item.power)) {
+      this.blockedTaps += 1;
+      const blocked = {
+        type: SESSION_TAP.BLOCKED,
+        reason: 'aucuneCible',
+        index,
+        power: item.power,
+      };
+      this.events.emit('tapRejected', blocked);
+      return blocked;
+    }
+
+    const tier = item.tier;
+    const power = item.power;
+    this.grid.removeItem(index);
+    this.powersUsed += 1;
+    this.powersByType[power] = (this.powersByType[power] ?? 0) + 1;
+
+    // Le contrat du Lot 4, et le seul chemin par lequel un pouvoir s'exécute. `origin`
+    // remonte jusqu'au rendu, qui fait partir l'item de sa case vers la bataille — un trajet
+    // volontairement distinct du vol vers les slots de déploiement.
+    this.events.emit('usePower', { type: power, tier, origin: { kind: 'tap', gridIndex: index } });
+    return { type: SESSION_TAP.POWER, power, tier, index };
   }
 
   /**
@@ -374,6 +453,7 @@ export class GameSession {
       maxFieldUnits: this.battleConfig.maxFieldUnits,
       mergeCount: this.mergeCount,
       sentCount: this.sentCount,
+      powersUsed: this.powersUsed,
       /** File de déploiement pleine : le prochain tap sera refusé. */
       blocked: !this.deployQueue.canAccept(),
       /** Draft en attente d'un choix : la partie est gelée. */
@@ -404,6 +484,16 @@ export class GameSession {
       sent: this.sentCount,
       blockedTaps: this.blockedTaps,
       sentByTier: { ...this.sentByTier },
+      /** Pouvoirs utilisés — l'autre moitié du build, depuis le Lot 4. */
+      powersUsed: this.powersUsed,
+      powersByType: { ...this.powersByType },
+      powerDamage: stats.powerDamage,
+      powerKills: stats.powerKills,
+      powerHealing: stats.powerHealing,
+      /** Libellés des pouvoirs, pour que l'écran de fin n'ait pas à les connaître. */
+      powerLabels: Object.fromEntries(
+        Object.entries(this.powersConfig.types).map(([type, def]) => [type, def.label])
+      ),
       /** Le **build** de la partie : c'est ce qui donne envie d'en tenter un autre. */
       upgrades: this.draft.chosen(),
       skips: this.unitQueue.skipCount,
@@ -431,6 +521,7 @@ export class GameSession {
     for (const off of this.unsubscribes) off();
     this.unsubscribes = [];
     this.deployQueue.destroy();
+    this.powers.destroy();
     this.battle.destroy();
   }
 }

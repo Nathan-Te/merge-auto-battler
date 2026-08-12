@@ -30,13 +30,13 @@ export function formatReport(run, { targets } = {}) {
   lines.push(`Harness d'équilibrage — ${run.games} parties par politique, graines ${run.seed}..${run.seed + run.games - 1}`);
   lines.push('');
   lines.push(
-    `${padEnd('politique', 16)}${pad('vague moy.', 11)}${pad('σ', 7)}${pad('méd.', 6)}${pad('min', 5)}${pad('max', 5)}${pad('durée moy.', 12)}${pad('refus', 7)}`
+    `${padEnd('politique', 22)}${pad('vague moy.', 11)}${pad('σ', 7)}${pad('méd.', 6)}${pad('min', 5)}${pad('max', 5)}${pad('durée moy.', 12)}${pad('refus', 7)}`
   );
-  lines.push('-'.repeat(69));
+  lines.push('-'.repeat(75));
 
   for (const entry of run.policies) {
     lines.push(
-      padEnd(entry.label, 16) +
+      padEnd(entry.label, 22) +
         pad(round(entry.waves.mean, 2), 11) +
         pad(round(entry.waves.stdDev, 2), 7) +
         pad(round(entry.waves.median, 1), 6) +
@@ -63,6 +63,15 @@ export function formatReport(run, { targets } = {}) {
     lines.push(
       `  grille : ${round(entry.gridItemsAvg, 1)} items en moyenne, ` +
         `pleine ${Math.round(entry.gridFullShare * 100)}% du temps`
+    );
+    const powers = Object.entries(entry.powersByType ?? {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => `${type}×${count}`)
+      .join(' ');
+    lines.push(
+      `  pouvoirs : ${round(entry.powersPerGame ?? 0, 1)} par partie — ${powers || '—'} · ` +
+        `${Math.round((entry.powerDamageShare ?? 0) * 100)}% des dégâts, ` +
+        `${Math.round(entry.powerHealingPerGame ?? 0)} PV rendus par partie`
     );
     const drafts = Object.entries(entry.draftCounts ?? {})
       .sort((a, b) => b[1] - a[1])
@@ -123,6 +132,19 @@ export function evaluateTargets(run, targets) {
         spam.label
       } ${round(spam.waves.mean, 2)} (×${round(ratio, 2)}, seuil ×${targets.mergeBeatsSpamRatio})`,
       ok: prepare.waves.mean >= spam.waves.mean * targets.mergeBeatsSpamRatio,
+    });
+  }
+
+  const withPowers = byId.get(targets.powersPolicy ?? 'mixed');
+  const without = byId.get(targets.noPowersPolicy ?? 'noPowers');
+  if (withPowers && without) {
+    const gap = withPowers.waves.mean - without.waves.mean;
+    checks.push({
+      label:
+        `« les pouvoirs se voient » — ${withPowers.label} ${round(withPowers.waves.mean, 2)} vs ` +
+        `${without.label} ${round(without.waves.mean, 2)} (+${round(gap, 2)} vague(s), ` +
+        `seuil +${targets.powersBeatNoPowersWaves})`,
+      ok: gap >= targets.powersBeatNoPowersWaves,
     });
   }
 

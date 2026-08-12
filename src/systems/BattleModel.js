@@ -47,6 +47,12 @@
  *   - `deployUnit` { tier, type, origin } — émis par `DeployQueue` quand son cooldown de
  *     sortie expire. C'est **le seul** chemin par lequel une unité entre en jeu ; le
  *     modèle s'y abonne lui-même et se désabonne dans `destroy()`.
+ *
+ * ## Pouvoirs actifs (Lot 4)
+ *
+ * `blast()` et `healUnits()` sont les deux seules portes par lesquelles un pouvoir touche le
+ * champ de bataille. Le modèle reste propriétaire de ses unités et de ses ennemis :
+ * `PowerSystem` décide *quoi*, *où* et *combien*, mais il ne retire jamais un PV lui-même.
  */
 
 import { EventBus } from './eventBus.js';
@@ -116,6 +122,14 @@ export class BattleModel {
       damageByType: {},
       /** Ennemis achevés, par type d'unité responsable du coup fatal. */
       killsByType: {},
+      /**
+       * Ce que les **pouvoirs actifs** ont produit. Compté à part des unités à dessein : le
+       * récap de fin de partie répond à « quel type d'unité a porté ma partie ? », et une
+       * météorite mêlée aux unités fausserait cette lecture.
+       */
+      powerDamage: 0,
+      powerKills: 0,
+      powerHealing: 0,
       /** Unités entrées sur le champ, par tier. */
       deployedByTier: {},
       unitsDeployed: 0,
@@ -696,6 +710,76 @@ export class BattleModel {
     // En pause : le compte à rebours saute et la vague suivante démarre au tick suivant.
     if (this.phase === PHASE.PAUSE) this.phaseTimerMs = 0;
     return true;
+  }
+
+  // ------------------------------------------------------------------ pouvoirs actifs
+
+  /**
+   * Dégâts de zone d'origine **non unitaire** — l'impact d'un pouvoir (Lot 4).
+   *
+   * Le modèle reste propriétaire de ses ennemis : `PowerSystem` décide *où* et *combien*,
+   * mais c'est ici qu'on retire des PV et qu'on achève, par les mêmes chemins que le combat
+   * ordinaire (`killEnemy`, donc `enemyDeath`, donc le rendu qui nettoie ses vues).
+   *
+   * @param {number} center Progression du centre de la zone
+   * @param {number} radius Rayon, en unités de couloir
+   * @param {number} amount Dégâts appliqués à chaque ennemi couvert
+   * @returns {{hits: {enemy: object, damage: number, killed: boolean}[], dealt: number,
+   *            killed: number}}
+   */
+  blast(center, radius, amount) {
+    const hits = [];
+    if (this.over || !(amount > 0) || !Number.isFinite(center)) {
+      return { hits, dealt: 0, killed: 0 };
+    }
+
+    let dealt = 0;
+    let killed = 0;
+    // Copie du tableau : `killEnemy` retire de `this.enemies` pendant qu'on le parcourt.
+    for (const enemy of [...this.enemies]) {
+      if (Math.abs(enemy.progress - center) > radius) continue;
+      // Dégâts **effectifs**, comme pour les unités : le surkill ne gonfle pas le récap.
+      const applied = Math.max(0, Math.min(enemy.hp, amount));
+      enemy.hp -= amount;
+      dealt += applied;
+      const dead = enemy.hp <= 0;
+      hits.push({ enemy, damage: amount, killed: dead });
+      if (dead) {
+        killed += 1;
+        this.killEnemy(enemy);
+      }
+    }
+
+    this.stats.powerDamage += dealt;
+    this.stats.powerKills += killed;
+    return { hits, dealt, killed };
+  }
+
+  /**
+   * Soigne **toutes** les unités vivantes, sans jamais dépasser leurs PV maximum.
+   *
+   * Le plafond est celui figé à l'entrée de chaque unité : un soin ne rend pas une unité de
+   * tier 1 plus robuste qu'elle n'est née, il la ramène au mieux à son état neuf.
+   *
+   * @param {number} amount PV rendus à chacune
+   * @returns {{healed: {unit: object, amount: number}[], total: number}}
+   */
+  healUnits(amount) {
+    const healed = [];
+    if (this.over || !(amount > 0)) return { healed, total: 0 };
+
+    let total = 0;
+    for (const unit of this.units) {
+      const before = unit.hp;
+      unit.hp = Math.min(unit.maxHp, unit.hp + amount);
+      const gain = unit.hp - before;
+      if (gain <= 0) continue;
+      healed.push({ unit, amount: gain });
+      total += gain;
+    }
+
+    this.stats.powerHealing += total;
+    return { healed, total };
   }
 
   // ------------------------------------------------------------------ base

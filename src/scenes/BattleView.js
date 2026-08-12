@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { cellCenterAt, lanePoint } from '../systems/layout.js';
 import { drawTierShape, TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { drawPowerShape, powerColor } from '../render/powerShapes.js';
 import {
   drawUnitShape,
   drawEnemyShape,
@@ -81,6 +82,8 @@ export class BattleView {
     this.queueViews = new Map();
     /** @type {{from: object, to: object, color: number, age: number, splash: number}[]} */
     this.tracers = [];
+    /** @type {Set<Phaser.GameObjects.Graphics>} Anneaux de zone en cours (Lot 4). */
+    this.telegraphs = new Set();
     this.unsubscribes = [];
     this.layoutData = null;
     /** Texte du bandeau d'annonce, sans sa ligne de compte à rebours. */
@@ -317,6 +320,12 @@ export class BattleView {
     on('unitSpawn', ({ unit, origin }) => this.createUnitView(unit, origin));
     on('unitDeath', ({ unit }) => this.popUnitView(unit));
 
+    // Pouvoirs actifs (Lot 4) : l'annonce de la zone, puis l'impact. Deux événements parce
+    // que ce sont deux moments du jeu, séparés par la télégraphie.
+    on('powerCast', (payload) => this.onPowerCast(payload));
+    on('powerResolved', (payload) => this.onPowerResolved(payload));
+    on('powerFizzled', () => this.clearTelegraphs());
+
     on('waveStart', () => this.onWaveStart());
     // **L'annonce de vague du Lot 3.5.** Le bandeau ne dit plus « en approche » mais *ce
     // qui* approche : c'est cette composition, croisée avec la file de types, qui doit
@@ -463,6 +472,131 @@ export class BattleView {
         onComplete?.();
       },
     });
+  }
+
+  // ------------------------------------------------------------------ pouvoirs actifs
+
+  /**
+   * Un pouvoir vient d'être dépensé : l'item quitte sa case et la zone visée s'annonce.
+   *
+   * Le trajet est **volontairement différent** de celui d'une unité : il ne passe pas par
+   * les slots de déploiement, il file droit sur le couloir. Vu du coin de l'œil, la
+   * trajectoire suffit à dire lequel des deux taps on vient de faire.
+   */
+  onPowerCast({ type, tier, kind, center, radius, telegraphMs, origin }) {
+    const zone = this.zone;
+    if (!zone) return;
+
+    const color = powerColor(type);
+    const target =
+      kind === 'blast'
+        ? lanePoint(zone, center / this.config.laneLength)
+        : lanePoint(zone, 1); // le soin part vers la base, là où tient la ligne
+
+    const start = this.flightOrigin(origin);
+    if (start) {
+      this.flight(start, target, {
+        durationMs: this.juiceConfig.power.castMs,
+        // Une courbe rapide au départ, tendue : un pouvoir « tombe » sur la bataille.
+        ease: 'Quad.easeIn',
+        color,
+        draw: (graphics) => drawPowerShape(graphics, type, tier, this.layoutData.itemSize),
+        endScale: 0.7,
+      });
+    }
+
+    if (kind !== 'blast') return;
+    this.showTelegraph(target, radius, color, telegraphMs);
+  }
+
+  /**
+   * Cercle d'annonce de l'impact, qui se resserre pendant toute la télégraphie.
+   *
+   * Sa durée est celle du **modèle** (`telegraphMs`, dans `balance.json`) et non un réglage
+   * de feel : l'anneau doit se fermer **exactement** quand l'impact tombe, sinon il ment sur
+   * ce qui va se passer. `juice.json` ne règle que son épaisseur et sa pulsation.
+   */
+  showTelegraph(point, radius, color, durationMs) {
+    const zone = this.zone;
+    const power = this.juiceConfig.power;
+    const radiusPx = (radius / this.config.laneLength) * zone.laneLengthPx;
+
+    const ring = this.scene.add.graphics().setDepth(DEPTH.tracer);
+    ring.lineStyle(power.ringWidthPx, color, 0.9);
+    ring.strokeCircle(0, 0, radiusPx);
+    ring.setPosition(point.x, point.y).setScale(1.6).setAlpha(0.25);
+    this.telegraphs.add(ring);
+
+    this.scene.tweens.add({
+      targets: ring,
+      scale: 1,
+      alpha: 0.95,
+      duration: Math.max(1, durationMs),
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.telegraphs.delete(ring);
+        ring.destroy();
+      },
+    });
+  }
+
+  /** Impact ou soin : ce que le pouvoir a produit, une fois la télégraphie écoulée. */
+  onPowerResolved({ type, kind, center, radius, healed }) {
+    const zone = this.zone;
+    if (!zone) return;
+    const power = this.juiceConfig.power;
+    const color = powerColor(type);
+
+    if (kind === 'heal') {
+      this.juice.play('powerHeal');
+      // Une gerbe **par unité soignée** : le soin se lit sur l'armée, pas sur un point de
+      // l'écran. Le pool de particules absorbe le pic, il est dimensionné pour.
+      for (const entry of healed) {
+        const view = this.unitViews.get(entry.unit.id);
+        if (!view?.active) continue;
+        this.juice.burst(view.x, view.y, power.healBurst, color);
+        this.flashFighter(view);
+      }
+      return;
+    }
+
+    const point = lanePoint(zone, center / this.config.laneLength);
+    const radiusPx = (radius / this.config.laneLength) * zone.laneLengthPx;
+
+    this.juice.play('powerBlast');
+    this.juice.burst(point.x, point.y, power.blastBurst, color);
+
+    // Onde de choc : un anneau qui s'ouvre et s'efface, à l'exact inverse de la télégraphie.
+    const ring = this.scene.add.graphics().setDepth(DEPTH.tracer);
+    ring.lineStyle(power.ringWidthPx * 1.5, color, 1);
+    ring.strokeCircle(0, 0, radiusPx);
+    ring.setPosition(point.x, point.y);
+    this.telegraphs.add(ring);
+    this.scene.tweens.add({
+      targets: ring,
+      scale: power.impactRingScale,
+      alpha: 0,
+      duration: power.impactRingMs,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.telegraphs.delete(ring);
+        ring.destroy();
+      },
+    });
+  }
+
+  /**
+   * Efface toutes les zones en cours.
+   *
+   * Appelé quand une télégraphie n'aboutira jamais (partie finie) et à la destruction de la
+   * vue : un anneau laissé derrière survivrait à sa propre bataille.
+   */
+  clearTelegraphs() {
+    for (const ring of this.telegraphs) {
+      this.scene.tweens.killTweensOf(ring);
+      ring.destroy();
+    }
+    this.telegraphs.clear();
   }
 
   // ------------------------------------------------------------------ combattants
@@ -969,6 +1103,7 @@ export class BattleView {
   destroy() {
     for (const off of this.unsubscribes) off();
     this.unsubscribes = [];
+    this.clearTelegraphs();
     for (const view of [
       ...this.enemyViews.values(),
       ...this.unitViews.values(),

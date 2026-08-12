@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "input": {
     "tapMaxDistancePx": 12,
     "tapMaxDurationMs": 600,
@@ -78,6 +78,32 @@
       "auraRadius": 250,
       "buff": { "damage": 0.58, "fireRate": 0.3 },
       "tierScaling": { "hp": 2.3, "damage": 1, "fireRateMs": 1, "range": 1.03, "effect": 1.25 }
+    }
+  },
+  "powers": {
+    "maxTier": 6,
+    "spawnChance": 0.2,
+    "types": {
+      "heal": {
+        "label": "Potion de soin",
+        "blurb": "Soigne toutes les unités vivantes. À garder pour le moment où la ligne plie.",
+        "kind": "heal",
+        "weight": 50,
+        "amount": 80,
+        "radius": 0,
+        "telegraphMs": 0,
+        "tierScaling": { "amount": 3.1, "radius": 1 }
+      },
+      "meteor": {
+        "label": "Météorite",
+        "blurb": "Frappe le groupe d'ennemis le plus menaçant. Les rushs ne passent pas.",
+        "kind": "blast",
+        "weight": 50,
+        "amount": 260,
+        "radius": 120,
+        "telegraphMs": 400,
+        "tierScaling": { "amount": 3.5, "radius": 1.09 }
+      }
     }
   },
   "enemies": {
@@ -193,7 +219,7 @@
       { "type": "tank", "count": 6 }
     ],
     "scaling": {
-      "hpPerWave": 1.62,
+      "hpPerWave": 1.66,
       "speedPerWave": 1.02,
       "damagePerWave": 1.28,
       "countPerWave": 1.24,
@@ -293,6 +319,22 @@
         "icon": "skip",
         "maxLevel": 2,
         "effect": { "skipCooldown": 0.65 }
+      },
+      {
+        "id": "arcane",
+        "label": "Charge arcanique",
+        "description": "+30 % de puissance pour les pouvoirs (soin et dégâts).",
+        "icon": "power",
+        "maxLevel": 3,
+        "effect": { "powerAmount": 1.3 }
+      },
+      {
+        "id": "resonance",
+        "label": "Résonance",
+        "description": "+45 % de chances qu'un item soit un pouvoir.",
+        "icon": "orb",
+        "maxLevel": 2,
+        "effect": { "powerChance": 1.45 }
       }
     ]
   },

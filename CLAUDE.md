@@ -4,7 +4,8 @@
 
 Merge Battler est un mini-jeu web mobile-first : un **merge en grille 5×5** alimente un
 **auto-battler** sur une bande de combat — le joueur **tape** un item de tier N pour
-l'envoyer au combat en unité de tier N, et **glisse** pour fusionner et préparer plus gros.
+l'envoyer au combat en unité de tier N, **tape** un item de pouvoir pour le dépenser
+sur-le-champ, et **glisse** pour fusionner et préparer plus gros.
 Stack Phaser 3 + Vite, JavaScript, timebox ferme de deux semaines, publication en Basic
 Launch sur Crazy Games.
 **`docs/seed.md` est la source de vérité du périmètre** : tout arbitrage de scope se
@@ -26,22 +27,31 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   `juice.json`. On règle l'un au harness, l'autre au doigt sur un téléphone.
 - **`npm run sim` avant toute retouche d'équilibrage.** Le harness headless
   (`src/sim/`, cf. `docs/balance-notes.md`) joue des dizaines de parties automatiques et
-  sort un rapport reproductible : trois politiques (`spam` — envoie tout dès que ça
+  sort un rapport reproductible : quatre politiques (`spam` — envoie tout dès que ça
   apparaît ; `mixed` — fusionne jusqu'au tier 3, **le joueur de référence** ; `prepare` —
-  ne lâche rien avant le tier 4), vague moyenne, écart-type, durée, occupation de la
-  grille. `--matchups` mesure en plus quel type d'unité tient quelle texture de vague. Un
-  réglage se valide en secondes, pas en playtests.
+  ne lâche rien avant le tier 4 ; `noPowers` — le jumeau de `mixed` qui n'utilise jamais un
+  pouvoir), vague moyenne, écart-type, durée, occupation de la grille, pouvoirs dépensés.
+  `--matchups` mesure en plus quel type d'unité tient quelle texture de vague. Un réglage se
+  valide en secondes, pas en playtests.
 - **Invariant intouchable : « merger bat spammer ».** Préparer un gros item doit rester
   strictement plus payant que spammer des petits — tout le jeu repose là-dessus, sans quoi
-  la grille ne sert plus à rien. `tests/balanceInvariant.test.js` le vérifie sur de vraies
-  parties simulées et **échoue** si un réglage l'inverse. Ne jamais le contourner : si le
-  test tombe, c'est le réglage qui est faux.
+  la grille ne sert plus à rien. Cela vaut pour les **deux familles d'items** : la courbe des
+  pouvoirs est encore plus raide que celle des unités, pour qu'un pouvoir brûlé au tier 1 ne
+  vaille presque rien. `tests/balanceInvariant.test.js` le vérifie sur de vraies parties
+  simulées et **échoue** si un réglage l'inverse. Ne jamais le contourner : si le test tombe,
+  c'est le réglage qui est faux.
+- **Second invariant, depuis le Lot 4 : « les pouvoirs se voient ».** `mixed` doit survivre
+  au moins **+0,5 vague** de plus que `noPowers`, son jumeau exact aux pouvoirs près. Une
+  mécanique qui n'apporte rien de mesurable n'occupe que des cases de grille, et il vaudrait
+  mieux la retirer que la publier. Attention en la réglant : la difficulté monte de ×1,66 par
+  vague, donc le nombre de vagues est une mesure **logarithmique** de la puissance — 15 % de
+  dégâts en plus déplacent la fenêtre de 0,3 vague, c'est-à-dire de rien du tout.
 - **Objectifs chiffrés de référence** (`src/sim/targets.js`, vérifiés par le harness et par
   les tests) : partie moyenne de **3 à 5 minutes**, première défaite vers les **vagues
   8-12**, `prepare` au moins **×1,4** devant `spam` en vagues survécues. Toute itération de
-  réglage se juge à ces trois nombres. Ils sont **inchangés depuis le Lot 3.5** : le draft
-  rallonge la partie, la difficulté a été relevée en face plutôt que la cible déplacée
-  (mesures dans `docs/balance-notes.md`, section 7).
+  réglage se juge à ces trois nombres. Ils sont **inchangés depuis le Lot 3** : le draft puis
+  les pouvoirs ont ajouté de la puissance, et à chaque fois la difficulté a été relevée en
+  face plutôt que la cible déplacée (mesures dans `docs/balance-notes.md`, sections 7 et 8).
 - **Les améliorations de draft sont des modificateurs, jamais des mutations.** Une carte
   prise n'écrit **rien** dans `balance.json` : elle accumule un facteur
   (`src/systems/modifiers.js`), et ce sont les lecteurs — `unitStats`, `DeployQueue`,
@@ -51,21 +61,34 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   partout ailleurs. Un test le verrouille (`tests/draftSystem.test.js`).
 - **Toute livraison qui modifie `balance.json` régénère `docs/reference.md`** avec
   `npm run docs`. Ce fichier est **généré, jamais édité à la main** : il liste les stats de
-  chaque type d'unité par tier, les ennemis, les vagues et le pool d'améliorations, calculés
-  par les **formules du jeu** (`unitStats`, `enemyStats`, `waveComposition`). C'est ce qui
+  chaque type d'unité par tier, les pouvoirs, les ennemis, les vagues et le pool
+  d'améliorations, calculés par les **formules du jeu** (`unitStats`, `powerStats`,
+  `enemyStats`, `waveComposition`). C'est ce qui
   l'empêche de mentir — une référence tenue à la main dérive dès la première retouche de
   réglage, et sans prévenir. Un test échoue si le fichier commité est périmé
   (`tests/reference.test.js`), et `npm run docs -- --check` répond à la même question en CI.
-- **Greybox jusqu'au Lot 3.** Formes colorées et texte, pas d'assets. Les sprites, sons et
-  musique arrivent au Lot 4 — n'anticipe pas, le fun se valide sur les formes.
+- **Le périmètre gameplay de la V1 est clos depuis le Lot 4.** Les pouvoirs actifs sont la
+  dernière mécanique ; le Lot 5 ne contient qu'assets et publication. Toute idée ultérieure
+  — la tienne, celle d'un playtest, celle d'un joueur — s'écrit dans `docs/v1-1-ideas.md` et
+  ne s'implémente pas. La timebox est ferme : une idée notée ne coûte rien, une idée ajoutée
+  se paie sur le fini du jeu.
+- **Greybox jusqu'au Lot 4.** Formes colorées et texte, pas d'assets. Les sprites, sons et
+  musique arrivent au Lot 5 — n'anticipe pas, le fun se valide sur les formes.
+- **Rond = pouvoir, et sans exception.** Les items de pouvoir sont les **seules** formes
+  rondes du jeu : les items d'unité sont des polygones puis des étoiles
+  (`src/render/tierShapes.js`), et même le mono-cible du champ de bataille est un carré
+  depuis le Lot 4. C'est cette silhouette, pas la couleur ni le numéro, qui empêche de
+  confondre « j'envoie une unité » et « je dépense un pouvoir » au doigt. Une exception
+  suffirait à casser la règle : ne pas en introduire.
 - **Souris + tactile obligatoires sur toute interaction.** Chaque geste doit fonctionner au
   doigt comme à la souris, dès son écriture. On passe par les événements de pointeur
   Phaser (`pointerdown` / `drag` / `pointerup`), jamais par des événements souris ou
   clavier spécifiques. Le jeu se teste sur téléphone via l'URL publique.
-- **Tap = envoyer, glisser = fusionner. Rien ne part automatiquement.** Taper un item de la
-  grille le consomme et met une unité de son tier en file de déploiement, du type dicté par
-  la file de types (visible dans le HUD, fixée **au moment du tap**). Glisser fusionne ou
-  déplace, et le merge ne déclenche **rien** côté combat. La file se vide toute seule au
+- **Tap = envoyer, glisser = fusionner. Rien ne part automatiquement.** Taper un item
+  **d'unité** de la grille le consomme et met une unité de son tier en file de déploiement,
+  du type dicté par la file de types (visible dans le HUD, fixée **au moment du tap**).
+  Taper un item **de pouvoir** le dépense immédiatement (ni file, ni cooldown). Glisser
+  fusionne ou déplace, et le merge ne déclenche **rien** côté combat. La file se vide toute seule au
   rythme de `battle.deployCooldownMs` : c'est le métronome du jeu, et c'est ce qui rend le
   spam de petites unités perdant. Décision actée au Lot 2.5 — les deux gestes ne doivent
   jamais se confondre, seuils dans `balance.json` (`input`), logique dans `tapGesture.js`.
@@ -125,10 +148,11 @@ input (pointeur)  ->  scène Phaser  ->  modèle pur  ->  bus d'événements  ->
 ```
 
 - **`src/systems/` — logique pure, sans Phaser.** `GridModel` détient l'état de la grille
-  et toutes ses règles (placement, validité d'une fusion, déplacement, spawn sur case
-  libre, grille pleine, tier maximum) ; `DeployQueue` la file de déploiement (slots, FIFO,
-  cooldown de sortie) ; `BattleModel` le champ de bataille (unités, ennemis, marche,
-  combat mutuel, vagues, PV de la base, **annonce de la vague à venir**) ; `DraftSystem` le
+  et toutes ses règles (placement, **familles d'items**, validité d'une fusion, déplacement,
+  spawn sur case libre, grille pleine, tier maximum) ; `DeployQueue` la file de déploiement
+  (slots, FIFO, cooldown de sortie) ; `BattleModel` le champ de bataille (unités, ennemis,
+  marche, combat mutuel, vagues, PV de la base, **annonce de la vague à venir**) ;
+  `PowerSystem` les pouvoirs actifs (ciblage, montants, télégraphie) ; `DraftSystem` le
   pool d'améliorations et son tirage seedé, `modifiers` leur accumulation ; `GameSession`
   possède le tout et porte le pont ; `tapGesture` distingue tap et glisser ; `unitQueue`
   la file de types et son bouton « passer » ; `itemSpawner` détient la cadence et le tirage
@@ -140,11 +164,11 @@ input (pointeur)  ->  scène Phaser  ->  modèle pur  ->  bus d'événements  ->
   émet ; `BattleView` fait de même pour la moitié droite ; `IntelBar` porte la barre de
   décision (annonce de vague × file de types × bouton « passer ») ; `DraftScene`, `HelpScene`
   (le « ? » de l'en-tête) et `GameOverScene` sont lancées par-dessus la scène de jeu mise en
-  pause. Une scène ne décide
-  jamais si une fusion est légale, si un envoi est possible ni si une amélioration
-  s'applique : elle demande.
-- **`src/render/` — greybox.** Formes et couleurs par tier (items) et par type (unités,
-  ennemis), profondeurs d'affichage. Aucune règle, aucun état. Les tailles à l'écran
+  pause. Une scène ne décide jamais si une fusion est légale, si un envoi est possible, si un
+  pouvoir a une cible ni si une amélioration s'applique : elle demande.
+- **`src/render/` — greybox.** Formes et couleurs par tier (items d'unité), par type de
+  pouvoir (`powerShapes.js`) et par type de combattant (unités, ennemis) ; profondeurs
+  d'affichage. Aucune règle, aucun état. Les tailles à l'écran
   vivent ici et non dans `balance.json` : elles n'influencent aucun calcul.
 - **Bus d'événements** (`src/systems/eventBus.js`) : seul canal entre les systèmes, et
   seul canal modèle → rendu. Un modèle n'appelle jamais la scène, ni un autre modèle.
@@ -165,6 +189,53 @@ events.emit('deployUnit', { tier, type, unit, origin });
 `DeployQueue` s'abonne au premier, `BattleModel` au second ; chacun se désabonne dans son
 `destroy()`. Une unité n'entre donc en jeu **que** par `deployUnit` — il n'existe aucun
 autre chemin, ce qui rend le rythme de sortie impossible à contourner par erreur.
+
+### Les deux familles d'items et les pouvoirs actifs
+
+Depuis le Lot 4, la grille produit **deux familles d'items** — et c'est tout ce que
+`GridModel` en sait :
+
+```js
+{ id, tier, family: 'unit',  power: null }      // part en file de déploiement au tap
+{ id, tier, family: 'power', power: 'meteor' }  // se dépense immédiatement au tap
+```
+
+La règle de fusion est **une seule règle, avec une identité élargie** : deux items
+fusionnent s'ils ont le même tier **et la même sorte** (même famille, et même type de
+pouvoir). Il n'y a donc aucun merge croisé — ni entre familles, ni entre deux pouvoirs
+différents — et le refus emprunte le retour animé qui existait déjà. Les pouvoirs ont leur
+propre plafond (`powers.maxTier`, plus bas que celui des items d'unité) parce qu'ils sont
+plus rares : un plafond commun serait hors d'atteinte, et deux pouvoirs plafonnés resteraient
+collés sur la grille.
+
+Le second chemin du pont tient dans un événement, et c'est **le contrat du lot** :
+
+```js
+// émis par GameSession au tap sur un item de pouvoir ; consommé par PowerSystem
+events.emit('usePower', { type, tier, origin: { kind: 'tap', gridIndex } });
+```
+
+**`PowerSystem`** (`src/systems/PowerSystem.js`) possède la résolution et rien d'autre :
+le **ciblage** (le groupe qui compte le plus d'ennemis dans le rayon, et à nombre égal le
+plus avancé), les **montants** par tier, et la **temporisation**. Il ne retire jamais un PV
+lui-même — il appelle `BattleModel.blast()` ou `BattleModel.healUnits()`, seules portes par
+lesquelles un pouvoir touche le champ de bataille, pour que le modèle reste propriétaire de
+ses unités et de ses ennemis. `GameSession.update()` l'avance, donc un draft ouvert gèle une
+météorite en vol comme il gèle tout le reste, et `destroy()` l'emporte avec la partie.
+
+Trois règles qu'il ne faut pas défaire :
+
+- **La télégraphie est du jeu, pas du décor.** `powers.<type>.telegraphMs` vit dans
+  `balance.json` parce que les ennemis avancent pendant l'annonce : la zone est figée au tap,
+  et ce qu'elle attrape dépend de leur vitesse. `juice.json` ne règle que l'apparence de
+  l'anneau (`power.*`), qui se ferme **exactement** à l'impact — sinon il ment.
+- **Un pouvoir sans la moindre cible est refusé**, l'item reste sur la grille
+  (`SESSION_TAP.BLOCKED`, raison `aucuneCible`). C'est le pendant de « pas de cooldown » :
+  le coût d'un pouvoir est sa rareté, et le perdre sur un mistap pendant une pause serait
+  une punition que rien n'annonce. Soigner une armée intacte, en revanche, reste **permis** —
+  c'est un jugement du joueur, pas une impossibilité.
+- **Le tap sur un pouvoir se teste avant celui de la file.** Une file de déploiement pleine
+  n'a jamais à empêcher un soin.
 
 **`GameSession`** (`src/systems/GameSession.js`) est le propriétaire d'une partie : elle
 possède `GridModel`, `DeployQueue`, `BattleModel`, le spawner et la file de types, et porte
@@ -277,8 +348,8 @@ du fichier).
 celui que verra un joueur de Crazy Games. Le drapeau est lu par `isDebugEnabled()`
 (`src/systems/debug.js`) ; tout nouvel affichage ou outil de debug passe derrière.
 
-- **Ligne de diagnostic** : fps, merges, envois, ticks logiques, ennemis, unités en place,
-  file de déploiement, items sur la grille.
+- **Ligne de diagnostic** : fps, merges, envois, pouvoirs dépensés, ticks logiques, ennemis,
+  unités en place, file de déploiement, items sur la grille.
 - **Panneau de boutons** (`src/scenes/DebugPanel.js`), tactile comme le reste :
   **vitesse ×1/×2/×4** (le temps du jeu est multiplié, la simulation reste à tick fixe),
   **vague +** (`BattleModel.skipWave()`), **base ∞** (`BattleModel.invincible`).
@@ -307,7 +378,7 @@ ou deux contextes audio mangeraient le budget de performance en doublons.
   Trois événements seulement secouent l'écran — dégâts à la base, mort d'un **tank**, game
   over. Si tout secouait, la secousse ne voudrait plus rien dire.
 - **Sons** : synthétisés à l'exécution façon jsfxr (`src/systems/sfx.js`), zéro octet
-  téléchargé, remplacés au Lot 4. Déverrouillés au premier `pointerdown` (politique des
+  téléchargé, remplacés au Lot 5. Déverrouillés au premier `pointerdown` (politique des
   navigateurs), étranglés par son (`sfx.<nom>.minIntervalMs`), et le toggle du joueur
   persiste en `localStorage`.
 
@@ -338,10 +409,10 @@ Le rapport est **reproductible** : mêmes graines + même `balance.json` = même
 src/scenes/       scènes Phaser + vues (jeu, champ de bataille, barre de décision, draft,
                   aide, game over, panneau debug)
 src/systems/      logique pure et testable (grille, file de déploiement, combat, session,
-                  draft et modificateurs, gestes, vagues, spawner, layout, juice, sons,
-                  rng, préférences)
-src/render/       greybox : formes, couleurs, profondeurs, particules, icônes de draft,
-                  boîte à juice
+                  pouvoirs actifs, draft et modificateurs, gestes, vagues, spawner, layout,
+                  juice, sons, rng, préférences)
+src/render/       greybox : formes d'items et de pouvoirs, couleurs, profondeurs,
+                  particules, icônes de draft, boîte à juice
 src/sim/          harness d'équilibrage headless (`npm run sim`) — politiques, bancs
                   d'essai, rapport, objectifs chiffrés
 src/tools/        générateur de `docs/reference.md` (`npm run docs`)
@@ -350,7 +421,8 @@ public/           fichiers copiés tels quels dans dist/
 tests/            tests vitest
 docs/seed.md      périmètre — source de vérité
 docs/balance-notes.md  valeurs retenues, raisonnement, résultats du harness
-docs/reference.md      référence **générée** (unités, ennemis, vagues, améliorations)
+docs/reference.md      référence **générée** (unités, pouvoirs, ennemis, vagues, améliorations)
+docs/v1-1-ideas.md     salle d'attente : ce qui n'entre pas en V1
 ```
 
 Règle de découpage : tout ce qui peut être testé sans Phaser vit dans `src/systems/` en
@@ -389,4 +461,13 @@ fonctions pures ; les scènes orchestrent et affichent.
   débit d'items ramené à l'équilibre) ; écran de fin qui raconte le build joué. Objectifs
   chiffrés re-validés sans les déplacer (3:47 de partie moyenne, défaite vague 9,7, merge
   bat spam ×1,93). Mesures : `docs/balance-notes.md`, section 7.
-- Lot 4 — Assets IA, vignette, soumission Basic Launch.
+- **Lot 4 — Pouvoirs actifs** ✅ Dernière mécanique de la V1. Une **seconde famille d'items**
+  sur la grille (silhouette ronde, couleur par type), qui se fusionne comme la première mais
+  **jamais avec elle**, et se dépense d'un tap pour un effet immédiat : potion de soin (toutes
+  les unités vivantes) et météorite (zone sur le groupe le plus menaçant, ciblage automatique
+  télégraphié). `PowerSystem` pur et testé, contrat `usePower` ; deux cartes de draft
+  (puissance et fréquence des pouvoirs) ; passe d'équilibrage complète — pouvoirs à 43 % des
+  dégâts du joueur médian, `hpPerWave` relevé de 1,62 à 1,66 en face, objectifs chiffrés
+  re-validés sans les déplacer (9,63 vagues, 4:06, merge bat spam ×1,47, pouvoirs +1,33
+  vague). Mesures : `docs/balance-notes.md`, section 8.
+- Lot 5 — Assets IA, vignette, soumission Basic Launch.
