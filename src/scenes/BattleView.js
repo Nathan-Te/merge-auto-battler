@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 import { cellCenterAt, lanePoint } from '../systems/layout.js';
-import { TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { styleTierLabel, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
 import { enemySize, unitColor, enemyColor } from '../render/battleShapes.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
@@ -636,7 +636,8 @@ export class BattleView {
   resizeFighterView(view, size, type, tier) {
     view.setData({ type, tier });
     repaintVisual(view.getData('shape'), this.skin, { kind: 'unit', type, tier }, size);
-    view.getData('label').setText(String(tier)).setFontSize(Math.max(8, Math.round(size * 0.42)));
+    const fontSize = Math.max(8, Math.round(size * 0.42));
+    styleTierLabel(view.getData('label').setText(String(tier)).setFontSize(fontSize), fontSize);
 
     const barWidth = size * 1.15;
     const barHeight = Math.max(2, size * 0.14);

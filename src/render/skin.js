@@ -46,6 +46,9 @@ export class Skin {
      * playtest qui trouve la marche mal placée se corrige depuis l'éditeur web de GitHub.
      */
     this.bands = {
+      // `orb` hérite de `unit` quand il n'est pas donné : un manifest écrit avant que les
+      // deux tables ne soient séparées continue de se comporter à l'identique.
+      orb: index?.tierBands?.orb ?? index?.tierBands?.unit ?? DEFAULT_TIER_BANDS.orb,
       unit: index?.tierBands?.unit ?? DEFAULT_TIER_BANDS.unit,
       power: index?.tierBands?.power ?? DEFAULT_TIER_BANDS.power,
     };
@@ -65,7 +68,7 @@ export class Skin {
     return this.scene.textures.exists(key) && this.scene.textures.get(key).has(name);
   }
 
-  /** Palier visuel d'un tier, dans la famille donnée (`unit` ou `power`). */
+  /** Palier visuel d'un tier, dans la famille donnée (`orb`, `unit` ou `power`). */
   band(family, tier) {
     return bandOf(tier, this.bands[family] ?? DEFAULT_TIER_BANDS.unit);
   }

@@ -30,9 +30,24 @@
  * l'éditeur web de GitHub.
  */
 
-/** Plages par défaut : trois paliers visuels, du plus modeste au plus imposant. */
+/**
+ * Plages par défaut : trois paliers visuels, du plus modeste au plus imposant.
+ *
+ * **Trois familles, trois tables, et c'est délibéré.** Les orbes de la grille et les unités
+ * du champ de bataille ont le même nombre de tiers, mais pas le même coût de dessin : un
+ * orbe est une icône qu'on peut décliner onze fois sans y passer la semaine, une unité est
+ * un personnage. Les avoir fait partager une table obligeait à choisir entre « onze orbes,
+ * donc onze personnages par type » et « trois personnages, donc trois orbes » — un faux
+ * choix, qui a coûté un aller-retour au premier lot d'assets livré.
+ */
 export const DEFAULT_TIER_BANDS = {
-  /** 11 tiers d'items d'unité → 3 paliers. */
+  /** 11 tiers d'items de la grille → 3 paliers par défaut, jusqu'à 11 si les orbes existent. */
+  orb: [
+    [1, 4],
+    [5, 8],
+    [9, 11],
+  ],
+  /** 11 tiers d'unités au combat → 3 paliers : ce sont des personnages, pas des icônes. */
   unit: [
     [1, 4],
     [5, 8],
@@ -65,8 +80,13 @@ export function bandOf(tier, bands) {
   return value < bands[0]?.[0] ? 1 : bands.length;
 }
 
-/** Nom du sprite d'un item d'unité (l'orbe d'invocation) pour un tier donné. */
-export function orbSprite(tier, bands = DEFAULT_TIER_BANDS.unit) {
+/**
+ * Nom du sprite d'un item de la grille (l'orbe d'invocation) pour un tier donné.
+ *
+ * Ses plages sont **celles des orbes** (`tierBands.orb`), pas celles des unités : un orbe
+ * par tier est un choix courant et peu coûteux, onze personnages par type ne l'est pas.
+ */
+export function orbSprite(tier, bands = DEFAULT_TIER_BANDS.orb) {
   return `orb.${bandOf(tier, bands)}`;
 }
 
@@ -118,14 +138,15 @@ export const ICON_SPRITES = ['icon.sound.on', 'icon.sound.off', 'icon.help'];
  *
  * @param {object} options
  * @param {object} options.balance Contenu de `balance.json`
- * @param {{unit: [number,number][], power: [number,number][]}} [options.bands]
+ * @param {{orb: [number,number][], unit: [number,number][], power: [number,number][]}} [options.bands]
  * @returns {{name: string, category: string}[]}
  */
 export function expectedSprites({ balance, bands = DEFAULT_TIER_BANDS }) {
   const sprites = [];
   const push = (category, name) => sprites.push({ name, category });
 
-  for (let band = 1; band <= bands.unit.length; band += 1) push('orbs', `orb.${band}`);
+  const orbBands = bands.orb ?? bands.unit;
+  for (let band = 1; band <= orbBands.length; band += 1) push('orbs', `orb.${band}`);
 
   for (const type of Object.keys(balance.powers.types)) {
     for (let band = 1; band <= bands.power.length; band += 1) {

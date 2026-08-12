@@ -51,8 +51,37 @@ export function tierColor(tier) {
   return TIER_COLORS[Math.min(Math.max(tier, 1), TIER_COLORS.length) - 1];
 }
 
-/** Couleur du numéro écrit sur l'item : sombre, sur des formes volontairement claires. */
-export const TIER_LABEL_COLOR = '#14161f';
+/**
+ * Style du numéro de tier — **blanc cerclé de sombre**, et non plus sombre tout court.
+ *
+ * Jusqu'au Lot 4, le numéro était écrit en sombre parce que les formes greybox étaient
+ * volontairement claires : l'hypothèse tenait tant que le jeu dessinait ses propres formes.
+ * La première planche d'orbes l'a cassée — les orbes de haut tier sont sombres, et le
+ * numéro y devenait illisible.
+ *
+ * Un liseré résout le cas général plutôt que celui-là : du blanc cerclé de sombre se lit sur
+ * **n'importe quel** fond, clair comme foncé, donc sur toutes les planches à venir sans
+ * qu'on ait à se poser la question à chaque livraison. Et le numéro n'est pas décoratif —
+ * c'est lui qui dit ce qui fusionne avec quoi.
+ */
+export const TIER_LABEL_COLOR = '#ffffff';
+export const TIER_LABEL_STROKE = '#14161f';
+
+/**
+ * Applique le style du numéro de tier, liseré compris.
+ *
+ * L'épaisseur suit la taille du texte : un liseré fixe disparaîtrait sur un grand item et
+ * boucherait un petit. Elle vit ici et non dans `juice.json` — c'est de la lisibilité, pas
+ * du feel, au même titre que les formes de ce fichier.
+ *
+ * @param {Phaser.GameObjects.Text} text
+ * @param {number} fontSize Taille de police déjà calculée par l'appelant
+ */
+export function styleTierLabel(text, fontSize) {
+  text.setColor(TIER_LABEL_COLOR);
+  text.setStroke(TIER_LABEL_STROKE, Math.max(2, Math.round(fontSize * 0.16)));
+  return text;
+}
 
 /**
  * Dessine la forme d'un tier dans un `Graphics`, centrée sur (0, 0).

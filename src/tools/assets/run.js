@@ -86,11 +86,21 @@ async function listFiles(dir) {
   return files;
 }
 
+/**
+ * Fichiers de `assets-src/` qui ne produisent **aucun pixel** : la documentation.
+ *
+ * Ils sont exclus de l'empreinte. Sans ça, corriger une phrase de `manifest.md` invaliderait
+ * le cache, forcerait un réencodage complet de tous les atlas et ferait committer au CI des
+ * images identiques — un diff de plusieurs centaines de kilo-octets pour une virgule.
+ */
+const DOC_EXTENSIONS = new Set(['.md', '.txt']);
+
 /** Empreinte des entrées : contenu de chaque source + version du pipeline. */
 async function hashInputs(files) {
   const hash = createHash('sha256');
   hash.update(`pipeline:${PIPELINE_VERSION}\n`);
   for (const file of files) {
+    if (DOC_EXTENSIONS.has(path.extname(file).toLowerCase())) continue;
     hash.update(path.relative(ROOT, file).split(path.sep).join('/'));
     hash.update('\0');
     hash.update(await readFile(file));

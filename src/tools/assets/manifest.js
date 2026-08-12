@@ -231,8 +231,14 @@ export function parseManifest(raw) {
     fail(`budgetKb.max (${budgetKb.max}) doit être ≥ budgetKb.target (${budgetKb.target})`);
   }
 
+  // Trois tables distinctes : les orbes de la grille, les unités du champ et les pouvoirs
+  // n'ont pas le même coût de dessin, donc pas forcément le même nombre de paliers. `orb`
+  // hérite de `unit` quand il n'est pas donné, pour qu'un manifest écrit avant la séparation
+  // se comporte exactement comme avant.
+  const unitBands = parseBands(raw.tierBands?.unit ?? [[1, 4], [5, 8], [9, 11]], 'tierBands.unit');
   const tierBands = {
-    unit: parseBands(raw.tierBands?.unit ?? [[1, 4], [5, 8], [9, 11]], 'tierBands.unit'),
+    orb: raw.tierBands?.orb ? parseBands(raw.tierBands.orb, 'tierBands.orb') : unitBands,
+    unit: unitBands,
     power: parseBands(raw.tierBands?.power ?? [[1, 2], [3, 4], [5, 6]], 'tierBands.power'),
   };
 
