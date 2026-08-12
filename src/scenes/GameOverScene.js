@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import juiceConfig from '../config/juice.json';
 import { DEPTH } from '../render/depths.js';
+import { FONTS } from '../render/fonts.js';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
@@ -36,9 +37,6 @@ const COLORS = {
   textDim: '#8f97b0',
   record: '#ffd93d',
 };
-
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -93,7 +91,7 @@ export default class GameOverScene extends Phaser.Scene {
       this.recap && this.debug
         ? this.add
             .text(0, 0, this.formatRecap(this.recap), {
-              fontFamily: MONO,
+              fontFamily: FONTS.mono,
               color: COLORS.textDim,
               align: 'left',
             })
@@ -248,7 +246,7 @@ export default class GameOverScene extends Phaser.Scene {
 
   text(content, style) {
     return this.add
-      .text(0, 0, content, { fontFamily: FONT, align: 'center', ...style })
+      .text(0, 0, content, { fontFamily: FONTS.body, align: 'center', ...style })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(sceneTextResolution(this));

@@ -5,6 +5,7 @@ import creditsConfig from '../config/credits.json';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
 import { DEPTH } from '../render/depths.js';
+import { FONTS } from '../render/fonts.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
 
@@ -35,8 +36,6 @@ const COLORS = {
   textDim: '#8f97b0',
   accent: '#ffd93d',
 };
-
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
 
 export default class CreditsScene extends Phaser.Scene {
   constructor() {
@@ -180,7 +179,7 @@ export default class CreditsScene extends Phaser.Scene {
 
   label(content, style) {
     return this.add
-      .text(0, 0, content, { fontFamily: FONT, align: 'center', ...style })
+      .text(0, 0, content, { fontFamily: FONTS.body, align: 'center', ...style })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(this.textResolution());
@@ -190,7 +189,7 @@ export default class CreditsScene extends Phaser.Scene {
     if (this.closing) return;
     this.closing = true;
     this.guard.close();
-    this.juice?.play('tap');
+    this.juice?.play('button');
     // On revient à l'aide, pas au jeu : elle est en pause derrière, et c'est de là qu'on
     // est venu. Sauter directement au jeu laisserait le panneau d'aide figé pour toujours.
     this.scene.resume(this.returnTo);

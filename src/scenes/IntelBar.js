@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 
-import { drawEnemyShape, drawUnitShape, unitColor } from '../render/battleShapes.js';
+import { unitColor } from '../render/battleShapes.js';
+import { createVisual, repaintVisual } from '../render/visuals.js';
+import { FONTS } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t, waveLabelText } from '../i18n/index.js';
@@ -44,8 +46,6 @@ const COLORS = {
   urgent: '#ff6b6b',
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-
 /** Types d'ennemis annoncés au maximum. Au-delà, la ligne devient illisible au doigt. */
 const MAX_ENEMY_ICONS = 3;
 /** Types d'unités montrés dans la file (tête + deux suivants). */
@@ -64,6 +64,7 @@ export class IntelBar {
     this.juiceConfig = juice.config;
     this.layoutData = null;
     this.signature = '';
+    this.skin = scene.skin;
 
     this.build();
   }
@@ -76,7 +77,7 @@ export class IntelBar {
 
   build() {
     const scene = this.scene;
-    const dim = { fontFamily: FONT, color: COLORS.textDim };
+    const dim = { fontFamily: FONTS.body, color: COLORS.textDim };
 
     this.panel = scene.add
       .rectangle(0, 0, 10, 10, COLORS.panel)
@@ -97,8 +98,10 @@ export class IntelBar {
     this.countdownText = scene.add.text(0, 0, '', dim).setOrigin(0, 0.5).setDepth(DEPTH.hud);
 
     /** @type {{shape: Phaser.GameObjects.Graphics, text: Phaser.GameObjects.Text}[]} */
+    // Les icônes sont créées **avec un type par défaut** puis repeintes à chaque
+    // rafraîchissement : une vue de la barre vit toute la partie, seul son contenu change.
     this.enemyIcons = Array.from({ length: MAX_ENEMY_ICONS }, () => ({
-      shape: scene.add.graphics().setDepth(DEPTH.hud),
+      shape: createVisual(scene, this.skin, { kind: 'enemy', type: 'basic' }, 16).setDepth(DEPTH.hud),
       text: scene.add.text(0, 0, '', dim).setOrigin(0, 0.5).setDepth(DEPTH.hud),
     }));
 
@@ -109,7 +112,9 @@ export class IntelBar {
         .rectangle(0, 0, 10, 10, index === 0 ? COLORS.chipHead : COLORS.chip)
         .setStrokeStyle(1, COLORS.chipStroke, 1)
         .setDepth(DEPTH.cell),
-      shape: scene.add.graphics().setDepth(DEPTH.hud),
+      shape: createVisual(scene, this.skin, { kind: 'unit', type: 'single', tier: 1 }, 16).setDepth(
+        DEPTH.hud
+      ),
     }));
 
     this.skipBox = scene.add
@@ -120,7 +125,7 @@ export class IntelBar {
     // Jauge de recharge : dessinée **dans** le bouton, elle se remplit par la gauche.
     this.skipFill = scene.add.rectangle(0, 0, 10, 10, COLORS.skipReady, 0.32).setOrigin(0, 0.5).setDepth(DEPTH.cell + 1);
     this.skipText = scene.add
-      .text(0, 0, t('hud.skip'), { fontFamily: FONT, fontStyle: 'bold', color: COLORS.textDim })
+      .text(0, 0, t('hud.skip'), { fontFamily: FONTS.body, fontStyle: 'bold', color: COLORS.textDim })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud);
 
@@ -314,11 +319,12 @@ export class IntelBar {
     this.enemyIcons.forEach((icon, index) => {
       const entry = entries[index];
       if (!entry) {
-        icon.shape.clear();
+        icon.shape.setVisible(false);
         icon.text.setText('');
         return;
       }
-      drawEnemyShape(icon.shape, entry.type, this.iconSize, { horizontal: true });
+      icon.shape.setVisible(true);
+      repaintVisual(icon.shape, this.skin, { kind: 'enemy', type: entry.type }, this.iconSize);
       icon.shape.setPosition(cursor + this.iconSize / 2, this.iconRow.y);
       icon.text
         .setFontSize(this.iconFont)
@@ -332,11 +338,12 @@ export class IntelBar {
     this.chips.forEach((chip, index) => {
       const entry = hud.nextTypes[index];
       if (!entry) {
-        chip.shape.clear();
+        chip.shape.setVisible(false);
         return;
       }
       // Tête plus grosse et fond plus clair : la file se lit sans légende.
-      drawUnitShape(chip.shape, entry.type, 1, chip.size);
+      chip.shape.setVisible(true);
+      repaintVisual(chip.shape, this.skin, { kind: 'unit', type: entry.type, tier: 1 }, chip.size);
       chip.shape.setAlpha(index === 0 ? 1 : 0.62);
       chip.box.setFillStyle(index === 0 ? COLORS.chipHead : COLORS.chip, 1);
       chip.box.setStrokeStyle(1, index === 0 ? unitColor(entry.type) : COLORS.chipStroke, 1);

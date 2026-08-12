@@ -6,12 +6,15 @@ import { GameSession, SESSION_DROP, SESSION_TAP } from '../systems/GameSession.j
 import { computeLayout, cellCenterAt, nearestCellIndex } from '../systems/layout.js';
 import { isTap } from '../systems/tapGesture.js';
 import { parseJuiceConfig } from '../systems/juice.js';
-import { drawItemShape, itemColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { itemColor, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
 import { DEPTH } from '../render/depths.js';
 import { JuiceKit } from '../render/juiceKit.js';
 import { isDebugEnabled } from '../systems/debug.js';
 import { t } from '../i18n/index.js';
+import { Skin } from '../render/skin.js';
+import { createVisual, repaintVisual } from '../render/visuals.js';
+import { FONTS } from '../render/fonts.js';
 import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
 import { IntelBar } from './IntelBar.js';
@@ -62,9 +65,6 @@ const INPUT = {
   gameOverDelayMs: 650,
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
@@ -73,6 +73,9 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.debug = isDebugEnabled();
     this.juiceConfig = parseJuiceConfig(juiceConfig);
+    // L'index vient de `BootScene`, qui l'a lu au démarrage. Sans assets livrés il vaut
+    // null, et tout le jeu retombe sur le greybox vectoriel — c'est un état normal.
+    this.skin = new Skin(this, this.registry.get('assetIndex'));
 
     this.session = new GameSession({ balance });
     this.model = this.session.grid;
@@ -120,7 +123,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.title = this.add
       .text(0, 0, t('game.title'), {
-        fontFamily: FONT,
+        fontFamily: FONTS.display,
         fontStyle: 'bold',
         color: COLORS.text,
       })
@@ -131,7 +134,7 @@ export default class GameScene extends Phaser.Scene {
     // Tout le diagnostic passe derrière `?debug=1` : l'écran par défaut est celui que
     // verra un joueur de Crazy Games.
     this.debugText = this.add
-      .text(0, 0, '', { fontFamily: MONO, color: COLORS.textDim })
+      .text(0, 0, '', { fontFamily: FONTS.mono, color: COLORS.textDim })
       .setOrigin(1, 0.5)
       .setDepth(DEPTH.hud)
       .setVisible(this.debug)
@@ -180,7 +183,7 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
     this.helpIcon = this.add
-      .text(0, 0, '?', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text })
+      .text(0, 0, '?', { fontFamily: FONTS.body, fontStyle: 'bold', color: COLORS.text })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud + 1)
       .setResolution(this.textResolution());
@@ -218,7 +221,7 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
     this.soundIcon = this.add
-      .text(0, 0, '♪', { fontFamily: FONT, fontStyle: 'bold', color: '#12141c' })
+      .text(0, 0, '♪', { fontFamily: FONTS.body, fontStyle: 'bold', color: '#12141c' })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud + 1)
       .setResolution(this.textResolution());
@@ -229,7 +232,7 @@ export default class GameScene extends Phaser.Scene {
       this.juice.sfx.unlock();
       this.juice.sfx.toggle();
       this.refreshSoundButton();
-      if (this.juice.sfx.enabled) this.juice.play('tap');
+      if (this.juice.sfx.enabled) this.juice.play('button');
     });
   }
 
@@ -546,10 +549,10 @@ export default class GameScene extends Phaser.Scene {
     const layout = this.layoutData;
     const center = cellCenterAt(layout, index);
 
-    const shape = this.add.graphics();
+    const shape = createVisual(this, this.skin, { kind: 'item', item }, layout.itemSize);
     const label = this.add
       .text(0, 0, String(item.tier), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         fontStyle: 'bold',
         color: TIER_LABEL_COLOR,
       })
@@ -593,7 +596,7 @@ export default class GameScene extends Phaser.Scene {
     const shape = view.getData('shape');
     const label = view.getData('label');
 
-    drawItemShape(shape, view.getData('item'), itemSize);
+    repaintVisual(shape, this.skin, { kind: 'item', item: view.getData('item') }, itemSize);
     label.setFontSize(Math.max(9, Math.round(itemSize * 0.4)));
     view.setSize(cellSize, cellSize);
     // Phaser ajoute `displayOrigin` (= moitié de la taille du conteneur) aux
@@ -639,6 +642,9 @@ export default class GameScene extends Phaser.Scene {
    */
   onPointerDown() {
     this.juice.sfx.unlock();
+    // La musique attend ce geste-là : aucun navigateur ne laisse démarrer un son avant, et
+    // c'est aussi la politesse minimale envers quelqu'un qui vient d'ouvrir un onglet.
+    this.juice.startMusic();
   }
 
   // --------------------------------------------------------------- tap (envoi)
@@ -837,7 +843,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.input.enabled = false;
     this.juice.shake('gameOver');
-    this.juice.play('gameOver');
+    // Coupe la musique **puis** joue le sting : par-dessus la boucle, il ne s'entendrait pas,
+    // et c'est le seul son que le joueur écoute vraiment.
+    this.juice.playDefeat();
 
     const { best, isRecord } = submitScore(wavesCleared);
     // Depuis le Lot 3.5, le récap est **pour le joueur** : c'est lui qui donne l'idée du

@@ -3,8 +3,9 @@ import Phaser from 'phaser';
 import juiceConfig from '../config/juice.json';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
-import { drawUnitShape } from '../render/battleShapes.js';
-import { drawPowerShape } from '../render/powerShapes.js';
+import { createVisual, repaintVisual } from '../render/visuals.js';
+import { Skin } from '../render/skin.js';
+import { FONTS } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
@@ -44,8 +45,6 @@ const COLORS = {
   accent: '#ffd93d',
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-
 export default class HelpScene extends Phaser.Scene {
   constructor() {
     super('HelpScene');
@@ -80,6 +79,9 @@ export default class HelpScene extends Phaser.Scene {
 
   create() {
     this.guard.open(this.now());
+    // Le panneau est une scène à part : il construit son propre `Skin` sur le même index.
+    // Les textures, elles, sont globales — rien n'est chargé deux fois.
+    this.skin = new Skin(this, this.registry.get('assetIndex'));
 
     this.veil = this.add
       .rectangle(0, 0, 10, 10, COLORS.veil, 0.94)
@@ -115,7 +117,9 @@ export default class HelpScene extends Phaser.Scene {
      * identifiants de type et va chercher lui-même son texte : c'est la règle du Lot 5. */
     this.unitRows = this.units.map((type) => ({
       unit: { type },
-      shape: this.add.graphics().setDepth(DEPTH.banner + 2),
+      shape: createVisual(this, this.skin, { kind: 'unit', type, tier: 1 }, 24).setDepth(
+        DEPTH.banner + 2
+      ),
       text: this.label(
         t('help.row', { label: t(`units.${type}.label`), role: t(`units.${type}.blurb`) }),
         { color: COLORS.text, align: 'left' }
@@ -138,7 +142,9 @@ export default class HelpScene extends Phaser.Scene {
     /** Une ligne par pouvoir, même grammaire que les unités : forme puis rôle. */
     this.powerRows = this.powers.map((type) => ({
       power: { type },
-      shape: this.add.graphics().setDepth(DEPTH.banner + 2),
+      shape: createVisual(this, this.skin, { kind: 'power', type, tier: 1 }, 24).setDepth(
+        DEPTH.banner + 2
+      ),
       text: this.label(
         t('help.row', { label: t(`powers.${type}.label`), role: t(`powers.${type}.blurb`) }),
         { color: COLORS.text, align: 'left' }
@@ -205,7 +211,7 @@ export default class HelpScene extends Phaser.Scene {
 
   label(content, style) {
     return this.add
-      .text(0, 0, content, { fontFamily: FONT, align: 'center', ...style })
+      .text(0, 0, content, { fontFamily: FONTS.body, align: 'center', ...style })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(this.textResolution());
@@ -218,7 +224,7 @@ export default class HelpScene extends Phaser.Scene {
    * pas au jeu. Un joueur venu lire les crédits n'a pas demandé à reprendre la partie.
    */
   openCredits() {
-    this.juice?.play('tap');
+    this.juice?.play('button');
     this.scene.launch('CreditsScene', {
       graceMs: this.graceMs,
       returnTo: 'HelpScene',
@@ -231,7 +237,7 @@ export default class HelpScene extends Phaser.Scene {
     if (this.closing) return;
     this.closing = true;
     this.guard.close();
-    this.juice?.play('tap');
+    this.juice?.play('button');
     this.onClose();
     this.scene.resume('GameScene');
     this.scene.stop();
@@ -369,7 +375,7 @@ export default class HelpScene extends Phaser.Scene {
     y += this.unitsTitle.height + gap * 0.8;
 
     this.unitRows.forEach((row, index) => {
-      drawUnitShape(row.shape, row.unit.type, 1, iconSize);
+      repaintVisual(row.shape, this.skin, { kind: 'unit', type: row.unit.type, tier: 1 }, iconSize);
       // La forme s'aligne sur la **première ligne** du texte, pas sur son milieu : sur une
       // description de trois lignes, une icône centrée paraîtrait décrocher.
       row.shape.setPosition(left + iconSize / 2, y + body * 0.6);
@@ -386,7 +392,7 @@ export default class HelpScene extends Phaser.Scene {
 
     this.powerRows.forEach((row, index) => {
       // Le tier 1 comme pour les unités : le panneau parle des **types**, pas des tiers.
-      drawPowerShape(row.shape, row.power.type, 1, iconSize);
+      repaintVisual(row.shape, this.skin, { kind: 'power', type: row.power.type, tier: 1 }, iconSize);
       row.shape.setPosition(left + iconSize / 2, y + body * 0.6);
       row.text.setPosition(left + textLeftOffset, y);
       y += powerRowHeights[index] + gap * 0.7;

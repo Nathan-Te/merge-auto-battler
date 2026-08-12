@@ -3,7 +3,10 @@ import Phaser from 'phaser';
 import juiceConfig from '../config/juice.json';
 import { parseJuiceConfig } from '../systems/juice.js';
 import { OverlayGuard } from '../systems/overlayGuard.js';
-import { drawDraftIcon, iconColor } from '../render/draftIcons.js';
+import { iconColor } from '../render/draftIcons.js';
+import { createVisual, repaintVisual } from '../render/visuals.js';
+import { Skin } from '../render/skin.js';
+import { FONTS } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { t } from '../i18n/index.js';
@@ -42,8 +45,6 @@ const COLORS = {
   title: '#ffd93d',
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-
 export default class DraftScene extends Phaser.Scene {
   constructor() {
     super('DraftScene');
@@ -71,6 +72,8 @@ export default class DraftScene extends Phaser.Scene {
   }
 
   create() {
+    this.skin = new Skin(this, this.registry.get('assetIndex'));
+
     // Opaque, pas juste sombre : le playtest a montré qu'un voile transparent laissait
     // croire que la grille restait jouable. Elle est gelée, ça doit se voir.
     this.veil = this.add
@@ -84,13 +87,13 @@ export default class DraftScene extends Phaser.Scene {
     this.guard.open(this.now());
 
     this.titleText = this.add
-      .text(0, 0, t('draft.title'), { fontFamily: FONT, fontStyle: 'bold', color: COLORS.title })
+      .text(0, 0, t('draft.title'), { fontFamily: FONTS.body, fontStyle: 'bold', color: COLORS.title })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
       .setResolution(this.textResolution());
     this.subtitleText = this.add
       .text(0, 0, t('draft.subtitle', { wave: this.wave }), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         color: COLORS.textDim,
         align: 'center',
       })
@@ -136,10 +139,12 @@ export default class DraftScene extends Phaser.Scene {
       .setDepth(DEPTH.banner + 1)
       .setInteractive({ useHandCursor: true });
 
-    const icon = this.add.graphics().setDepth(DEPTH.banner + 2);
+    const icon = createVisual(this, this.skin, { kind: 'draftIcon', icon: card.icon }, 32).setDepth(
+      DEPTH.banner + 2
+    );
     const label = this.add
       .text(0, 0, t(`draft.upgrades.${card.id}.label`), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         fontStyle: 'bold',
         color: COLORS.text,
       })
@@ -148,7 +153,7 @@ export default class DraftScene extends Phaser.Scene {
       .setResolution(this.textResolution());
     const description = this.add
       .text(0, 0, t(`draft.upgrades.${card.id}.description`), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         color: COLORS.textDim,
         align: 'center',
       })
@@ -159,7 +164,7 @@ export default class DraftScene extends Phaser.Scene {
     // savoir qu'on l'empile — et le build cesse d'être un choix.
     const level = this.add
       .text(0, 0, t('draft.level', { level: card.level, max: card.maxLevel }), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         color: COLORS.textDim,
       })
       .setOrigin(0.5, 1)
@@ -223,7 +228,7 @@ export default class DraftScene extends Phaser.Scene {
       this.fadeOut(other);
     }
 
-    this.juice?.play('merge');
+    this.juice?.play('draftPick');
     this.juice?.burst(view.box.x, view.box.y, draft.pickBurst, iconColor(view.card.icon));
 
     this.tweens.add({
@@ -266,7 +271,7 @@ export default class DraftScene extends Phaser.Scene {
    */
   playIntro() {
     const draft = this.juiceConfig.draft;
-    this.juice?.play('wave');
+    this.juice?.play('draftOpen');
 
     this.titleText.setScale(0.7).setAlpha(0);
     this.tweens.add({
@@ -361,7 +366,7 @@ export default class DraftScene extends Phaser.Scene {
     // plutôt qu'au-dessus, sinon la description n'a plus de place.
     const iconX = stacked ? cx - cardWidth / 2 + iconSize : cx;
     const iconY = stacked ? cy : cy - cardHeight * 0.28;
-    drawDraftIcon(view.icon, view.card.icon, iconSize);
+    repaintVisual(view.icon, this.skin, { kind: 'draftIcon', icon: view.card.icon }, iconSize);
     view.icon.setPosition(iconX, iconY);
 
     const textX = stacked ? cx + iconSize * 0.6 : cx;

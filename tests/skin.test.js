@@ -1,0 +1,213 @@
+import { describe, expect, it } from 'vitest';
+
+import balance from '../src/config/balance.json';
+import { Skin, atlasKey } from '../src/render/skin.js';
+import {
+  DEFAULT_TIER_BANDS,
+  bandOf,
+  enemySprite,
+  expectedSprites,
+  orbSprite,
+  powerItemSprite,
+  unitSprite,
+} from '../src/render/skinNames.js';
+import { FONTS, installFonts } from '../src/render/fonts.js';
+
+/**
+ * La promesse du Lot 5 côté image : **une planche déposée arrive en jeu en une commande**,
+ * et un sprite absent ne casse rien. Les deux moitiés se testent sans Phaser — `Skin` ne
+ * demande à la scène qu'un gestionnaire de textures, qu'on peut falsifier en dix lignes.
+ */
+
+/** Gestionnaire de textures minimal : il sait seulement ce qui existe. */
+function fakeScene(available = {}) {
+  const textures = new Map(
+    Object.entries(available).map(([key, names]) => [key, new Set(names)])
+  );
+  return {
+    textures: {
+      exists: (key) => textures.has(key),
+      get: (key) => ({ has: (name) => textures.get(key)?.has(name) ?? false }),
+    },
+    add: {
+      image: (x, y, key, frame) => ({
+        key,
+        frame: { name: frame, width: 100, height: 50 },
+        displayWidth: 0,
+        displayHeight: 0,
+        setDisplaySize(width, height) {
+          this.displayWidth = width;
+          this.displayHeight = height;
+          return this;
+        },
+        setTexture(nextKey, nextFrame) {
+          this.key = nextKey;
+          this.frame = { name: nextFrame, width: 100, height: 50 };
+          return this;
+        },
+        setFlipX() {
+          return this;
+        },
+      }),
+    },
+  };
+}
+
+const INDEX = {
+  atlases: [{ key: 'orbs', image: 'atlas-orbs.webp', json: 'atlas-orbs.json' }],
+  frames: { 'orb.1': 'orbs', 'orb.2': 'orbs' },
+  tierBands: DEFAULT_TIER_BANDS,
+};
+
+describe('paliers visuels', () => {
+  it('range les 11 tiers d’items dans 3 paliers', () => {
+    expect(bandOf(1, DEFAULT_TIER_BANDS.unit)).toBe(1);
+    expect(bandOf(4, DEFAULT_TIER_BANDS.unit)).toBe(1);
+    expect(bandOf(5, DEFAULT_TIER_BANDS.unit)).toBe(2);
+    expect(bandOf(8, DEFAULT_TIER_BANDS.unit)).toBe(2);
+    expect(bandOf(11, DEFAULT_TIER_BANDS.unit)).toBe(3);
+  });
+
+  it('rabat un tier hors plage sur le dernier palier plutôt que sur rien', () => {
+    // Mieux vaut un orbe trop imposant qu'un item invisible : un tier au-delà du plafond
+    // ne doit jamais faire disparaître ce qu'on manipule au doigt.
+    expect(bandOf(99, DEFAULT_TIER_BANDS.unit)).toBe(3);
+    expect(bandOf(0, DEFAULT_TIER_BANDS.unit)).toBe(1);
+  });
+
+  it('nomme les sprites à partir du palier, pas du tier', () => {
+    expect(orbSprite(2)).toBe('orb.1');
+    expect(orbSprite(6)).toBe('orb.2');
+    expect(unitSprite('single', 9)).toBe('unit.single.3');
+    expect(powerItemSprite('heal', 3)).toBe('power.heal.2');
+    expect(enemySprite('tank')).toBe('enemy.tank');
+  });
+
+  it('suit les plages du manifest, pas celles du code', () => {
+    // C'est ce qui permet de corriger une marche mal placée depuis l'éditeur web de GitHub,
+    // sans toucher au jeu.
+    const bands = [[1, 1], [2, 11]];
+    expect(orbSprite(1, bands)).toBe('orb.1');
+    expect(orbSprite(2, bands)).toBe('orb.2');
+  });
+});
+
+describe('expectedSprites', () => {
+  const sprites = expectedSprites({ balance });
+  const names = sprites.map((entry) => entry.name);
+
+  it('dérive la liste de balance.json plutôt que de la tenir à la main', () => {
+    // Une liste écrite à la main mentirait dès le premier type ajouté, exactement comme une
+    // référence non générée.
+    for (const type of Object.keys(balance.units)) expect(names).toContain(`unit.${type}.1`);
+    for (const type of Object.keys(balance.enemies)) expect(names).toContain(`enemy.${type}`);
+    for (const type of Object.keys(balance.powers.types)) expect(names).toContain(`power.${type}.1`);
+    for (const upgrade of balance.draft.upgrades) {
+      expect(names).toContain(`icon.draft.${upgrade.icon}`);
+    }
+  });
+
+  it('ne nomme jamais deux fois le même sprite', () => {
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('range chaque sprite dans une catégorie de la galerie', () => {
+    for (const entry of sprites) expect(entry.category).toBeTruthy();
+  });
+});
+
+describe('Skin', () => {
+  it('trouve un sprite annoncé par l’index **et** réellement chargé', () => {
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
+    expect(skin.has('orb.1')).toBe(true);
+  });
+
+  it('refuse un sprite annoncé mais dont l’atlas n’a pas pu être chargé', () => {
+    // Le cas d'un fichier corrompu ou d'un réseau coupé au premier lancement : on veut le
+    // greybox, pas un rectangle de texture manquante.
+    const skin = new Skin(fakeScene({}), INDEX);
+    expect(skin.has('orb.1')).toBe(false);
+  });
+
+  it('refuse un sprite absent de l’index', () => {
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
+    expect(skin.has('unit.single.1')).toBe(false);
+  });
+
+  it('fonctionne sans index du tout — c’est l’état de départ du lot', () => {
+    const skin = new Skin(fakeScene({}), null);
+    expect(skin.has('orb.1')).toBe(false);
+    expect(skin.image('orb.1', 64)).toBeNull();
+    // Les plages retombent sur celles du code : le jeu reste cohérent sans aucun asset.
+    expect(skin.bands.unit).toEqual(DEFAULT_TIER_BANDS.unit);
+  });
+
+  it('dimensionne sur le plus grand côté, sans écraser le sprite', () => {
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
+    const image = skin.image('orb.1', 64);
+    // Source 100×50 ramenée à 64 de large : la hauteur suit, elle n'est pas forcée à 64.
+    expect(image.displayWidth).toBe(64);
+    expect(image.displayHeight).toBe(32);
+  });
+
+  it('repeint une image existante quand le palier change', () => {
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1', 'orb.2'] }), INDEX);
+    const image = skin.image('orb.1', 64);
+    expect(skin.setFrame(image, 'orb.2', 32)).toBe(true);
+    expect(image.frame.name).toBe('orb.2');
+    expect(image.displayWidth).toBe(32);
+  });
+
+  it('refuse de repeindre vers un sprite absent, laissant l’image intacte', () => {
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
+    const image = skin.image('orb.1', 64);
+    expect(skin.setFrame(image, 'orb.9', 64)).toBe(false);
+    expect(image.frame.name).toBe('orb.1');
+  });
+
+  it('compte les sprites réellement disponibles', () => {
+    const skin = new Skin(fakeScene({ [atlasKey('orbs')]: ['orb.1'] }), INDEX);
+    // `orb.2` est annoncé par l'index mais absent de l'atlas chargé.
+    expect(skin.count).toBe(1);
+  });
+});
+
+describe('polices auto-hébergées', () => {
+  /** Document minimal : on n'observe que la règle CSS produite. */
+  function fakeDocument() {
+    const head = { children: [] };
+    return {
+      head: { appendChild: (node) => head.children.push(node) },
+      createElement: () => ({ setAttribute() {}, textContent: '' }),
+      _head: head,
+    };
+  }
+
+  it('ne déclare rien tant qu’aucune police n’est livrée', () => {
+    const doc = fakeDocument();
+    installFonts({ fonts: [] }, 'assets/', doc);
+    expect(doc._head.children).toHaveLength(0);
+    expect(FONTS.body).toContain('system-ui');
+  });
+
+  it('déclare une @font-face locale et garde le repli système derrière', () => {
+    const doc = fakeDocument();
+    const fonts = installFonts({ fonts: ['body-inter.woff2'] }, 'assets/', doc);
+
+    const css = doc._head.children[0].textContent;
+    expect(css).toContain('@font-face');
+    // Auto-hébergée : la checklist de release interdit toute requête externe.
+    expect(css).toContain("url('assets/fonts/body-inter.woff2')");
+    expect(css).toContain('format(\'woff2\')');
+    // `swap` : le texte s'affiche tout de suite en police système et se remplace à l'arrivée.
+    expect(css).toContain('font-display:swap');
+    expect(fonts.body).toContain('system-ui');
+  });
+
+  it('déduit le rôle du nom de fichier, et ignore un fichier hors convention', () => {
+    const doc = fakeDocument();
+    installFonts({ fonts: ['display-cinzel.woff2', 'nawak.woff2'] }, 'assets/', doc);
+    expect(FONTS.display).toContain('mb-display');
+    expect(doc._head.children[0].textContent).not.toContain('nawak');
+  });
+});

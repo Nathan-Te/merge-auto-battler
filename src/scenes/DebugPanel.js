@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { t } from '../i18n/index.js';
 
 import { DEPTH } from '../render/depths.js';
+import { FONTS } from '../render/fonts.js';
 import { DEBUG_SPEEDS } from '../systems/debug.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 
@@ -27,8 +28,6 @@ const COLORS = {
   text: '#eef1f8',
   textActive: '#12141c',
 };
-
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
 
 export class DebugPanel {
   /**
@@ -69,7 +68,7 @@ export class DebugPanel {
       .setDepth(DEPTH.hud)
       .setInteractive({ useHandCursor: true });
     const text = scene.add
-      .text(0, 0, label, { fontFamily: FONT, color: COLORS.text })
+      .text(0, 0, label, { fontFamily: FONTS.body, color: COLORS.text })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud + 1)
       .setResolution(sceneTextResolution(this));

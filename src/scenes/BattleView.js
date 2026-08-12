@@ -1,15 +1,11 @@
 import Phaser from 'phaser';
 
 import { cellCenterAt, lanePoint } from '../systems/layout.js';
-import { drawTierShape, TIER_LABEL_COLOR } from '../render/tierShapes.js';
-import { drawPowerShape, powerColor } from '../render/powerShapes.js';
-import {
-  drawUnitShape,
-  drawEnemyShape,
-  enemySize,
-  unitColor,
-  enemyColor,
-} from '../render/battleShapes.js';
+import { TIER_LABEL_COLOR } from '../render/tierShapes.js';
+import { powerColor } from '../render/powerShapes.js';
+import { enemySize, unitColor, enemyColor } from '../render/battleShapes.js';
+import { createVisual, repaintVisual } from '../render/visuals.js';
+import { FONTS } from '../render/fonts.js';
 import { DEPTH } from '../render/depths.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { compositionText, t, waveLabelText } from '../i18n/index.js';
@@ -55,8 +51,6 @@ const COLORS = {
   unitHpFill: 0x6bcb77,
 };
 
-const FONT = 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-
 /** Durée du glissement d'une vignette d'un slot au suivant. Purement mécanique. */
 const SLOT_SHIFT_MS = 160;
 
@@ -74,6 +68,9 @@ export class BattleView {
     this.model = session.battle;
     this.queue = session.deployQueue;
     this.config = session.battleConfig;
+    // Le skin appartient à `GameScene` et se prête, comme `JuiceKit` : il ne porte aucun
+    // état de partie, seulement la table des sprites disponibles.
+    this.skin = scene.skin;
 
     /** @type {Map<number, Phaser.GameObjects.Container>} vues d'ennemis, par id */
     this.enemyViews = new Map();
@@ -152,19 +149,19 @@ export class BattleView {
     // Une seule ligne depuis le Lot 3.5 : PV à gauche, file de déploiement à droite. Ce
     // qui occupait la seconde (prochaine unité, numéro de vague) est passé à `IntelBar`,
     // qui le dit mieux — et à côté de l'annonce de vague, là où ça sert à décider.
-    const dim = { fontFamily: FONT, color: COLORS.textDim };
+    const dim = { fontFamily: FONTS.body, color: COLORS.textDim };
     this.hpText = scene.add.text(0, 0, '', { ...dim, color: COLORS.text }).setDepth(DEPTH.hud);
     this.queueText = scene.add.text(0, 0, '', dim).setOrigin(1, 0).setDepth(DEPTH.hud);
 
     this.banner = scene.add
-      .text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text, align: 'center' })
+      .text(0, 0, '', { fontFamily: FONTS.body, fontStyle: 'bold', color: COLORS.text, align: 'center' })
       .setOrigin(0.5, 0.5)
       .setAlpha(0)
       .setDepth(DEPTH.banner);
 
     this.hint = scene.add
       .text(0, 0, t('hud.queueFull'), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         fontStyle: 'bold',
         color: COLORS.textWarn,
       })
@@ -359,7 +356,10 @@ export class BattleView {
       durationMs: this.juiceConfig.flight.toSlotMs,
       ease: 'Cubic.easeIn',
       color: unitColor(unit.type),
-      draw: (graphics) => drawTierShape(graphics, unit.tier, this.layoutData.itemSize),
+      // Ce qui vole de la grille au slot est **l'orbe**, pas encore l'unité : c'est ce qui
+      // rend lisible le lien entre les deux moitiés du jeu.
+      visual: { kind: 'item', item: { tier: unit.tier } },
+      size: this.layoutData.itemSize,
       endScale: (zone.unitSize / Math.max(1, this.layoutData.itemSize)) * 0.9,
       onComplete: () => {
         view.setData('flying', false);
@@ -407,7 +407,8 @@ export class BattleView {
             durationMs: this.juiceConfig.flight.toFieldMs,
             ease: 'Cubic.easeOut',
             color: unitColor(unit.type),
-            draw: (graphics) => drawUnitShape(graphics, unit.type, unit.tier, zone.unitSize),
+            visual: { kind: 'unit', type: unit.type, tier: unit.tier },
+            size: zone.unitSize,
             endScale: zone.fieldUnitSize / Math.max(1, zone.unitSize),
             onComplete: () => {
               if (target.active) this.revealView(target);
@@ -441,10 +442,12 @@ export class BattleView {
    * seul endroit où se règle leur feel, et la traînée est ce qui rend le lien lisible
    * même quand l'œil est ailleurs.
    */
-  flight(from, to, { durationMs, ease, color, draw, endScale = 1, onComplete }) {
-    const graphics = this.scene.add.graphics();
-    draw(graphics);
-    const flyer = this.scene.add.container(from.x, from.y, [graphics]).setDepth(DEPTH.flight);
+  flight(from, to, { durationMs, ease, color, visual, size, endScale = 1, onComplete }) {
+    // L'objet volant est **la même chose que ce qu'il représente** : un orbe qui part vers
+    // un slot est l'orbe qu'on vient de taper, pas un rectangle de la bonne couleur. Il
+    // passe donc par `createVisual` comme tout le reste, sprite ou greybox.
+    const body = createVisual(this.scene, this.skin, visual, size);
+    const flyer = this.scene.add.container(from.x, from.y, [body]).setDepth(DEPTH.flight);
 
     const trail = this.juiceConfig.flight.trail;
     // Horodatage plutôt qu'accumulateur : `onUpdate` est appelé une fois par propriété
@@ -501,7 +504,8 @@ export class BattleView {
         // Une courbe rapide au départ, tendue : un pouvoir « tombe » sur la bataille.
         ease: 'Quad.easeIn',
         color,
-        draw: (graphics) => drawPowerShape(graphics, type, tier, this.layoutData.itemSize),
+        visual: { kind: 'power', type, tier },
+        size: this.layoutData.itemSize,
         endScale: 0.7,
       });
     }
@@ -604,10 +608,10 @@ export class BattleView {
 
   /** Conteneur commun aux unités (file et champ) : forme + numéro de tier + barre de vie. */
   buildFighterView(type, tier, size) {
-    const shape = this.scene.add.graphics();
+    const shape = createVisual(this.scene, this.skin, { kind: 'unit', type, tier }, size);
     const label = this.scene.add
       .text(0, 0, String(tier), {
-        fontFamily: FONT,
+        fontFamily: FONTS.body,
         fontStyle: 'bold',
         color: TIER_LABEL_COLOR,
       })
@@ -631,7 +635,7 @@ export class BattleView {
 
   resizeFighterView(view, size, type, tier) {
     view.setData({ type, tier });
-    drawUnitShape(view.getData('shape'), type, tier, size);
+    repaintVisual(view.getData('shape'), this.skin, { kind: 'unit', type, tier }, size);
     view.getData('label').setText(String(tier)).setFontSize(Math.max(8, Math.round(size * 0.42)));
 
     const barWidth = size * 1.15;
@@ -721,7 +725,12 @@ export class BattleView {
     const zone = this.zone;
     if (!zone) return null;
 
-    const shape = this.scene.add.graphics();
+    const shape = createVisual(
+      this.scene,
+      this.skin,
+      { kind: 'enemy', type: enemy.type, horizontal: zone.horizontal },
+      enemySize(enemy.type, zone.enemyReference)
+    );
     const hpBg = this.scene.add.rectangle(0, 0, 10, 3, COLORS.hpBg).setOrigin(0, 0.5);
     const hpFill = this.scene.add.rectangle(0, 0, 10, 3, COLORS.enemyHpFill).setOrigin(0, 0.5);
 
@@ -746,7 +755,12 @@ export class BattleView {
   resizeEnemyView(view, enemy) {
     const zone = this.zone;
     const size = enemySize(enemy.type, zone.enemyReference);
-    drawEnemyShape(view.getData('shape'), enemy.type, size, { horizontal: zone.horizontal });
+    repaintVisual(
+      view.getData('shape'),
+      this.skin,
+      { kind: 'enemy', type: enemy.type, horizontal: zone.horizontal },
+      size
+    );
 
     const barWidth = size * 1.1;
     const barHeight = Math.max(2, size * 0.13);
@@ -838,7 +852,9 @@ export class BattleView {
           : 0,
     });
 
-    this.juice.play('shot');
+    // Le gel a son propre son depuis le Lot 5 : c'était la seule attaque muette du jeu,
+    // alors que c'est elle qui achète du temps — l'entendre, c'est savoir qu'elle a pris.
+    this.juice.play(role === 'slow' ? 'slow' : 'shot');
     // Recul du tireur, vers la base : le coup a un poids, même quand la cible meurt.
     this.recoil(this.unitViews.get(unit.id), 1);
 
