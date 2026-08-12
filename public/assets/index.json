@@ -1,0 +1,37 @@
+{
+  "_generated": "npm run assets — ne pas éditer à la main",
+  "atlases": [],
+  "tierBands": {
+    "unit": [
+      [
+        1,
+        4
+      ],
+      [
+        5,
+        8
+      ],
+      [
+        9,
+        11
+      ]
+    ],
+    "power": [
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        5,
+        6
+      ]
+    ]
+  },
+  "audio": [],
+  "fonts": [],
+  "frames": {}
+}
