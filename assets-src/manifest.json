@@ -20,5 +20,17 @@
     "power": [[1, 2], [3, 4], [5, 6]]
   },
 
-  "sheets": []
+  "sheets": [
+    {
+  "file": "1786556420128.png",
+  "category": "orbs",
+  "cols": 4,
+  "rows": 3,
+  "names": [
+    "orb.1", "orb.2", "orb.3", "orb.4",
+    "orb.5", "orb.6", "orb.7", "orb.8",
+    "orb.9", "orb.10", "orb.11", null
+  ]
+    }
+  ]
 }
