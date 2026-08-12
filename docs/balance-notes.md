@@ -1,4 +1,4 @@
-# Notes d'équilibrage — Lot 3
+# Notes d'équilibrage — Lots 3 et 3.5
 
 > Document de travail des itérations de réglage. Les valeurs vivent dans
 > `src/config/balance.json` (règles) et `src/config/juice.json` (feel) ; **ce fichier
@@ -6,6 +6,10 @@
 >
 > Toutes les mesures se rejouent à l'identique :
 > `npm run sim -- --games=30` et `npm run sim -- --matchups --tier=3`.
+>
+> **Les sections 1 à 5 décrivent l'état du Lot 3**, conservées pour le raisonnement qui a
+> mené à ces valeurs. **La section 7 donne l'état courant (Lot 3.5)** : c'est elle qui fait
+> foi pour les chiffres.
 
 ## 1. L'outil : `npm run sim`
 
@@ -223,7 +227,7 @@ Choix notables :
 - **Sons synthétisés à l'exécution** (façon jsfxr, `src/systems/sfx.js`) : zéro octet
   téléchargé, réglables comme le reste du feel, remplacés au Lot 4.
 
-## 6. Ce qui reste ouvert
+## 6. Ce qui restait ouvert à la fin du Lot 3
 
 - **La fenêtre de défaite d'un vrai joueur** est à confirmer au doigt. Si les premières
   parties tombent trop tôt (vague 6-7), le premier curseur est `hpPerWave` → 1,44.
@@ -235,3 +239,149 @@ Choix notables :
   la grille paraît vide, monter `startingItems` avant de toucher aux intervalles.
 - **Le soutien n'a pas de retour visuel d'aura.** Sa valeur est réelle mais invisible :
   candidat n° 1 du prochain passage de lisibilité.
+
+---
+
+## 7. Lot 3.5 — rythme, décisions, rejouabilité
+
+Le playtest du Lot 3 a remonté deux défauts liés : **le jeu n'avait qu'un régime** (une
+urgence de grille permanente — on ne regardait ni la bataille ni la file de types, et
+l'information affichée ne nourrissait aucun choix) et **rien ne motivait une seconde
+partie**. Ce lot installe une respiration, des décisions, et un build à raconter.
+
+### 7.1 La passe de tempo, valeur par valeur
+
+| valeur                        | Lot 3 | Lot 3.5 | pourquoi                                                     |
+| ----------------------------- | ----- | ------- | ------------------------------------------------------------ |
+| `enemies.basic.speed`         | 55    | **44**  | −20 % : le temps de regarder un combat se dérouler           |
+| `enemies.fast.speed`          | 135   | **106** | −21 % : un rush restait un rush, mais lisible                |
+| `enemies.tank.speed`          | 32    | **26**  | −19 %, pour garder l'écart de texture entre les trois types  |
+| `waves.firstWaveDelayMs`      | 7000  | **9000**| le temps de lire la première annonce avant le premier contact |
+| `waves.interWavePauseMs`      | 4000  | **7000**| **le temps de merge légitime** — c'est ici que vit la respiration |
+| `itemSpawner.intervalMs`      | 1200  | **1300**| accordé au nouveau rythme                                    |
+| `itemSpawner.minIntervalMs`   | 780   | **860** | le débit passe **à l'équilibre** au lieu de +12 % (voir plus bas) |
+| `waves.scaling.hpPerWave`     | 1,48  | **1,62**| compense tout ce qui précède : sans ça, la partie durait 6 min |
+| `units.aoe.splashRadius`      | 90    | **112** | +24 %, exactement ce que la vitesse des rapides a perdu      |
+| `units.support.auraRadius`    | 220   | **250** | le soutien devait retrouver une situation gagnante           |
+| `units.support.buff`          | 0,30 / 0,18 | **0,58 / 0,30** | idem — mesuré, pas supposé (voir 7.4)              |
+
+**Le plancher d'items est le changement de régime.** À 780 ms le joueur recevait 12 % de
+plus d'items qu'il ne pouvait en envoyer : la grille débordait en permanence, ce qui *était*
+l'urgence permanente remontée au playtest. À 860 ms, le débit est exactement à l'équilibre
+(`4 items / 3,5 s = 875 ms`) : suivre le rythme reste possible, mais le surplus n'est plus
+donné — il se **choisit** au draft (« Extraction », « Gisement riche »).
+
+**Les vitesses d'ennemis et `hpPerWave` vont ensemble.** Ralentir les ennemis de 20 % rend
+le joueur nettement plus fort (plus de temps de tir avant le contact), et allonger les pauses
+de 3 s par vague lui offre presque un déploiement gratuit à chaque fois. Les deux réunis
+faisaient passer la partie moyenne de 3:37 à 5:20. `hpPerWave` de 1,48 à 1,62 est la
+contrepartie — et comme au Lot 3, c'est **la** valeur qui décide seule de la vague où l'on
+meurt sans toucher aux premières vagues.
+
+### 7.2 Résultats — 30 parties par politique, graines 1..30
+
+| politique      | vague moy. | σ    | méd. | min | max | durée moy. | drafts/partie | grille (items / % pleine) |
+| -------------- | ---------- | ---- | ---- | --- | --- | ---------- | ------------- | ------------------------- |
+| Spam tier 1    | 5,80       | 0,40 | 6    | 5   | 6   | 2:50       | 1,8           | 22,9 / **80 %**           |
+| Mixte tier 3   | **9,67**   | 1,01 | 9    | 9   | 13  | **3:47**   | 3,1           | 2,2 / 0 %                 |
+| Prépare tier 4 | 11,20      | 0,70 | 11   | 10  | 13  | 4:24       | 3,2           | 2,2 / 0 %                 |
+
+✔ fenêtre de vagues 8-12 · ✔ durée 3-5 min · ✔ **merge bat spam ×1,93**
+
+Les objectifs chiffrés sont **inchangés** (`src/sim/targets.js`) : le draft rallonge la
+partie, la difficulté a été relevée en face, et la fenêtre 3-5 minutes tient. Le joueur de
+référence est à 3:47 et le joueur optimisé à 4:24 — les deux dans la fenêtre, ce qui laisse
+de la marge pour un joueur réel, plus lent que n'importe quelle politique.
+
+Les σ ne sont plus nulles comme au Lot 3 : le draft introduit une vraie variance de partie
+en partie (les politiques choisissent leurs cartes **au hasard, de façon seedée**). C'est
+une bonne nouvelle — deux parties ne se ressemblent plus, ce qui était l'objectif du lot.
+
+### 7.3 Le pool d'améliorations
+
+Onze cartes, trois proposées, `everyWaves: 3`. Le dosage retenu est « +12 à +22 % par
+niveau, 2 ou 3 niveaux » : assez pour se sentir, trop peu pour retourner la partie à elle
+seule.
+
+| id           | carte             | effet par niveau                  | niveaux |
+| ------------ | ----------------- | --------------------------------- | ------- |
+| `fireRate`   | Cadence           | `unitFireRate ×0,88`              | 3       |
+| `power`      | Puissance         | `unitDamage ×1,18`                | 3       |
+| `reach`      | Portée            | `unitRange ×1,14`                 | 2       |
+| `plating`    | Blindage          | `unitHp ×1,22`                    | 2       |
+| `deploy`     | Sortie rapide     | `deployCooldown ×0,88`            | 3       |
+| `slot`       | File élargie      | `slotBonus +1`                    | 2       |
+| `fortify`    | Fortifications    | `baseHpBonus +22` (rendus aussi)  | 3       |
+| `richVein`   | Gisement riche    | `spawnTierBonus +1`               | 2       |
+| `extraction` | Extraction        | `spawnInterval ×0,86`             | 3       |
+| `banner`     | Étendard          | soutien : `effect ×1,35`, `range ×1,2` | 2  |
+| `reflex`     | Réflexe           | `skipCooldown ×0,65`              | 2       |
+
+**Le pool est équilibré par construction, pas par réglage** : le rapport du harness le
+confirme (colonne `draft`), les onze cartes sortent à des fréquences comparables sur
+30 parties, aucune n'est ni évitée ni systématique. Ce n'est pas un mérite — les politiques
+tirent au hasard — mais ça vérifie qu'aucune carte n'est **injouable** (pool épuisé, effet
+inerte, plafond atteint trop tôt).
+
+Deux cartes méritent une note :
+
+- **Extraction** rend le surplus d'items que le plancher à 860 ms a retiré. C'est
+  volontairement la carte qui « répare » le régime de base : la prendre, c'est choisir de
+  rejouer au rythme du Lot 3.
+- **Fortifications** est la seule à valeur absolue (+22 PV sur 100). Un multiplicateur y
+  aurait été faible quand on le prend — c'est-à-dire quand la base est déjà basse, donc
+  précisément au moment où on le choisit.
+
+### 7.4 Chaque type d'unité a de nouveau sa situation
+
+`npm run sim -- --matchups --tier=3` — PV de base laissés passer, plus bas = mieux :
+
+| escouade (tier 3)         | mur de tanks | marée mixte | rush blindé | mur épais | tout à la fois |
+| ------------------------- | ------------ | ----------- | ----------- | --------- | -------------- |
+| 4× mono-cible             | 0 ★          | 18          | 131         | 178       | 272            |
+| 2× mono + 2× zone         | 0 ★          | **0 ★**     | 140         | 184       | 272            |
+| 2× mono + 2× ralentisseur | 0 ★          | 0 ★         | 106         | **164 ★** | **267 ★**      |
+| 3× mono + 1× soutien      | 0 ★          | 0 ★         | **101 ★**   | 178       | **267 ★**      |
+
+C'est une **amélioration sur le Lot 3**, où la zone n'avait jamais de colonne à elle : elle
+gagne maintenant la « marée mixte », la seule texture où le mono-cible laisse passer quelque
+chose. La passe de tempo l'y avait d'abord perdue (les rapides ralentis de 21 % arrivent
+moins serrés, donc la zone touche moins de monde à la fois) ; `splashRadius` 90 → 112 rend
+exactement ce que la vitesse a retiré.
+
+Le soutien, lui, avait purement et simplement disparu du tableau après la passe de tempo. Il
+a fallu monter son buff de 0,30/0,18 à **0,58/0,30** pour qu'il retrouve « rush blindé ».
+C'est beaucoup, et c'est mesuré : entre 0,36 et 0,46 le tableau ne bougeait pas d'un point,
+puis la colonne basculait d'un coup. Un multiplicateur sur des alliés a un seuil — en
+dessous, il ne change pas l'issue d'un seul échange ; au-dessus, il en change plusieurs.
+
+### 7.5 Les curseurs, par ordre d'effet (mis à jour)
+
+1. **`itemSpawner.minIntervalMs`** (860) — le débit d'items, et depuis ce lot **le régime du
+   jeu**. Repère : `4 items / deployCooldownMs` = 875 ms. Au-dessus, la grille respire ;
+   nettement en dessous, elle déborde et le jeu redevient une urgence permanente.
+2. **`waves.scaling.hpPerWave`** (1,62) — la vague où l'on meurt, sans toucher au début de
+   partie.
+3. **`waves.interWavePauseMs`** (7000) — la respiration **et** un cadeau de puissance. Tout
+   changement ici se paie sur `hpPerWave`.
+4. **vitesses d'ennemis** — le confort de lecture du couloir. Les baisser rend le joueur
+   plus fort ; les remonter rend les textures moins lisibles.
+5. **`draft.everyWaves`** (3) — la fréquence des respirations. À 2, la partie devient une
+   suite de menus ; à 4, un joueur qui meurt vague 8 ne voit que deux drafts et n'a pas de
+   build à raconter.
+6. `battle.deployCooldownMs` (3500) — le métronome, inchangé. Le changer oblige à recalculer
+   le débit d'items : les deux vont ensemble, toujours.
+
+### 7.6 Ce qui reste ouvert
+
+- **La fenêtre de défaite d'un vrai joueur**, toujours à confirmer au doigt. Le curseur reste
+  `hpPerWave` ; il y a maintenant de la marge des deux côtés (3:47 dans une fenêtre 3-5 min).
+- **Le spammeur meurt toujours vague 6.** Inchangé, et toujours un sujet de pédagogie plutôt
+  que d'équilibrage. Le draft n'y change rien : il en prend 1,8 par partie contre 3,1 pour le
+  joueur médian, ce qui creuse plutôt l'écart.
+- **Le bouton « passer » n'est pas mesuré par le harness** : les politiques ne s'en servent
+  pas. Son cooldown (10 s) est réglé au raisonnement — trois créneaux de déploiement — et
+  attend un playtest. C'est la seule valeur du lot qui ne repose pas sur une mesure.
+- **Le soutien n'a toujours pas de retour visuel d'aura**, et son buff est maintenant deux
+  fois plus fort qu'au Lot 3 : l'invisibilité de sa valeur devient franchement gênante.
+  Candidat n° 1 du prochain passage de lisibilité.

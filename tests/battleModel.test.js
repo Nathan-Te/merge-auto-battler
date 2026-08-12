@@ -18,6 +18,7 @@ const TEST_BALANCE = {
     laneLength: 1000,
     slotCount: 4,
     deployCooldownMs: 1000,
+    skipCooldownMs: 1000,
     maxFieldUnits: 6,
     baseHp: 100,
     unitTypePattern: ['single'],
@@ -218,7 +219,10 @@ describe('BattleModel — vagues', () => {
     const starts = record(model, 'waveStart');
 
     model.start();
-    expect(countdowns).toEqual([{ wave: 1, delayMs: 0 }]);
+    // L'annonce porte la composition depuis le Lot 3.5 : c'est elle que lit le bandeau.
+    expect(countdowns).toMatchObject([
+      { wave: 1, delayMs: 0, composition: [{ type: 'basic', count: 1 }], total: 1 },
+    ]);
     expect(model.phase).toBe(PHASE.PAUSE);
 
     model.tick();

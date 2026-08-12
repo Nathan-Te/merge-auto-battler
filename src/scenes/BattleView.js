@@ -121,13 +121,15 @@ export class BattleView {
       .setDepth(DEPTH.cell);
     this.baseFill = scene.add.rectangle(0, 0, 10, 10, COLORS.baseFill).setDepth(DEPTH.cell + 1);
 
-    /** @type {Phaser.GameObjects.Rectangle[]} fonds des slots de déploiement */
-    this.slotViews = Array.from({ length: this.config.slotCount }, (_, index) =>
-      scene.add
-        .rectangle(0, 0, 10, 10, index === 0 ? COLORS.slotHead : COLORS.slot)
-        .setStrokeStyle(1, COLORS.slotStroke, 1)
-        .setDepth(DEPTH.cell)
-    );
+    /**
+     * @type {Phaser.GameObjects.Rectangle[]} fonds des slots de déploiement.
+     *
+     * Créés à la demande : l'amélioration « File élargie » ajoute une place **en cours de
+     * partie**, et un tableau figé à la construction laisserait la nouvelle place invisible
+     * jusqu'au prochain rechargement.
+     */
+    this.slotViews = [];
+    this.ensureSlotViews(this.config.slotCount);
 
     // Jauge de sortie : un liseré qui se remplit sous le slot de tête. C'est le seul
     // repère de rythme du jeu, il doit être lisible du coin de l'œil.
@@ -138,11 +140,12 @@ export class BattleView {
 
     // Deux lignes de HUD, deux ancrages par ligne : rien ne peut se chevaucher, même
     // sur un écran de 320 px de large.
+    // Une seule ligne depuis le Lot 3.5 : PV à gauche, file de déploiement à droite. Ce
+    // qui occupait la seconde (prochaine unité, numéro de vague) est passé à `IntelBar`,
+    // qui le dit mieux — et à côté de l'annonce de vague, là où ça sert à décider.
     const dim = { fontFamily: FONT, color: COLORS.textDim };
     this.hpText = scene.add.text(0, 0, '', { ...dim, color: COLORS.text }).setDepth(DEPTH.hud);
-    this.waveText = scene.add.text(0, 0, '', dim).setOrigin(1, 0).setDepth(DEPTH.hud);
-    this.queueText = scene.add.text(0, 0, '', dim).setOrigin(0, 1).setDepth(DEPTH.hud);
-    this.nextText = scene.add.text(0, 0, '', dim).setOrigin(1, 1).setDepth(DEPTH.hud);
+    this.queueText = scene.add.text(0, 0, '', dim).setOrigin(1, 0).setDepth(DEPTH.hud);
 
     this.banner = scene.add
       .text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: COLORS.text, align: 'center' })
@@ -160,8 +163,21 @@ export class BattleView {
       .setAlpha(0)
       .setDepth(DEPTH.banner);
 
-    for (const text of [this.hpText, this.waveText, this.nextText, this.queueText, this.banner, this.hint]) {
+    for (const text of [this.hpText, this.queueText, this.banner, this.hint]) {
       text.setResolution(this.textResolution());
+    }
+  }
+
+  /** Complète la rangée de slots jusqu'à `count` vues. */
+  ensureSlotViews(count) {
+    while (this.slotViews.length < count) {
+      const index = this.slotViews.length;
+      this.slotViews.push(
+        this.scene.add
+          .rectangle(0, 0, 10, 10, index === 0 ? COLORS.slotHead : COLORS.slot)
+          .setStrokeStyle(1, COLORS.slotStroke, 1)
+          .setDepth(DEPTH.cell)
+      );
     }
   }
 
@@ -176,9 +192,13 @@ export class BattleView {
     this.laneRect.setPosition(zone.lane.x, zone.lane.y).setSize(zone.lane.width, zone.lane.height);
     this.baseRect.setPosition(zone.base.x, zone.base.y).setSize(zone.base.width, zone.base.height);
 
+    this.ensureSlotViews(zone.slots.length);
     this.slotViews.forEach((view, index) => {
       const slot = zone.slots[index];
-      view.setPosition(slot.x, slot.y).setSize(slot.size, slot.size);
+      // Plus de vue que de places (la file a rétréci d'une partie à l'autre) : on cache
+      // plutôt que de détruire, la vue resservira.
+      view.setVisible(Boolean(slot));
+      if (slot) view.setPosition(slot.x, slot.y).setSize(slot.size, slot.size);
     });
 
     // Jauge posée **dans** le slot de tête, le long de son bord bas : sur un petit écran,
@@ -191,23 +211,17 @@ export class BattleView {
     this.gauge.setPosition(head.x - gaugeWidth / 2, gaugeY).setSize(gaugeWidth, gaugeHeight);
     this.gaugeWidth = gaugeWidth;
 
-    // La police tient compte de la largeur (« PV 100/100 » et « Vague 12 » cohabitent sur
-    // une ligne) **et** de la hauteur, qui doit loger les deux lignes sans qu'elles se
-    // chevauchent — d'où le 0,42 plutôt qu'une pleine hauteur de ligne.
+    // La police tient compte de la largeur (« PV 100/100 » et « File 3/5 » cohabitent sur
+    // une ligne) **et** de la hauteur de la bande qui leur est réservée.
     const hudFont = Phaser.Math.Clamp(
-      Math.round(Math.min(zone.hud.height * 0.42, zone.hud.width * 0.055)),
+      Math.round(Math.min(zone.hud.height * 0.82, zone.hud.width * 0.055)),
       9,
       18
     );
-    const smallFont = Phaser.Math.Clamp(Math.round(hudFont * 0.82), 8, 15);
 
-    // Deux lignes, deux ancrages par ligne : rien ne peut se chevaucher, même à 320 px.
+    // Une ligne, deux ancrages : rien ne peut se chevaucher, même à 320 px.
     this.hpText.setFontSize(hudFont).setPosition(zone.hud.x, zone.hud.y);
-    this.waveText.setFontSize(hudFont).setPosition(zone.hud.x + zone.hud.width, zone.hud.y);
-    this.queueText.setFontSize(smallFont).setPosition(zone.hud.x, zone.hud.y + zone.hud.height);
-    this.nextText
-      .setFontSize(smallFont)
-      .setPosition(zone.hud.x + zone.hud.width, zone.hud.y + zone.hud.height);
+    this.queueText.setFontSize(hudFont).setPosition(zone.hud.x + zone.hud.width, zone.hud.y);
 
     // Le bandeau se plie à la **largeur** du couloir : en portrait, celui-ci est une
     // colonne étroite, et « en approche » déborderait sur la grille à pleine taille.
@@ -296,9 +310,11 @@ export class BattleView {
     on('unitDeath', ({ unit }) => this.popUnitView(unit));
 
     on('waveStart', ({ wave, label }) => this.onWaveStart(wave, label));
-    on('waveCountdown', ({ wave }) => {
-      if (wave > 1) this.showBanner(`Vague ${wave}\nen approche`);
-    });
+    // **L'annonce de vague du Lot 3.5.** Le bandeau ne dit plus « en approche » mais *ce
+    // qui* approche : c'est cette composition, croisée avec la file de types, qui doit
+    // changer ce que le joueur envoie pendant la préparation.
+    on('waveCountdown', (payload) => this.onWaveCountdown(payload));
+    on('baseHeal', ({ amount }) => this.onBaseHeal(amount));
     on('tapRejected', () => this.showBlockedHint());
     on('queueRejected', () => this.showBlockedHint());
   }
@@ -777,6 +793,31 @@ export class BattleView {
 
   // ------------------------------------------------------------------ feedback
 
+  /**
+   * Bandeau d'annonce, au début de chaque préparation.
+   *
+   * La vague 1 y a droit comme les autres : c'est la première chose que voit un joueur, et
+   * lui montrer d'emblée que le jeu **prévient** est ce qui lui apprend à lire l'annonce.
+   */
+  onWaveCountdown({ wave, label, description }) {
+    const title = label ? `Vague ${wave} · ${label}` : `Vague ${wave}`;
+    this.showBanner(`${title}\n${description}`);
+  }
+
+  /** La base vient d'être renforcée par un draft : la jauge remonte, en vert. */
+  onBaseHeal(amount) {
+    this.refreshBaseBar();
+    if (!(amount > 0)) return;
+    const zone = this.zone;
+    if (!zone) return;
+    this.juice.burst(
+      zone.base.x + zone.base.width / 2,
+      zone.base.y + zone.base.height / 2,
+      this.juiceConfig.combat.deathBurst,
+      COLORS.baseFill
+    );
+  }
+
   onWaveStart(wave, label) {
     // La texture de la vague est annoncée avec son numéro : « Vague 4 / Rush » laisse une
     // chance de préparer le bon type d'unité, ce qu'un simple numéro ne fait pas.
@@ -864,13 +905,11 @@ export class BattleView {
     const hud = this.session.hud();
     // Le HUD est relu à chaque frame mais n'écrit que sur changement : `setText` force
     // un re-rendu de texture, inutile 60 fois par seconde pour un compteur qui bouge peu.
-    const signature = `${Math.ceil(hud.baseHp)}|${hud.wave}|${hud.nextUnitLabel}|${hud.queueLength}|${hud.blocked}`;
+    const signature = `${Math.ceil(hud.baseHp)}|${hud.maxBaseHp}|${hud.queueLength}|${hud.slotCount}|${hud.blocked}`;
     if (signature === this.hudSignature) return;
     this.hudSignature = signature;
 
     this.hpText.setText(`PV ${Math.ceil(hud.baseHp)}/${hud.maxBaseHp}`);
-    this.waveText.setText(hud.wave === 0 ? 'Préparation' : `Vague ${hud.wave}`);
-    this.nextText.setText(`Unité : ${hud.nextUnitLabel}`);
     this.queueText.setText(`File ${hud.queueLength}/${hud.slotCount}`);
     this.queueText.setColor(hud.blocked ? COLORS.textWarn : COLORS.textDim);
   }

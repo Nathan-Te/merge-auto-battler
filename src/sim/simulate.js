@@ -57,20 +57,38 @@ export function simulateGame({
   actionIntervalMs = SIM_DEFAULTS.actionIntervalMs,
   maxDurationMs = SIM_DEFAULTS.maxDurationMs,
 } = {}) {
-  const session = new GameSession({ balance, rng: makeRng(seed) }).start();
+  // Deux générateurs, deux rôles : l'un pour le jeu (apparition des items), l'autre pour
+  // le draft (offres **et** choix). Séparés, parce qu'un draft qui puiserait dans le
+  // premier décalerait toute la suite des apparitions et rendrait les politiques
+  // incomparables entre elles — elles ne joueraient plus la même partie.
+  const draftRng = makeRng(seed * 7919 + 13);
+  const session = new GameSession({ balance, rng: makeRng(seed), draftRng }).start();
 
   const actions = { tap: 0, merge: 0 };
+  const drafted = [];
   let elapsedMs = 0;
   let actionAccMs = 0;
 
   while (!session.over && elapsedMs < maxDurationMs) {
+    // Draft ouvert : la session est gelée et `update()` ne fait plus rien. Choisir est
+    // donc la **seule** façon d'avancer — un harness qui l'oublierait tournerait jusqu'au
+    // garde-fou de durée en croyant mesurer une survie infinie.
+    if (session.draftPending) {
+      const chosen = draftChoice(session, policy, draftRng);
+      if (chosen) drafted.push(chosen.id);
+      // Un choix refusé (pool vide, id inconnu) laisserait la boucle tourner à vide : on
+      // arrête plutôt que de mentir sur la durée de la partie.
+      else break;
+      continue;
+    }
+
     session.update(stepMs);
     elapsedMs += stepMs;
 
     actionAccMs += stepMs;
     while (actionAccMs >= actionIntervalMs) {
       actionAccMs -= actionIntervalMs;
-      if (session.over) break;
+      if (session.over || session.draftPending) break;
       const played = policy.act(session);
       if (played) actions[played] += 1;
     }
@@ -89,8 +107,26 @@ export function simulateGame({
     durationMs: recap.durationMs,
     timedOut: !session.over,
     actions,
+    /** Améliorations prises, dans l'ordre — le build joué par cette partie. */
+    drafted,
     recap,
   };
+}
+
+/**
+ * Choix de draft d'une politique : le sien s'il en a un, sinon un tirage **seedé uniforme**.
+ *
+ * Un choix aléatoire est volontaire à ce stade (cf. prompt du Lot 3.5) : le harness mesure
+ * si le rythme tient avec des drafts, pas si un build optimal existe. Une politique qui
+ * choisirait bien mesurerait un joueur qui connaît déjà le jeu.
+ */
+export function draftChoice(session, policy, rng) {
+  const cards = session.pendingDraft ?? [];
+  if (cards.length === 0) return null;
+  if (policy.draft) return session.chooseDraft(policy.draft(cards, session));
+
+  const index = Math.min(cards.length - 1, Math.floor(rng() * cards.length));
+  return session.chooseDraft(cards[index].id);
 }
 
 // --------------------------------------------------------------------- agrégation
@@ -141,6 +177,8 @@ export function runPolicy({ balance, policy, games = 20, seed = 1, ...options } 
   // relative de chaque type / tier qui informe, pas la valeur absolue d'une partie.
   const damageTotals = {};
   const sentByTier = {};
+  /** Améliorations prises, toutes parties confondues — dit si le pool tourne vraiment. */
+  const draftCounts = {};
   let blockedTaps = 0;
   const gridFullShare = mean(results.map((result) => result.recap.gridFullShare));
   const gridItemsAvg = mean(results.map((result) => result.recap.gridItemsAvg));
@@ -150,6 +188,9 @@ export function runPolicy({ balance, policy, games = 20, seed = 1, ...options } 
     }
     for (const [tier, count] of Object.entries(result.recap.sentByTier)) {
       sentByTier[tier] = (sentByTier[tier] ?? 0) + count;
+    }
+    for (const id of result.drafted) {
+      draftCounts[id] = (draftCounts[id] ?? 0) + 1;
     }
     blockedTaps += result.recap.blockedTaps;
   }
@@ -181,6 +222,9 @@ export function runPolicy({ balance, policy, games = 20, seed = 1, ...options } 
     },
     damageShare,
     sentByTier,
+    draftCounts,
+    /** Améliorations prises par partie — le rythme du draft, en une valeur. */
+    draftsPerGame: mean(results.map((result) => result.drafted.length)),
     blockedTaps,
     /** Occupation de la grille : accord entre cadence d'items et cooldown de sortie. */
     gridFullShare,

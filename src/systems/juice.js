@@ -74,6 +74,15 @@ const REQUIRED_NUMBERS = [
   'ui.hintMs',
   'ui.gaugePulseMs',
   'ui.scoreCountMs',
+  'draft.cardInMs',
+  'draft.cardStaggerMs',
+  'draft.pickMs',
+  'draft.dismissMs',
+  'draft.chipPopMs',
+  'draft.pickBurst.count',
+  'draft.pickBurst.speedPx',
+  'draft.pickBurst.lifeMs',
+  'draft.pickBurst.sizePx',
 ];
 
 /** Sons attendus par le jeu. Un son manquant est une erreur, pas un silence. */

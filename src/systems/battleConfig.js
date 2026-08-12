@@ -16,6 +16,13 @@
  * marche, et les ennemis ont de quoi les frapper (`damage`, `attackRateMs`, `attackRange`).
  */
 
+import { typeModifiers, TYPE_KEYS } from './modifiers.js';
+
+/** Facteurs neutres, alloués une fois : `unitStats` est appelé des milliers de fois. */
+const NEUTRAL_TYPE = Object.freeze(
+  Object.fromEntries(TYPE_KEYS.map((key) => [key, 1]))
+);
+
 /** Rôles reconnus, et clés supplémentaires que chacun exige. */
 const ROLE_KEYS = {
   damage: [],
@@ -69,6 +76,8 @@ export function parseBattleConfig(balance) {
     slotCount: num(rawBattle, 'battle', 'slotCount', { min: 1, integer: true }),
     /** Rythme de sortie : une unité quitte la file tous les `deployCooldownMs`. */
     deployCooldownMs: num(rawBattle, 'battle', 'deployCooldownMs', { min: 1 }),
+    /** Cooldown du bouton « passer » de la file de types (Lot 3.5). */
+    skipCooldownMs: num(rawBattle, 'battle', 'skipCooldownMs', { min: 0 }),
     /** Garde-fou de performance : unités simultanées sur le champ de bataille. */
     maxFieldUnits: num(rawBattle, 'battle', 'maxFieldUnits', { min: 1, integer: true }),
     baseHp: num(rawBattle, 'battle', 'baseHp', { min: 1 }),
@@ -286,6 +295,7 @@ function parseComposition(raw, path, enemies) {
  * @param {object} [options]
  * @param {number} [options.supportDamage] Bonus de dégâts cumulé des soutiens à portée (0.3 = +30 %)
  * @param {number} [options.supportFireRate] Bonus de cadence cumulé des soutiens à portée
+ * @param {object} [options.modifiers] Modificateurs de draft (`src/systems/modifiers.js`)
  * @returns {{role: string, label: string, hp: number, speed: number, damage: number,
  *            fireRateMs: number, range: number, splashRadius: number, slowFactor: number,
  *            slowDurationMs: number, slowRadius: number, auraRadius: number}}
@@ -294,8 +304,12 @@ export function unitStats(config, type, tier, options = {}) {
   const def = config.units[type];
   if (!def) throw new Error(`type d'unité inconnu « ${type} »`);
 
-  const { supportDamage = 0, supportFireRate = 0 } = options;
+  const { supportDamage = 0, supportFireRate = 0, modifiers = null } = options;
   const steps = Math.max(0, tier - 1);
+
+  // Les améliorations de draft sont des **facteurs appliqués ici**, jamais des valeurs
+  // réécrites dans `balance.json` (cf. `src/systems/modifiers.js`).
+  const mod = modifiers ? typeModifiers(modifiers, type) : NEUTRAL_TYPE;
 
   const hpScale = def.tierScaling.hp ** steps;
   const damageScale = def.tierScaling.damage ** steps;
@@ -309,41 +323,53 @@ export function unitStats(config, type, tier, options = {}) {
       ? 0
       : // Jamais plus vite qu'un tick : le modèle ne saurait pas frapper deux fois dans le
         // même pas de temps, et la valeur mentirait sur les DPS réels.
-        Math.max(config.tickMs, def.fireRateMs * fireRateScale * (1 - fireRateBonus));
+        Math.max(
+          config.tickMs,
+          def.fireRateMs * fireRateScale * (1 - fireRateBonus) * mod.fireRate
+        );
+
+  const range = def.range * rangeScale * mod.range;
 
   return {
     role: def.role,
     label: def.label,
-    hp: def.hp * hpScale,
+    hp: def.hp * hpScale * mod.hp,
     speed: def.speed,
-    damage: def.damage * damageScale * (1 + supportDamage),
+    damage: def.damage * damageScale * (1 + supportDamage) * mod.damage,
     fireRateMs,
-    range: def.range * rangeScale,
-    splashRadius: def.role === 'aoe' ? def.splashRadius * effectScale : 0,
+    range,
+    splashRadius: def.role === 'aoe' ? def.splashRadius * effectScale * mod.effect : 0,
     slowFactor: def.role === 'slow' ? def.slowFactor : 1,
-    slowDurationMs: def.role === 'slow' ? def.slowDurationMs * effectScale : 0,
-    slowRadius: def.role === 'slow' ? def.slowRadius * effectScale : 0,
-    auraRadius: def.role === 'support' ? def.auraRadius * rangeScale : 0,
+    slowDurationMs: def.role === 'slow' ? def.slowDurationMs * effectScale * mod.effect : 0,
+    slowRadius: def.role === 'slow' ? def.slowRadius * effectScale * mod.effect : 0,
+    // L'aura suit la portée, pas l'effet : c'est une **distance**, et « + portée » doit
+    // s'entendre de la même façon pour tout le monde.
+    auraRadius: def.role === 'support' ? def.auraRadius * rangeScale * mod.range : 0,
   };
 }
 
 /**
  * PV maximum d'une unité — raccourci de `unitStats().hp`, appelé à la naissance.
  */
-export function unitMaxHp(config, type, tier) {
-  return unitStats(config, type, tier).hp;
+export function unitMaxHp(config, type, tier, modifiers = null) {
+  return unitStats(config, type, tier, { modifiers }).hp;
 }
 
 /**
  * Bonus apportés par une unité de soutien à **chaque allié dans son aura**.
  *
+ * @param {object} config Config normalisée
+ * @param {string} type Id du type d'unité
+ * @param {number} tier
+ * @param {object} [modifiers] Modificateurs de draft
  * @returns {{damage: number, fireRate: number}} fractions (0.3 = +30 %)
  */
-export function supportBonus(config, type, tier) {
+export function supportBonus(config, type, tier, modifiers = null) {
   const def = config.units[type];
   if (!def || def.role !== 'support') return { damage: 0, fireRate: 0 };
 
-  const scale = def.tierScaling.effect ** Math.max(0, tier - 1);
+  const mod = modifiers ? typeModifiers(modifiers, type) : NEUTRAL_TYPE;
+  const scale = def.tierScaling.effect ** Math.max(0, tier - 1) * mod.effect;
   return { damage: def.buff.damage * scale, fireRate: def.buff.fireRate * scale };
 }
 

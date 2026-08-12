@@ -74,14 +74,28 @@ export function waveSpawnGapMs(config, wave) {
 }
 
 /**
- * Libellé de texture d'une vague (« Rush », « Mur de tanks »…), ou chaîne vide.
+ * Libellé de texture d'une vague (« Rush », « Mur de tanks »…).
  *
- * Les vagues générées n'en ont pas : au-delà des vagues scriptées, la formule ne compose
- * plus de textures, elle empile.
+ * Une vague scriptée porte le sien, écrit à la main dans `balance.json`. Les vagues
+ * **générées** n'en ont pas — la formule empile, elle ne compose pas de texture — mais
+ * l'annonce du Lot 3.5 ne doit pas s'éteindre à la vague 11 : on en dérive donc un depuis
+ * la composition calculée, à partir du type **dominant**. Purement descriptif : aucune
+ * règle ne lit cette chaîne, et rien ici ne décide de qui gagne.
  */
 export function waveLabel(config, wave) {
   const index = Math.max(1, Math.floor(wave)) - 1;
-  return config.waves.scripted[index]?.label ?? '';
+  const scripted = config.waves.scripted[index];
+  if (scripted) return scripted.label ?? '';
+
+  const composition = waveComposition(config, wave);
+  const total = composition.reduce((sum, entry) => sum + entry.count, 0);
+  if (total === 0) return '';
+
+  const dominant = composition.reduce((best, entry) => (entry.count > best.count ? entry : best));
+  // Sans dominante nette, la vague est un mélange : le dire vaut mieux que de mettre en
+  // avant un type qui ne représente qu'un tiers de ce qui arrive.
+  if (dominant.count / total < 0.45) return 'Vague mixte';
+  return `Marée de ${config.enemies[dominant.type].label.toLowerCase()}s`;
 }
 
 /**

@@ -477,3 +477,174 @@ du jeu) et `flight.toSlotMs` / `toFieldMs` (la lisibilité du pont).
 - **Les 60 fps sur mobile réel restent à confirmer au doigt** : la mesure ci-dessus est
   celle du coût CPU de notre code, pas celle du GPU d'un téléphone d'entrée de gamme.
 - **La fusion d'unités ★** reste hors V1 (retirée au Lot 2.5).
+
+## Lot 3.5 — ce qui est livré
+
+Le Lot 3 avait un feel et un équilibrage validés, mais le playtest a remonté deux défauts
+liés : **le jeu n'avait qu'un régime** — une urgence de grille permanente, où l'on ne
+regardait ni la bataille ni la file de types — et **rien ne motivait une seconde partie**.
+Ce lot installe une respiration, des décisions, et un build à raconter. Toujours en
+greybox : les assets arrivent au Lot 4.
+
+### La boucle de décision
+
+Trois éléments, dont aucun ne vaut sans les deux autres :
+
+```
+annonce de vague   ×   file de types   ×   draft
+« ce qui arrive »     « ce que je peux »   « ce que je deviens »
+```
+
+- **Annonce de vague.** Chaque pause annonce la **composition** de la vague à venir
+  (icônes greybox par type d'ennemi + quantités) et son compte à rebours de préparation.
+  La composition est **calculée par le modèle** (`BattleModel.wavePreview`), donc la
+  formule infinie l'annonce aussi : le bandeau ne s'éteint pas en vague 11, c'est-à-dire
+  au moment où la difficulté décolle.
+- **File de types active.** Trois types visibles (tête mise en évidence) et un bouton
+  **« passer »** qui défausse la tête contre un cooldown de 10 s. Voir la file sans pouvoir
+  agir dessus n'était pas une décision.
+- **Les deux sont physiquement côte à côte** dans la barre de décision (`IntelBar`), au
+  sommet de la bande de combat : c'est leur croisement qui fait le choix du jeu — « 20
+  rapides arrivent, ma tête de file est un mono-cible : j'envoie, je prépare plus gros, ou
+  je passe ? ». Les séparer reviendrait à retirer la décision.
+
+### Draft roguelite
+
+Toutes les **3 vagues**, la partie **gèle** et propose **3 améliorations** parmi 11 ; le
+joueur en prend une, elle vaut pour le reste de la partie. Les cartes entrent en cascade,
+la carte choisie éclate en particules — c'est un moment de plaisir, pas un menu.
+
+| id           | carte             | effet par niveau                       | niveaux |
+| ------------ | ----------------- | -------------------------------------- | ------- |
+| `fireRate`   | Cadence           | délai de frappe ×0,88                  | 3       |
+| `power`      | Puissance         | dégâts ×1,18                           | 3       |
+| `reach`      | Portée            | portée ×1,14 (aura du soutien comprise) | 2      |
+| `plating`    | Blindage          | PV des unités à venir ×1,22            | 2       |
+| `deploy`     | Sortie rapide     | cooldown de sortie ×0,88               | 3       |
+| `slot`       | File élargie      | +1 place dans la file                  | 2       |
+| `fortify`    | Fortifications    | +22 PV de base, **et 22 PV rendus**    | 3       |
+| `richVein`   | Gisement riche    | items d'un tier plus haut              | 2       |
+| `extraction` | Extraction        | intervalle d'apparition ×0,86          | 3       |
+| `banner`     | Étendard          | soutien : effet ×1,35, portée ×1,2     | 2       |
+| `reflex`     | Réflexe           | cooldown de « passer » ×0,65           | 2       |
+
+**Architecture — la règle du lot : ce sont des modificateurs, jamais des mutations.** Une
+carte prise n'écrit rien dans `balance.json` ; elle accumule un facteur
+(`src/systems/modifiers.js`) que les lecteurs — `unitStats`, `DeployQueue`, `ItemSpawner`,
+`UnitQueue` — appliquent au moment de lire. `balance.json` est importé **une seule fois**
+pour toute l'application : une mutation ferait survivre les améliorations d'une partie à la
+suivante, exactement le bug que `GameSession.destroy()` rend impossible partout ailleurs.
+Un test le verrouille en prenant les onze cartes puis en comparant le fichier octet à octet.
+
+Le gel de la partie est **double, à dessein** : `GameSession.pendingDraft` arrête
+`update()`, `BattleModel.paused` coupe le tick au milieu d'une frame (une frame couvre
+jusqu'à 5 ticks, la vague suivante avancerait sinon pendant la lecture), et côté rendu
+`DraftScene` est lancée par-dessus `GameScene` mise en pause. Un bug de rendu ne peut pas
+laisser filer la simulation.
+
+### Passe de tempo — avant / après
+
+| valeur                        | Lot 3 | Lot 3.5   | pourquoi                                                |
+| ----------------------------- | ----- | --------- | ------------------------------------------------------- |
+| `enemies.basic.speed`         | 55    | **44**    | −20 % : le temps de regarder un combat se dérouler      |
+| `enemies.fast.speed`          | 135   | **106**   | −21 % : un rush reste un rush, mais lisible             |
+| `enemies.tank.speed`          | 32    | **26**    | −19 %, l'écart de texture entre types est préservé      |
+| `waves.firstWaveDelayMs`      | 7000  | **9000**  | lire la première annonce avant le premier contact       |
+| `waves.interWavePauseMs`      | 4000  | **7000**  | **le temps de merge légitime** — la respiration du lot  |
+| `itemSpawner.intervalMs`      | 1200  | **1300**  | accordé au nouveau rythme                               |
+| `itemSpawner.minIntervalMs`   | 780   | **860**   | le débit passe **à l'équilibre** au lieu de +12 %       |
+| `waves.scaling.hpPerWave`     | 1,48  | **1,62**  | compense tout le reste : sinon la partie durait 5:20    |
+| `units.aoe.splashRadius`      | 90    | **112**   | rend à la zone ce que le ralentissement des rapides lui a pris |
+| `units.support.buff`          | 0,30 / 0,18 | **0,58 / 0,30** | le soutien avait perdu toute situation gagnante |
+| `battle.skipCooldownMs`       | —     | **10000** | nouveau : ≈ 3 créneaux de déploiement                   |
+
+**Le plancher d'items est le changement de régime.** À 780 ms, le joueur recevait 12 % plus
+d'items qu'il ne pouvait en envoyer : la grille débordait en permanence, ce qui *était*
+l'urgence permanente remontée au playtest. À 860 ms le débit est exactement à l'équilibre
+(`4 items / 3,5 s = 875 ms`) : suivre le rythme reste possible, mais le surplus n'est plus
+donné — il se **choisit** au draft.
+
+### Résultats du harness — 30 parties par politique, graines 1..30
+
+| politique      | vague moy. | σ    | méd. | durée moy. | drafts/partie | grille pleine |
+| -------------- | ---------- | ---- | ---- | ---------- | ------------- | ------------- |
+| Spam tier 1    | 5,80       | 0,40 | 6    | 2:50       | 1,8           | **80 %**      |
+| Mixte tier 3   | **9,67**   | 1,01 | 9    | **3:47**   | 3,1           | 0 %           |
+| Prépare tier 4 | 11,20      | 0,70 | 11   | 4:24       | 3,2           | 0 %           |
+
+✔ fenêtre de vagues 8-12 · ✔ durée 3-5 min · ✔ **merge bat spam ×1,93** (seuil ×1,4)
+
+**Les objectifs chiffrés sont inchangés** : le draft rallonge la partie, la difficulté a été
+relevée en face plutôt que la cible déplacée. Les politiques du harness draftent maintenant
+(tirage aléatoire seedé) — un test vérifie qu'elles prennent bien des cartes, sans quoi une
+régression sur le draft passerait inaperçue derrière des chiffres d'apparence normale.
+
+Les σ ne sont plus nulles comme au Lot 3 : le draft introduit une vraie variance de partie
+en partie. C'est le but du lot.
+
+**Chaque type d'unité a de nouveau sa situation** (`npm run sim -- --matchups --tier=3`), et
+c'est même une amélioration sur le Lot 3 où la **zone** ne gagnait jamais une colonne à elle
+seule :
+
+| escouade (tier 3)         | mur de tanks | marée mixte | rush blindé | mur épais | tout à la fois |
+| ------------------------- | ------------ | ----------- | ----------- | --------- | -------------- |
+| 4× mono-cible             | 0 ★          | 18          | 131         | 178       | 272            |
+| 2× mono + 2× zone         | 0 ★          | **0 ★**     | 140         | 184       | 272            |
+| 2× mono + 2× ralentisseur | 0 ★          | 0 ★         | 106         | **164 ★** | **267 ★**      |
+| 3× mono + 1× soutien      | 0 ★          | 0 ★         | **101 ★**   | 178       | **267 ★**      |
+
+### Écran de fin enrichi
+
+Le récap n'est plus un outil de réglage caché derrière `?debug=1` : il s'adresse au joueur
+et raconte **le build joué** — améliorations prises avec leur niveau, type d'unité qui a
+porté les dégâts, envois, fusions, meilleur tier atteint. C'est ce qui répond à « rien ne
+motive une seconde partie » : on sort de l'écran avec une idée à essayer, pas seulement un
+score. La ligne de diagnostic d'équilibrage (fuites, taps refusés, durée) reste, elle,
+derrière `?debug=1`.
+
+### Poids et performance
+
+Poids de `dist/` : **1,30 Mo** (349 Ko gzip), contre 1,28 Mo au Lot 3 — **+2 Ko**. Le lot
+n'ajoute aucun asset : les icônes de cartes sont des formes vectorielles greybox
+(`src/render/draftIcons.js`) et l'écran de draft réutilise la boîte à juice de la scène de
+jeu plutôt que d'allouer un second pool de particules et un second contexte audio. Très en
+dessous du budget de 5 Mo, et de celui de 20 Mo du seed doc.
+
+### Ce qui est testable
+
+- `npm test` : **438 tests** (363 au Lot 3), dont le `DraftSystem` (tirage seedé sans
+  doublon, pool qui s'épuise proprement, cumul multiplicatif des niveaux, **non-mutation de
+  `balance.json`**), le gel et la reprise propres du tick, le bouton « passer » et son
+  cooldown, l'annonce de vague issue de la formule infinie, l'enchaînement de deux parties
+  avec drafts, la barre de décision dans le layout de tous les écrans du parc, et
+  l'invariant « merge bat spam » toujours vert.
+- `npm run sim` : le rapport affiche désormais une ligne `draft` par politique (nombre de
+  cartes par partie et fréquence de chacune), ce qui vérifie qu'aucune amélioration n'est
+  injouable.
+- **Passe navigateur** (Chromium, portrait 390×780 et paysage 900×520) : partie complète
+  jouée au pointeur jusqu'au game over avec drafts pris à l'écran et huit « passer »,
+  ouverture et fermeture du draft, rejouer — **aucune erreur console**, et la seconde partie
+  repart sans une seule amélioration de la première (vérifié sur l'état réel de la session).
+
+### À juger en premier au doigt
+
+1. **`waves.interWavePauseMs`** (7000 ms) — la respiration. C'est la valeur qui décide si on
+   a « le temps de regarder la bataille ». Trop longue, elle casse le rythme ; la raccourcir
+   se paie sur `hpPerWave`.
+2. **`battle.skipCooldownMs`** (10 s) — **la seule valeur du lot qui ne repose pas sur une
+   mesure** : les politiques du harness ne se servent pas du bouton « passer ». Trop court,
+   il annule la contrainte de la file ; trop long, le bouton est décoratif.
+3. **`draft.everyWaves`** (3) — la fréquence des respirations. À 2, la partie devient une
+   suite de menus ; à 4, un joueur qui meurt vague 8 n'a vu que deux drafts.
+4. **`juice.draft.cardStaggerMs`** (90 ms) — l'entrée en cascade des cartes. C'est elle qui
+   fait la différence entre « un menu s'ouvre » et « on me propose quelque chose ».
+
+### Ce qui reste ouvert
+
+- **Le soutien n'a toujours pas de retour visuel d'aura**, et son buff est maintenant deux
+  fois plus fort qu'au Lot 3 : l'invisibilité de sa valeur devient franchement gênante.
+  Candidat n° 1 du prochain passage de lisibilité.
+- **Le spammeur meurt toujours vague 6.** Le draft creuse même l'écart (1,8 carte par partie
+  contre 3,1 pour le joueur médian). Toujours un sujet de pédagogie, pas d'équilibrage.
+- **Les 60 fps sur mobile réel restent à confirmer au doigt.**
+- **La fusion d'unités ★** reste hors V1 (retirée au Lot 2.5).

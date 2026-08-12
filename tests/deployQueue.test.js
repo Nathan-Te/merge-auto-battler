@@ -193,3 +193,45 @@ describe('DeployQueue — remise à zéro', () => {
     expect(queue.canAccept()).toBe(true);
   });
 });
+
+describe('DeployQueue — améliorations de draft (Lot 3.5)', () => {
+  /**
+   * Les modificateurs sont lus **à chaque appel**, jamais figés à la construction : une
+   * place gagnée au draft doit s'ouvrir immédiatement, sans reconstruire la file ni perdre
+   * ce qu'elle contient.
+   */
+  function makeModified(modifiers) {
+    const bus = new EventBus();
+    const deployed = [];
+    bus.on('deployUnit', (payload) => deployed.push(payload));
+    const queue = new DeployQueue({ config: CONFIG, bus, getModifiers: () => modifiers });
+    return { queue, deployed };
+  }
+
+  it('ouvre les places supplémentaires sans vider la file', () => {
+    const modifiers = { slotBonus: 0, deployCooldown: 1 };
+    const { queue } = makeModified(modifiers);
+
+    for (let i = 0; i < CONFIG.slotCount + 1; i += 1) queue.enqueue(1, 'single');
+    const before = queue.slots.length;
+    expect(queue.canAccept()).toBe(false);
+
+    modifiers.slotBonus = 2;
+    expect(queue.slotCount()).toBe(CONFIG.slotCount + 2);
+    expect(queue.canAccept()).toBe(true);
+    expect(queue.slots).toHaveLength(before);
+  });
+
+  it('raccourcit le cooldown de sortie, jauge comprise', () => {
+    const { queue, deployed } = makeModified({ slotBonus: 0, deployCooldown: 0.5 });
+
+    queue.enqueue(1, 'single');
+    queue.enqueue(2, 'single');
+    expect(deployed).toHaveLength(1);
+    expect(queue.cooldownMs).toBe(CONFIG.deployCooldownMs * 0.5);
+
+    queue.update(CONFIG.deployCooldownMs * 0.5);
+    expect(deployed).toHaveLength(2);
+  });
+});
+

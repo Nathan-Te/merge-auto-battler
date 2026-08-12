@@ -39,7 +39,16 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
 - **Objectifs chiffrés de référence** (`src/sim/targets.js`, vérifiés par le harness et par
   les tests) : partie moyenne de **3 à 5 minutes**, première défaite vers les **vagues
   8-12**, `prepare` au moins **×1,4** devant `spam` en vagues survécues. Toute itération de
-  réglage se juge à ces trois nombres.
+  réglage se juge à ces trois nombres. Ils sont **inchangés depuis le Lot 3.5** : le draft
+  rallonge la partie, la difficulté a été relevée en face plutôt que la cible déplacée
+  (mesures dans `docs/balance-notes.md`, section 7).
+- **Les améliorations de draft sont des modificateurs, jamais des mutations.** Une carte
+  prise n'écrit **rien** dans `balance.json` : elle accumule un facteur
+  (`src/systems/modifiers.js`), et ce sont les lecteurs — `unitStats`, `DeployQueue`,
+  `ItemSpawner`, `UnitQueue` — qui l'appliquent au moment de lire. `balance.json` est importé
+  une seule fois pour toute l'application : une mutation ferait survivre les améliorations
+  d'une partie à la suivante, exactement le bug que `GameSession.destroy()` rend impossible
+  partout ailleurs. Un test le verrouille (`tests/draftSystem.test.js`).
 - **Greybox jusqu'au Lot 3.** Formes colorées et texte, pas d'assets. Les sprites, sons et
   musique arrivent au Lot 4 — n'anticipe pas, le fun se valide sur les formes.
 - **Souris + tactile obligatoires sur toute interaction.** Chaque geste doit fonctionner au
@@ -53,6 +62,28 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   rythme de `battle.deployCooldownMs` : c'est le métronome du jeu, et c'est ce qui rend le
   spam de petites unités perdant. Décision actée au Lot 2.5 — les deux gestes ne doivent
   jamais se confondre, seuils dans `balance.json` (`input`), logique dans `tapGesture.js`.
+- **La boucle de décision est l'intention de design de référence** (Lot 3.5). Elle a trois
+  temps, et aucun ne vaut sans les deux autres :
+
+  ```
+  annonce de vague  ×  file de types  ×  draft
+  « ce qui arrive »   « ce que je peux »  « ce que je deviens »
+  ```
+
+  Chaque pause annonce la **composition** de la vague à venir ; la file affiche les **trois
+  prochains types**, et le bouton « passer » permet d'en défausser un contre un cooldown ;
+  toutes les `draft.everyWaves` vagues, la partie gèle et propose trois améliorations. La
+  décision du jeu naît du **croisement** des deux premières informations — « 20 rapides
+  arrivent, ma tête de file est un mono-cible : j'envoie, je prépare plus gros, ou je
+  passe ? ». C'est pour ça qu'elles sont physiquement **côte à côte** dans `IntelBar` : les
+  séparer, c'est retirer la décision. Toute évolution d'interface doit préserver ce
+  voisinage. Le troisième temps, le draft, est ce qui rend une seconde partie différente de
+  la première.
+- **Une pause est du temps de jeu, pas du temps mort.** `waves.interWavePauseMs` est le
+  moment où l'on regarde la bataille, où l'on lit l'annonce et où l'on fusionne sans urgence
+  — le playtest du Lot 3 a montré qu'un jeu à un seul régime (l'urgence permanente) fatigue
+  et n'offre aucun choix. Le raccourcir revient à supprimer la respiration installée par ce
+  lot ; c'est aussi un levier de puissance, donc tout changement se paie sur `hpPerWave`.
 - **Poids surveillé à chaque lot.** Le seed doc impose ≤ 20 Mo de téléchargement initial
   (limite dure 50 Mo) et un chargement < 3 s. Le workflow CI affiche le poids de `dist/` à
   chaque build : le regarder, et justifier toute hausse notable dans la PR.
@@ -80,16 +111,20 @@ input (pointeur)  ->  scène Phaser  ->  modèle pur  ->  bus d'événements  ->
   et toutes ses règles (placement, validité d'une fusion, déplacement, spawn sur case
   libre, grille pleine, tier maximum) ; `DeployQueue` la file de déploiement (slots, FIFO,
   cooldown de sortie) ; `BattleModel` le champ de bataille (unités, ennemis, marche,
-  combat mutuel, vagues, PV de la base) ; `GameSession` possède le tout et porte le pont ;
-  `tapGesture` distingue tap et glisser ; `itemSpawner` détient la cadence et le tirage des
-  tiers ; `battleConfig` / `waves` valident `balance.json` et portent **toutes** les
+  combat mutuel, vagues, PV de la base, **annonce de la vague à venir**) ; `DraftSystem` le
+  pool d'améliorations et son tirage seedé, `modifiers` leur accumulation ; `GameSession`
+  possède le tout et porte le pont ; `tapGesture` distingue tap et glisser ; `unitQueue`
+  la file de types et son bouton « passer » ; `itemSpawner` détient la cadence et le tirage
+  des tiers ; `battleConfig` / `waves` valident `balance.json` et portent **toutes** les
   formules ; `layout` calcule les rectangles de l'écran. Ces modules tournent dans vitest
   sans canvas ni DOM, et c'est là que se trouvent les tests.
 - **`src/scenes/` — rendu et orchestration.** `GameScene` crée la session, lui envoie les
   gestes du joueur (`session.applyTap`, `session.applyDrop`), et met en images ce qu'elle
-  émet ; `BattleView` fait de même pour la moitié droite ; `GameOverScene` est lancée
-  par-dessus la scène de jeu mise en pause. Une scène ne décide jamais si une fusion est
-  légale ni si un envoi est possible : elle demande.
+  émet ; `BattleView` fait de même pour la moitié droite ; `IntelBar` porte la barre de
+  décision (annonce de vague × file de types × bouton « passer ») ; `DraftScene` et
+  `GameOverScene` sont lancées par-dessus la scène de jeu mise en pause. Une scène ne décide
+  jamais si une fusion est légale, si un envoi est possible ni si une amélioration
+  s'applique : elle demande.
 - **`src/render/` — greybox.** Formes et couleurs par tier (items) et par type (unités,
   ennemis), profondeurs d'affichage. Aucune règle, aucun état. Les tailles à l'écran
   vivent ici et non dans `balance.json` : elles n'influencent aucun calcul.
@@ -127,7 +162,27 @@ par le Lot 2 ni par le Lot 2.5. Deux règles vivent dans la session :
 
 Rejouer = `session.destroy()` puis une session neuve. Aucun état, aucun écouteur ne
 survit à une partie — c'est ce qui rend le bug classique du « rejouer » impossible par
-construction, et testable sans Phaser (`tests/gameSession.test.js`).
+construction, et testable sans Phaser (`tests/gameSession.test.js`). Les améliorations de
+draft obéissent à la même règle **parce qu'elles ne sont que des modificateurs portés par
+la session** : une seconde partie repart sans une seule d'entre elles
+(`tests/draftSession.test.js`).
+
+### Le draft
+
+`DraftSystem` (`src/systems/DraftSystem.js`) détient le pool de `balance.json`, les niveaux
+pris et les modificateurs cumulés. `GameSession` s'abonne à `waveCleared` : toutes les
+`draft.everyWaves` vagues, elle tire une offre, **gèle la partie** et émet `draftOffer` ;
+`chooseDraft(id)` applique la carte et relance.
+
+Le gel est **double, à dessein** : `GameSession.pendingDraft` arrête `update()` et
+`BattleModel.paused` coupe le tick au milieu d'une frame (une frame couvre jusqu'à
+`maxTicksPerFrame` ticks, et la vague suivante avancerait sinon d'un demi-pas pendant que le
+joueur lit) ; côté rendu, `DraftScene` est lancée par-dessus `GameScene` **mise en pause**.
+Un bug de rendu ne peut donc pas laisser filer la simulation.
+
+Tous les systèmes lisent les modificateurs par un accès injecté (`getModifiers`), jamais par
+une copie : une place gagnée au draft s'ouvre au tick suivant sans que personne n'ait à
+propager quoi que ce soit, et la file en cours n'est pas perdue.
 
 ### La file de déploiement
 
@@ -164,7 +219,14 @@ du fichier).
   donc dire la même chose sur tous les écrans.
 - **File de types** (`src/systems/unitQueue.js`) : le type de la prochaine unité suit un
   motif déterministe de `balance.json`, affiché dans le HUD, et se fige **au tap**. Les
-  items de la grille ne sont pas typés — c'est la file qui rend l'envoi planifiable.
+  items de la grille ne sont pas typés — c'est la file qui rend l'envoi planifiable. Depuis
+  le Lot 3.5 elle montre **trois** types et se défausse d'un cran par le bouton « passer »
+  (cooldown `battle.skipCooldownMs`) : voir puis ne rien pouvoir en faire n'était pas une
+  décision.
+- **Annonce de vague** : `BattleModel.wavePreview(wave)` rend la composition, la texture et
+  la cadence de n'importe quelle vague, **formule infinie comprise** — l'annonce ne doit pas
+  s'éteindre à la vague 11, c'est-à-dire au moment où la difficulté décolle. Elle est émise
+  dans `waveCountdown` et lue en continu par `hud().countdown`.
 - **Fusion d'unités ★ : retirée de la V1.** Elle appartenait au banc de tir statique, qui
   n'existe plus (on ne manipule plus rien sur la bande). Candidate à revenir après la V1,
   probablement en fusionnant **dans les slots de déploiement** plutôt que sur le champ.
@@ -180,8 +242,11 @@ celui que verra un joueur de Crazy Games. Le drapeau est lu par `isDebugEnabled(
 - **Panneau de boutons** (`src/scenes/DebugPanel.js`), tactile comme le reste :
   **vitesse ×1/×2/×4** (le temps du jeu est multiplié, la simulation reste à tick fixe),
   **vague +** (`BattleModel.skipWave()`), **base ∞** (`BattleModel.invincible`).
-- **Récap de fin de partie** sur l'écran de game over : dégâts par type d'unité, envois par
-  tier, vague atteinte, durée, unités perdues, taps refusés (`GameSession.recap()`).
+- **Ligne de diagnostic de fin de partie** sur l'écran de game over : durée, fuites, unités
+  perdues, taps refusés (`GameSession.recap()`). Le **récap de build**, lui, est montré à
+  tout le monde depuis le Lot 3.5 — améliorations prises, type d'unité qui a porté les
+  dégâts, meilleur tier envoyé : c'est ce qui donne l'idée de build de la partie suivante,
+  donc ce n'est pas un outil de réglage.
 
 Le panneau **réserve sa place dans le layout** (`computeLayout({ debugRowPx })`) au lieu de
 se poser par-dessus : en mode debug la grille descend d'une bande, et aucun bouton ne
@@ -229,10 +294,13 @@ Le rapport est **reproductible** : mêmes graines + même `balance.json` = même
 ## Structure
 
 ```
-src/scenes/       scènes Phaser + vues (jeu, champ de bataille, game over, panneau debug)
+src/scenes/       scènes Phaser + vues (jeu, champ de bataille, barre de décision, draft,
+                  game over, panneau debug)
 src/systems/      logique pure et testable (grille, file de déploiement, combat, session,
-                  gestes, vagues, spawner, layout, juice, sons, rng, préférences)
-src/render/       greybox : formes, couleurs, profondeurs, particules, boîte à juice
+                  draft et modificateurs, gestes, vagues, spawner, layout, juice, sons,
+                  rng, préférences)
+src/render/       greybox : formes, couleurs, profondeurs, particules, icônes de draft,
+                  boîte à juice
 src/sim/          harness d'équilibrage headless (`npm run sim`) — politiques, bancs
                   d'essai, rapport, objectifs chiffrés
 src/config/       balance.json + juice.json, chacun avec son schéma documenté
@@ -268,4 +336,14 @@ fonctions pures ; les scènes orchestrent et affichent.
   parcimonieux, SFX jsfxr synthétisés, toggle son) ; outils de debug (vitesse ×1/×2/×4,
   saut de vague, base invincible, récap de fin de partie). Valeurs et raisonnement :
   `docs/balance-notes.md`.
+- **Lot 3.5 — Rythme, décisions & rejouabilité** ✅ Le playtest du Lot 3 a montré un jeu à
+  **un seul régime** (urgence de grille permanente, information affichée mais inutilisable)
+  et **rien qui motive une seconde partie**. Le lot installe une respiration et des choix :
+  annonce de la composition de chaque vague (formule infinie comprise) avec compte à rebours
+  de préparation ; file de types active — trois types visibles et un bouton « passer » ;
+  **draft roguelite** toutes les 3 vagues, 11 améliorations en modificateurs par-dessus
+  `balance.json` ; passe de tempo complète (ennemis −20 % de vitesse, pauses 4 s → 7 s,
+  débit d'items ramené à l'équilibre) ; écran de fin qui raconte le build joué. Objectifs
+  chiffrés re-validés sans les déplacer (3:47 de partie moyenne, défaite vague 9,7, merge
+  bat spam ×1,93). Mesures : `docs/balance-notes.md`, section 7.
 - Lot 4 — Assets IA, vignette, soumission Basic Launch.

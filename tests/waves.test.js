@@ -94,11 +94,37 @@ describe('waveSpawnGapMs', () => {
 });
 
 describe('waveLabel', () => {
-  it('donne sa texture à chaque vague scriptée, et rien aux vagues générées', () => {
+  it('donne sa texture écrite à la main à chaque vague scriptée', () => {
     for (let wave = 1; wave <= scriptedCount; wave += 1) {
       expect(waveLabel(config, wave)).toBe(balance.waves.scripted[wave - 1].label ?? '');
     }
-    expect(waveLabel(config, scriptedCount + 1)).toBe('');
+  });
+
+  it('en dérive une pour les vagues générées : l’annonce ne s’éteint pas en vague 11', () => {
+    // L'annonce du Lot 3.5 doit valoir pour **toutes** les vagues, formule comprise :
+    // une bannière muette au moment où la difficulté décolle serait le pire moment.
+    for (let wave = scriptedCount + 1; wave <= scriptedCount + 6; wave += 1) {
+      expect(waveLabel(config, wave).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('annonce la dominante quand il y en a une, « mixte » sinon', () => {
+    const only = { ...config, waves: { ...config.waves, scripted: [], infinite: [{ type: 'tank', count: 5 }] } };
+    expect(waveLabel(only, 1)).toBe('Marée de tanks');
+
+    const even = {
+      ...config,
+      waves: {
+        ...config.waves,
+        scripted: [],
+        infinite: [
+          { type: 'basic', count: 5 },
+          { type: 'fast', count: 5 },
+          { type: 'tank', count: 5 },
+        ],
+      },
+    };
+    expect(waveLabel(even, 1)).toBe('Vague mixte');
   });
 });
 

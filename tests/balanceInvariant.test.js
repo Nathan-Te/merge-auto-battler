@@ -49,6 +49,20 @@ describe('invariant d’équilibrage — merger bat spammer', () => {
   });
 });
 
+describe('le draft fait bien partie des parties mesurées', () => {
+  it('chaque politique prend des améliorations en jouant', () => {
+    // Sans ce test, une régression qui casserait le draft passerait inaperçue : le harness
+    // continuerait de sortir des chiffres, simplement ceux d'un jeu sans draft.
+    for (const policy of run.policies) {
+      expect(policy.draftsPerGame).toBeGreaterThan(0);
+    }
+  });
+
+  it('le joueur qui survit plus longtemps prend plus de cartes', () => {
+    expect(prepare.draftsPerGame).toBeGreaterThan(spam.draftsPerGame);
+  });
+});
+
 describe('objectifs chiffrés du Lot 3', () => {
   it('le joueur médian tombe dans la fenêtre de vagues visée', () => {
     expect(mixed.waves.mean).toBeGreaterThanOrEqual(TARGETS.minWave);

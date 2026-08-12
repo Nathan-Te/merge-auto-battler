@@ -39,11 +39,23 @@ const BATTLE = {
   gapRatio: 0.035,
   minGap: 4,
   maxGap: 12,
-  // Deux lignes de HUD (PV / vague, puis file / prochaine unité) : la hauteur réservée
-  // doit les contenir toutes les deux, même sur le plus petit écran visé.
-  hudRatio: 0.19,
-  minHud: 26,
-  maxHud: 46,
+  // Une ligne de HUD : PV à gauche, vague à droite. La seconde ligne du Lot 3 (file /
+  // prochaine unité) a été remplacée au Lot 3.5 par la **barre de décision**, qui dit la
+  // même chose en mieux — et bien plus.
+  hudRatio: 0.1,
+  minHud: 15,
+  maxHud: 26,
+  /**
+   * Barre de décision (Lot 3.5) : annonce de la vague à venir **à gauche**, file de types
+   * et bouton « passer » **à droite**. Les deux collées, parce que c'est leur croisement
+   * qui fait la décision du jeu — les séparer, c'est retirer la décision.
+   *
+   * `minIntel` n'est pas une valeur de confort : c'est la hauteur en dessous de laquelle
+   * le bouton « passer » cesse d'être tapable au doigt.
+   */
+  intelRatio: 0.23,
+  minIntel: 34,
+  maxIntel: 62,
   /** Écart entre deux slots de déploiement, en multiples de la taille d'un slot. */
   slotPitchRatio: 1.14,
   /** Épaisseur du bloc « base » au bout du couloir. */
@@ -191,7 +203,7 @@ export function computeLayout(
  * @returns {{
  *   horizontal: boolean, gap: number, slotSize: number, slotPitch: number, unitSize: number,
  *   fieldUnitSize: number, laneThickness: number, laneLengthPx: number,
- *   hud: object, lane: object, base: object, travel: object,
+ *   hud: object, intel: object, lane: object, base: object, travel: object,
  *   slots: {x: number, y: number, size: number}[]
  * }}
  */
@@ -200,10 +212,18 @@ export function computeBattleZone(battle, { slotCount = 5 } = {}) {
   const horizontal = w >= h;
   const gap = clamp(Math.round(Math.min(w, h) * BATTLE.gapRatio), BATTLE.minGap, BATTLE.maxGap);
   const hudHeight = clamp(Math.round(h * BATTLE.hudRatio), BATTLE.minHud, BATTLE.maxHud);
+  const intelHeight = clamp(Math.round(h * BATTLE.intelRatio), BATTLE.minIntel, BATTLE.maxIntel);
 
   const hud = { x, y, width: w, height: Math.min(hudHeight, h) };
-  const contentTop = hud.y + hud.height + gap;
-  const contentHeight = Math.max(1, h - hud.height - gap * 2);
+  const intel = {
+    x,
+    y: hud.y + hud.height,
+    width: w,
+    height: Math.min(intelHeight, Math.max(1, h - hud.height)),
+  };
+  const headerHeight = hud.height + intel.height;
+  const contentTop = intel.y + intel.height + gap;
+  const contentHeight = Math.max(1, h - headerHeight - gap * 2);
 
   let lane;
   let base;
@@ -291,6 +311,8 @@ export function computeBattleZone(battle, { slotCount = 5 } = {}) {
     /** Diamètre d'une unité **sur le champ de bataille** (celles des slots font `unitSize`). */
     fieldUnitSize: fighterReference * 0.78,
     hud,
+    /** Barre de décision : annonce de vague × file de types × bouton « passer ». */
+    intel,
     lane,
     base,
     /**

@@ -12,6 +12,7 @@ import { JuiceKit } from '../render/juiceKit.js';
 import { isDebugEnabled } from '../systems/debug.js';
 import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
+import { IntelBar } from './IntelBar.js';
 import { DebugPanel } from './DebugPanel.js';
 
 /**
@@ -91,6 +92,7 @@ export default class GameScene extends Phaser.Scene {
     this.buildDisplay();
     this.juice = new JuiceKit(this, this.juiceConfig);
     this.battleView = new BattleView(this, this.session, this.juice);
+    this.intelBar = new IntelBar(this, this.session, this.juice);
     this.debugPanel = this.debug ? this.buildDebugPanel() : null;
     this.bindModel();
     this.bindInput();
@@ -222,7 +224,9 @@ export default class GameScene extends Phaser.Scene {
     const layout = computeLayout(width, height, {
       cols: this.model.cols,
       rows: this.model.rows,
-      slotCount: this.session.battleConfig.slotCount,
+      // La file peut s'élargir au draft : on demande sa taille **courante**, pas celle de
+      // `balance.json`.
+      slotCount: this.session.deployQueue.slotCount(),
       // La bande de boutons de debug se réserve sa place dans le layout plutôt que de se
       // poser par-dessus le jeu : en mode normal elle vaut 0 et rien ne bouge.
       debugRowPx: this.debug
@@ -263,6 +267,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.refreshItemViews();
     this.battleView.layout(layout);
+    this.intelBar.layout(layout);
     this.debugPanel?.layout(layout);
     this.refreshSoundButton();
   }
@@ -300,7 +305,42 @@ export default class GameScene extends Phaser.Scene {
     this.bus.on('remove', ({ item }) => this.onModelRemove(item));
     this.bus.on('full', () => this.startGridPulse());
     this.bus.on('unfull', () => this.stopGridPulse());
+    this.bus.on('draftOffer', (payload) => this.onDraftOffer(payload));
     this.bus.on('gameOver', (payload) => this.onGameOver(payload));
+  }
+
+  /**
+   * Un draft s'ouvre : la scène se met en pause et `DraftScene` prend le dessus.
+   *
+   * **Deux verrous, à dessein.** La session est déjà gelée de son côté
+   * (`GameSession.pendingDraft`) ; la mise en pause de la scène gèle en plus ses tweens et
+   * ses entrées. Un bug de rendu ne peut donc pas laisser filer la simulation, ni un doigt
+   * atteindre la grille derrière les cartes.
+   */
+  onDraftOffer({ wave, cards }) {
+    if (this.gameOverStarted) return;
+
+    // Même précaution que pour le game over : une vignette prise en plein fondu resterait
+    // rouge derrière l'écran de draft, la scène étant figée.
+    this.juice.clearVignette();
+    this.scene.launch('DraftScene', {
+      wave,
+      cards,
+      juice: this.juice,
+      onChoose: (id) => this.onDraftChosen(id),
+    });
+    this.scene.pause();
+  }
+
+  /**
+   * Le joueur a choisi : la session applique l'amélioration, puis la scène se remet en
+   * page — « File élargie » ajoute une place, et le layout doit la faire apparaître.
+   */
+  onDraftChosen(id) {
+    const chosen = this.session.chooseDraft(id);
+    if (!chosen) return;
+    const { width, height } = this.scale.gameSize;
+    this.layout(width, height);
   }
 
   onModelMove(index, item) {
@@ -682,15 +722,17 @@ export default class GameScene extends Phaser.Scene {
     this.juice.play('gameOver');
 
     const { best, isRecord } = submitScore(wavesCleared);
-    // Le récap n'a de sens que pour régler : il ne s'affiche que sous `?debug=1`.
-    const recap = this.debug ? this.session.recap() : null;
+    // Depuis le Lot 3.5, le récap est **pour le joueur** : c'est lui qui donne l'idée du
+    // build à tenter à la partie suivante. Le détail de réglage (fuites, taps refusés,
+    // occupation de la grille) reste derrière `?debug=1`.
+    const recap = this.session.recap();
 
     // Court délai : le dernier ennemi finit son animation avant que l'écran ne tombe.
     this.time.delayedCall(INPUT.gameOverDelayMs, () => {
       // Mettre la scène en pause **gèle ses tweens** : une vignette prise en plein fondu
       // resterait rouge derrière l'écran de fin. On l'éteint avant de figer.
       this.juice.clearVignette();
-      this.scene.launch('GameOverScene', { wavesCleared, best, isRecord, recap });
+      this.scene.launch('GameOverScene', { wavesCleared, best, isRecord, recap, debug: this.debug });
       this.scene.pause();
     });
   }
@@ -703,6 +745,7 @@ export default class GameScene extends Phaser.Scene {
     const scaled = delta * this.speed;
     this.session.update(scaled);
     this.battleView.update(scaled);
+    this.intelBar.update();
     this.juice.update(delta);
     this.updateDebug(delta);
 
@@ -758,6 +801,7 @@ export default class GameScene extends Phaser.Scene {
     this.time.timeScale = 1;
 
     this.debugPanel?.destroy();
+    this.intelBar?.destroy();
     this.battleView?.destroy();
     this.juice?.destroy();
     this.session.destroy();

@@ -19,6 +19,17 @@
  * tap ──`enqueueUnit`──▶ DeployQueue ──`deployUnit`──▶ BattleModel
  * ```
  *
+ * Le Lot 3.5 ajoute la **boucle de décision** par-dessus, et elle vit ici aussi :
+ *
+ *   - **annonce de vague** — `BattleModel` annonce la composition à venir pendant chaque
+ *     pause, formule infinie comprise (`hud().countdown`) ;
+ *   - **file de types active** — trois types visibles, et `skipUnitType()` défausse la tête
+ *     contre un cooldown ;
+ *   - **draft** — toutes les `draft.everyWaves` vagues, la partie **gèle** (`draftPending`)
+ *     et trois cartes attendent un choix. Les améliorations sont des **modificateurs**
+ *     appliqués par-dessus `balance.json`, jamais des valeurs réécrites : elles meurent
+ *     donc avec la session, comme tout le reste.
+ *
  * Une session possède ses modèles et ses abonnements ; `destroy()` les retire tous.
  * Rejouer = détruire la session et en construire une neuve : aucun état ne survit, ce
  * qui rend le bug classique du « rejouer » impossible par construction (et testable
@@ -33,6 +44,7 @@ import { DeployQueue } from './DeployQueue.js';
 import { parseBattleConfig } from './battleConfig.js';
 import { parseInputConfig } from './tapGesture.js';
 import { UnitQueue } from './unitQueue.js';
+import { DraftSystem, parseDraftConfig } from './DraftSystem.js';
 
 /** Issues d'un lâcher d'item sur la grille — celles de `GridModel`, telles quelles. */
 export const SESSION_DROP = { ...DROP };
@@ -54,23 +66,41 @@ export class GameSession {
    * @param {EventBus} [options.bus] Bus partagé ; sinon la session en crée un
    * @param {() => number} [options.rng] Générateur [0, 1), injectable pour les tests
    */
-  constructor({ balance, bus, rng = Math.random } = {}) {
+  constructor({ balance, bus, rng = Math.random, draftRng = rng } = {}) {
     this.spawnerConfig = parseSpawnerConfig(balance);
     this.battleConfig = parseBattleConfig(balance);
     this.inputConfig = parseInputConfig(balance);
+    this.draftConfig = parseDraftConfig(balance);
 
     this.events = bus ?? new EventBus();
+    this.draft = new DraftSystem({ config: this.draftConfig, bus: this.events, rng: draftRng });
+    // Un seul accès aux modificateurs, partagé par tous les systèmes : ils lisent l'état
+    // **courant** du draft, ce qui fait qu'une carte prise s'applique au tick suivant sans
+    // que personne n'ait à propager quoi que ce soit.
+    const getModifiers = () => this.draft.modifiers;
+
     this.grid = new GridModel({ maxTier: this.spawnerConfig.maxTier, bus: this.events });
-    this.battle = new BattleModel({ config: this.battleConfig, bus: this.events });
+    this.battle = new BattleModel({ config: this.battleConfig, bus: this.events, getModifiers });
     this.deployQueue = new DeployQueue({
       config: this.battleConfig,
       bus: this.events,
       // Le cap d'unités du champ retient la sortie sans consommer le cooldown.
       canDeploy: () => this.battle.canAcceptUnit(),
+      getModifiers,
     });
-    this.spawner = new ItemSpawner({ config: this.spawnerConfig, model: this.grid, rng });
-    this.unitQueue = new UnitQueue(this.battleConfig.unitTypePattern);
+    this.spawner = new ItemSpawner({
+      config: this.spawnerConfig,
+      model: this.grid,
+      rng,
+      getModifiers,
+    });
+    this.unitQueue = new UnitQueue(this.battleConfig.unitTypePattern, {
+      skipCooldownMs: this.battleConfig.skipCooldownMs,
+      getModifiers,
+    });
 
+    /** Cartes proposées, tant que le joueur n'a pas choisi. Null hors draft. */
+    this.pendingDraft = null;
     this.mergeCount = 0;
     this.sentCount = 0;
     /** Envois par tier — lu par le récap de fin de partie et par le harness. */
@@ -97,7 +127,10 @@ export class GameSession {
     this.gridItemSum = 0;
 
     /** @type {(() => void)[]} Désabonnements, rejoués par `destroy()`. */
-    this.unsubscribes = [this.events.on('merge', () => this.onGridMerge())];
+    this.unsubscribes = [
+      this.events.on('merge', () => this.onGridMerge()),
+      this.events.on('waveCleared', ({ wave }) => this.onWaveCleared(wave)),
+    ];
   }
 
   /** Démarre la partie : items de départ, puis compte à rebours de la vague 1. */
@@ -107,16 +140,85 @@ export class GameSession {
     return this;
   }
 
-  /** Avance le combat, le cooldown de sortie et l'apparition des items. */
+  /**
+   * Avance le combat, le cooldown de sortie, le cooldown de « passer » et l'apparition des
+   * items.
+   *
+   * **Un draft ouvert gèle tout** : ni combat, ni sortie de file, ni apparition d'item, ni
+   * cooldown de « passer ». La pause est décidée ici, en un seul endroit — sinon un
+   * compteur oublié continuerait de tourner pendant que le joueur lit ses trois cartes,
+   * et le choix se paierait en temps de jeu.
+   */
   update(dtMs) {
-    if (this.destroyed) return 0;
+    if (this.destroyed || this.pendingDraft) return 0;
+
     const steps = this.battle.update(dtMs);
-    if (!this.battle.over) {
+    // Le tick qui vient de passer a pu vider une vague et ouvrir un draft : la file et le
+    // spawner ne doivent pas avancer d'une frame de plus.
+    if (!this.battle.over && !this.pendingDraft) {
       this.deployQueue.update(dtMs);
+      this.unitQueue.update(dtMs);
       this.updateSpawner(dtMs);
       this.sampleGrid(dtMs);
     }
     return steps;
+  }
+
+  // ------------------------------------------------------------------ draft
+
+  /**
+   * Fin de vague : toutes les `draft.everyWaves` vagues, la partie s'arrête et propose
+   * trois améliorations.
+   *
+   * Le draft s'ouvre **après** que `BattleModel` a lancé le compte à rebours de la vague
+   * suivante : le joueur retrouve donc sa préparation entière en refermant les cartes, et
+   * non un compte à rebours entamé pendant qu'il lisait.
+   */
+  onWaveCleared(wave) {
+    if (this.destroyed || this.battle.over) return;
+    if (!this.draft.isDraftWave(wave)) return;
+
+    const cards = this.draft.offer();
+    // Pool épuisé (toutes les améliorations au niveau maximum) : pas de draft vide, la
+    // partie continue simplement.
+    if (cards.length === 0) return;
+
+    this.pendingDraft = cards;
+    this.battle.paused = true;
+    this.events.emit('draftOffer', { wave, cards });
+  }
+
+  /**
+   * Prend une des cartes proposées et relance la partie.
+   *
+   * Refuse une carte qui n'est pas dans l'offre en cours : le choix vient d'une scène
+   * Phaser, et une carte périmée (double-tap, écran resté ouvert) ne doit pas pouvoir
+   * s'appliquer.
+   *
+   * @param {string} id
+   * @returns {object|null} La carte prise, ou null si le choix est refusé
+   */
+  chooseDraft(id) {
+    if (!this.pendingDraft) return null;
+    if (!this.pendingDraft.some((card) => card.id === id)) return null;
+
+    const chosen = this.draft.choose(id);
+    if (!chosen) return null;
+
+    // Effet immédiat : les modificateurs décrivent des facteurs permanents, les PV de base
+    // sont un gain **ponctuel** qu'il faut poser sur le modèle.
+    const heal = chosen.effect.baseHpBonus;
+    if (heal > 0) this.battle.grantBaseHp(heal);
+
+    this.pendingDraft = null;
+    this.battle.paused = false;
+    this.events.emit('draftResume', { chosen });
+    return chosen;
+  }
+
+  /** Vrai tant qu'un draft attend un choix : la partie est gelée. */
+  get draftPending() {
+    return this.pendingDraft !== null;
   }
 
   /**
@@ -182,6 +284,9 @@ export class GameSession {
    */
   applyTap(index) {
     if (this.destroyed || this.over) return { type: SESSION_TAP.INVALID, reason: 'partieFinie' };
+    // Draft ouvert : la partie est gelée, rien ne part au combat. Les merges, eux, restent
+    // libres — ils ne produisent rien et ne consomment aucun créneau.
+    if (this.pendingDraft) return { type: SESSION_TAP.INVALID, reason: 'draftEnCours' };
 
     const item = this.grid.itemAt(index);
     if (item === null) return { type: SESSION_TAP.INVALID, reason: 'caseVide' };
@@ -205,6 +310,22 @@ export class GameSession {
     return { type: SESSION_TAP.SENT, tier, unitType, index };
   }
 
+  /**
+   * Défausse le type de tête de la file de types (bouton « passer »).
+   *
+   * @returns {{type: string, next: string}|null} Le type défaussé et celui qui prend sa
+   *   place, ou null si le cooldown n'est pas écoulé
+   */
+  skipUnitType() {
+    if (this.destroyed || this.over || this.pendingDraft) return null;
+    const discarded = this.unitQueue.skip();
+    if (discarded === null) return null;
+
+    const result = { type: discarded, next: this.unitQueue.peek() };
+    this.events.emit('unitTypeSkipped', result);
+    return result;
+  }
+
   onGridMerge() {
     // Le merge ne fait plus que monter un item d'un tier : côté combat, il ne déclenche
     // rien. Seul le compteur de debug s'en souvient.
@@ -223,18 +344,31 @@ export class GameSession {
    * État lisible en un appel, pour le HUD — la scène n'a pas à fouiller les modèles.
    */
   hud() {
-    const nextTypes = this.unitQueue.preview(2).map((type) => this.battleConfig.units[type].label);
+    // Trois types annoncés depuis le Lot 3.5 : la tête (celle que le prochain tap
+    // enverra) et les deux suivantes. C'est ce qui rend « passer » lisible — on voit ce
+    // qu'on gagne en défaussant.
+    const nextTypes = this.unitQueue.preview(3).map((type) => ({
+      type,
+      label: this.battleConfig.units[type].label,
+    }));
     return {
       baseHp: this.battle.baseHp,
       maxBaseHp: this.battle.maxBaseHp,
       wave: this.battle.wave,
       wavesCleared: this.battle.wavesCleared,
       phase: this.battle.phase,
-      nextUnitType: this.unitQueue.peek(),
-      nextUnitLabel: nextTypes[0],
-      followingUnitLabel: nextTypes[1],
+      nextUnitType: nextTypes[0].type,
+      nextUnitLabel: nextTypes[0].label,
+      followingUnitLabel: nextTypes[1].label,
+      /** Les trois prochains types, tête en premier. */
+      nextTypes,
+      /** Bouton « passer » : disponible et avancement de son cooldown. */
+      canSkip: this.unitQueue.canSkip(),
+      skipRatio: this.unitQueue.skipRatio(),
+      /** Vague à venir, avec sa composition — l'annonce du Lot 3.5. */
+      countdown: this.battle.countdown(),
       queueLength: this.deployQueue.slots.length,
-      slotCount: this.battleConfig.slotCount,
+      slotCount: this.deployQueue.slotCount(),
       cooldownRatio: this.deployQueue.cooldownRatio(),
       fieldUnits: this.battle.unitCount(),
       maxFieldUnits: this.battleConfig.maxFieldUnits,
@@ -242,6 +376,8 @@ export class GameSession {
       sentCount: this.sentCount,
       /** File de déploiement pleine : le prochain tap sera refusé. */
       blocked: !this.deployQueue.canAccept(),
+      /** Draft en attente d'un choix : la partie est gelée. */
+      draftPending: this.draftPending,
     };
   }
 
@@ -251,7 +387,8 @@ export class GameSession {
    *
    * @returns {{wave: number, wavesCleared: number, durationMs: number, baseHp: number,
    *            merges: number, sent: number, blockedTaps: number,
-   *            sentByTier: Record<number, number>, damageByType: Record<string, number>,
+   *            sentByTier: Record<number, number>, upgrades: object[], skips: number,
+   *            damageByType: Record<string, number>,
    *            killsByType: Record<string, number>, unitsLost: number,
    *            enemiesKilled: number, enemiesLeaked: number}}
    */
@@ -267,8 +404,15 @@ export class GameSession {
       sent: this.sentCount,
       blockedTaps: this.blockedTaps,
       sentByTier: { ...this.sentByTier },
+      /** Le **build** de la partie : c'est ce qui donne envie d'en tenter un autre. */
+      upgrades: this.draft.chosen(),
+      skips: this.unitQueue.skipCount,
       damageByType: { ...stats.damageByType },
       killsByType: { ...stats.killsByType },
+      /** Libellés des types, pour que l'écran de fin n'ait pas à les connaître. */
+      unitLabels: Object.fromEntries(
+        Object.entries(this.battleConfig.units).map(([type, def]) => [type, def.label])
+      ),
       unitsDeployed: stats.unitsDeployed,
       unitsLost: stats.unitsLost,
       /** Part du temps où la grille était pleine (0 → 1). */
