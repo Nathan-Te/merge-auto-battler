@@ -734,3 +734,123 @@ d'inputs et le bandeau persistant. Aucun asset ajouté.
 **Tests** : **465** (438 avant cette passe), dont la garde d'overlay sur les scénarios de
 doigt du playtest, le décompte de ce qui reste dans une vague, et la fraîcheur de
 `docs/reference.md`.
+
+### Lot 3.5 — troisième passe : rendu à la résolution physique
+
+**Constat du playtest : le jeu paraissait flou sur téléphone.** La cause était bien celle
+soupçonnée. En `Scale.RESIZE`, Phaser donne au canvas une mémoire de rendu de la taille
+**CSS** du viewport — 390 × 780 sur un téléphone courant. Sur un écran à `devicePixelRatio`
+3, le navigateur étire ensuite cette image sur 1170 × 2340 pixels physiques : un pixel dessiné
+pour trois pixels affichés. Le texte trinquait le premier, et augmenter la résolution des
+`Text` n'y changeait rien puisque c'est le canvas entier qui était agrandi après coup.
+
+#### Ce qui a été fait
+
+`src/render/hiDpi.js` remet les quatre tailles en ordre :
+
+```
+mémoire de rendu    = taille CSS × ratio     on dessine à la résolution de l'écran
+style CSS du canvas = taille CSS             il occupe la même place à l'écran
+taille de jeu       = taille CSS             les scènes ne voient aucun changement
+zoom des caméras    = ratio                  le facteur est absorbé ici, et là seulement
+```
+
+`ScaleManager` distingue déjà `gameSize` — « la taille de jeu telle que demandée », que
+voient les scènes — de `baseSize` — celle de la mémoire de rendu, que suivent le renderer,
+les caméras et la mise à l'échelle des pointeurs. En mode `RESIZE` Phaser les garde égales ;
+on rouvre cet écart, et **tout le reste suit tout seul** : le renderer redimensionne sa
+matrice de projection, les caméras se dimensionnent sur la mémoire, et `displayScale` fait
+arriver les coordonnées de pointeur en pixels de mémoire… que `camera.getWorldPoint()`
+redivise par le zoom. Les gestes retombent donc exactement sur les coordonnées logiques :
+**aucun seuil de `balance.json` n'a bougé, aucune scène n'a été retouchée.**
+
+La caméra est ancrée en origine (0, 0), ce qui réduit sa matrice à une homothétie pure — avec
+l'origine par défaut de 0,5, le contenu partirait de travers d'un demi-écran.
+
+La synchronisation se fait **à chaque frame** (deux comparaisons d'entiers quand tout est
+déjà en place). C'est ce qui rend corrects par construction les trois cas qui cassaient
+sinon : le redimensionnement, la **rotation d'écran**, et une scène lancée en cours de partie
+— draft, aide, game over — dont la caméra naît à la taille de jeu et non à celle de la
+mémoire. Les scènes **en pause** sont synchronisées elles aussi : une scène en pause continue
+de se dessiner (c'est tout l'intérêt : le champ de bataille reste visible derrière le draft),
+donc l'oublier laisserait `GameScene` avec une caméra périmée si l'écran tournait pendant un
+draft.
+
+Mesuré en navigateur, viewport 390 × 780 :
+
+| écran   | ratio effectif | mémoire de rendu | style CSS   | `gameSize` | grille (x, cellule) |
+| ------- | -------------- | ---------------- | ----------- | ---------- | ------------------- |
+| DPR 1   | 1              | 390 × 780        | 390 × 780   | 390 × 780  | 14 ; 72,4           |
+| DPR 3   | **2** (plafond) | **780 × 1560**  | 390 × 780   | 390 × 780  | 14 ; 72,4           |
+
+Les coordonnées de jeu sont **identiques au centième près** : seule la mémoire de rendu a
+changé. Un tap sur une case vide bien la bonne case dans les deux cas.
+
+#### Le plafond de ratio
+
+`juice.json` → `render.maxPixelRatio`, **2 par défaut**. Le coût de rendu est quadratique :
+à 2 il y a 4 fois plus de pixels à remplir, à 3 il y en a 9. Au-delà de 2 le gain visuel est
+marginal — l'œil ne distingue plus les marches d'escalier — alors que le budget de fill-rate
+d'un téléphone d'entrée de gamme est bien réel. Le ratio n'est **pas** arrondi à l'entier :
+sur les écrans en 1,5 ou 2,625, très courants sur Android, arrondir vers le bas jetterait la
+moitié du gain pour la seule satisfaction d'avoir un facteur entier.
+
+`?dpr=N` force le plafond le temps d'une comparaison sur un vrai téléphone, sans reconstruire.
+
+#### `antialias` et `roundPixels`
+
+- **`antialias: true`, inchangé.** Tout le greybox est vectoriel — cercles, hexagones, croix,
+  losanges — plus du texte. Sans lissage, chaque bord fait un escalier, et c'est l'écran de
+  desktop en ratio 1 qui trinquerait le plus, là où il n'y a aucune résolution en réserve.
+- **`roundPixels: false`, changé.** Il servait à coller les objets à la grille de pixels quand
+  un pixel de jeu valait un pixel d'écran. Ce n'est plus le cas : Phaser arrondit **après** la
+  matrice de caméra, donc au pixel de mémoire de rendu, c'est-à-dire à une fraction de pixel
+  CSS — un gain que personne ne voit. Et il se désactive de lui-même dès que le zoom n'est pas
+  entier (`Number.isInteger(zoomX)`), donc sur les écrans en 1,5 ou 2,625. Le laisser actif
+  ferait bouger le jeu différemment selon le téléphone, pour rien. La contrepartie — perdre le
+  calage sur la grille de pixels — est justement ce qu'on veut ici : l'interpolation du couloir
+  (simulation à 10 Hz, rendu à 60 fps) retrouve sa précision sous-pixel.
+
+#### Un piège trouvé en vérifiant à l'écran
+
+Les mesures disaient que tout était juste — mémoire de rendu, caméras, coordonnées de jeu —
+et l'image, elle, était décalée d'un demi-écran après une rotation. La cause : `autoCenter`
+centre le canvas avec des **marges CSS** calculées sur sa taille affichée, et Phaser les
+posait avant qu'on ne change ce style. En paysage, il mesurait encore le canvas portrait et
+lui donnait `margin-left: 195px` / `margin-top: −195px`. `resizeBuffer()` recalcule donc le
+centrage après avoir posé la nouvelle taille.
+
+C'est la deuxième fois dans ce lot qu'un contrôle visuel attrape ce qu'aucune assertion
+numérique ne voyait (la première étant l'horloge de scène à zéro dans `create()`) : les
+chiffres décrivaient l'état voulu, mais pas ce que le navigateur en faisait.
+
+#### Performance
+
+Le conteneur de CI n'a pas de GPU : il rend en logiciel, à une dizaine d'images par seconde
+quel que soit le ratio. **Un chiffre de 60 fps ne peut donc pas être validé ici**, et il faut
+le confirmer au doigt sur un vrai téléphone — `?dpr=1` sert exactement à comparer.
+
+Ce qui est mesurable et transposable, c'est le coût **CPU** de notre code par frame, en charge
+maximale (cap de 20 unités atteint, vague 10, base invulnérable) :
+
+| ratio de rendu | coût par frame (moyenne) | 95e centile |
+| -------------- | ------------------------ | ----------- |
+| 1              | 0,65 ms                  | 1,5 ms      |
+| 2              | 0,67 – 0,78 ms           | 1,4 – 3,2 ms |
+
+Le coût de notre code **ne dépend pas du ratio**, ce qui était attendu : même nombre d'objets,
+mêmes appels de dessin. Ce que le ratio achète se paie en **remplissage**, donc sur le GPU.
+C'est précisément pourquoi le curseur est un plafond de ratio et non une réduction de tailles
+dans les scènes — baisser une police pour gagner des images par seconde casserait la lisibilité
+au doigt sans rien régler du vrai coût.
+
+**Poids de `dist/` : 1,31 Mo** (352 Ko gzip), soit **+1 Ko** — le module tient en une centaine
+de lignes et n'ajoute aucun asset.
+
+#### Ce qui est testable
+
+- `npm test` : **480 tests**, dont le plafond de ratio (bornes, écrans en 1,5, valeurs
+  absurdes), la taille de mémoire de rendu, la résolution des textes et la surcharge `?dpr=N`.
+- **Navigateur** : DPR 1 et 3, portrait et paysage, rotation dans les deux sens, draft ouvert
+  pendant une rotation — mémoire de rendu, style CSS, caméras et coordonnées de jeu vérifiés à
+  chaque étape, aucune erreur console.

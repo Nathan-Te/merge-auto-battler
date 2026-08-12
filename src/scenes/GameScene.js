@@ -14,6 +14,7 @@ import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
 import { IntelBar } from './IntelBar.js';
 import { DebugPanel } from './DebugPanel.js';
+import { sceneTextResolution } from '../render/hiDpi.js';
 
 /**
  * Scène de jeu — grille de merge + champ de bataille.
@@ -256,7 +257,7 @@ export default class GameScene extends Phaser.Scene {
 
   /** Texte net sur écran haute densité, sans exploser le fillrate au-delà de 2x. */
   textResolution() {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    return sceneTextResolution(this);
   }
 
   // ------------------------------------------------------------------ layout

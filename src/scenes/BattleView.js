@@ -10,6 +10,7 @@ import {
   enemyColor,
 } from '../render/battleShapes.js';
 import { DEPTH } from '../render/depths.js';
+import { sceneTextResolution } from '../render/hiDpi.js';
 
 /**
  * Rendu du champ de bataille et de la file de déploiement — **aucune règle de gameplay**.
@@ -98,7 +99,7 @@ export class BattleView {
   }
 
   textResolution() {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    return sceneTextResolution(this);
   }
 
   // ------------------------------------------------------------------ construction

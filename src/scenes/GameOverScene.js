@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import juiceConfig from '../config/juice.json';
 import { DEPTH } from '../render/depths.js';
 import { parseJuiceConfig } from '../systems/juice.js';
+import { sceneTextResolution } from '../render/hiDpi.js';
 
 /**
  * Écran de game over — greybox : vagues survécues, record local, bouton rejouer.
@@ -97,7 +98,7 @@ export default class GameOverScene extends Phaser.Scene {
             })
             .setOrigin(0.5, 0)
             .setDepth(DEPTH.banner + 2)
-            .setResolution(Math.min(window.devicePixelRatio || 1, 2))
+            .setResolution(sceneTextResolution(this))
         : null;
 
     // Pointeur unifié souris + tactile, comme partout ailleurs dans le jeu.
@@ -216,7 +217,7 @@ export default class GameOverScene extends Phaser.Scene {
       .text(0, 0, content, { fontFamily: FONT, align: 'center', ...style })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.banner + 2)
-      .setResolution(Math.min(window.devicePixelRatio || 1, 2));
+      .setResolution(sceneTextResolution(this));
   }
 
   handleResize(gameSize) {
