@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  computeLayout,
-  computeBattleZone,
-  lanePoint,
-  slotCenter,
-  nearestSlotIndex,
-} from '../src/systems/layout.js';
+import balance from '../src/config/balance.json';
+import { computeLayout, computeBattleZone, lanePoint, slotCenter } from '../src/systems/layout.js';
 
 /** Écrans représentatifs du parc visé (téléphone en priorité). */
 const SCREENS = [
@@ -17,7 +12,7 @@ const SCREENS = [
   { name: 'carré', width: 600, height: 600 },
 ];
 
-const SLOT_COUNT = 8;
+const SLOT_COUNT = balance.battle.slotCount;
 
 describe('computeBattleZone', () => {
   for (const screen of SCREENS) {
@@ -74,15 +69,23 @@ describe('computeBattleZone', () => {
         }
       });
 
-      it('aligne un slot par unité, en face de son segment de couloir', () => {
+      it('aligne la file de déploiement le long du couloir, tête côté base', () => {
         expect(zone.slots).toHaveLength(SLOT_COUNT);
         expect(zone.slotSize).toBeGreaterThan(8);
 
-        zone.slots.forEach((slot, index) => {
-          const facing = lanePoint(zone, (index + 0.5) / SLOT_COUNT);
-          if (zone.horizontal) expect(slot.x).toBeCloseTo(facing.x);
-          else expect(slot.y).toBeCloseTo(facing.y);
-        });
+        // Le slot 0 est la tête : la plus proche de la sortie, donc de la base.
+        const exit = lanePoint(zone, 1);
+        const axis = zone.horizontal ? 'x' : 'y';
+        for (let i = 1; i < zone.slots.length; i += 1) {
+          expect(Math.abs(zone.slots[i][axis] - exit[axis])).toBeGreaterThan(
+            Math.abs(zone.slots[i - 1][axis] - exit[axis])
+          );
+        }
+        // La rangée est perpendiculairement alignée : un seul axe varie.
+        const fixed = zone.horizontal ? 'y' : 'x';
+        for (const slot of zone.slots) {
+          expect(slot[fixed]).toBeCloseTo(zone.slots[0][fixed]);
+        }
       });
 
       it('ne fait jamais chevaucher deux slots voisins', () => {
@@ -94,12 +97,19 @@ describe('computeBattleZone', () => {
         }
       });
 
-      it('réserve une case par place de file d’attente', () => {
-        expect(zone.queue).toHaveLength(3);
-        for (const cell of zone.queue) {
-          expect(cell.size).toBeGreaterThan(4);
-          expect(cell.y).toBeLessThanOrEqual(layout.battle.y + layout.battle.height + 0.001);
+      it('garde la file de déploiement dans la bande réservée', () => {
+        const { battle } = layout;
+        for (const slot of zone.slots) {
+          expect(slot.x - slot.size / 2).toBeGreaterThanOrEqual(battle.x - 0.001);
+          expect(slot.x + slot.size / 2).toBeLessThanOrEqual(battle.x + battle.width + 0.001);
+          expect(slot.y - slot.size / 2).toBeGreaterThanOrEqual(battle.y - 0.001);
+          expect(slot.y + slot.size / 2).toBeLessThanOrEqual(battle.y + battle.height + 0.001);
         }
+      });
+
+      it('donne une taille lisible aux combattants du couloir', () => {
+        expect(zone.fieldUnitSize).toBeGreaterThan(4);
+        expect(zone.fieldUnitSize).toBeLessThanOrEqual(zone.laneThickness + 0.001);
       });
     });
   }
@@ -139,27 +149,6 @@ describe('lanePoint', () => {
   it('borne une progression hors plage plutôt que de sortir de l’écran', () => {
     expect(lanePoint(zone, -3)).toEqual(lanePoint(zone, 0));
     expect(lanePoint(zone, 42)).toEqual(lanePoint(zone, 1));
-  });
-});
-
-describe('nearestSlotIndex', () => {
-  const zone = computeLayout(844, 390, { slotCount: SLOT_COUNT }).battleZone;
-
-  it('retrouve chaque slot depuis son centre', () => {
-    zone.slots.forEach((slot, index) => {
-      expect(nearestSlotIndex(zone, slot.x, slot.y)).toBe(index);
-    });
-  });
-
-  it('tolère un lâcher approximatif autour du slot', () => {
-    const slot = zone.slots[3];
-    expect(nearestSlotIndex(zone, slot.x + zone.slotSize * 0.4, slot.y)).toBe(3);
-    expect(nearestSlotIndex(zone, slot.x, slot.y + zone.slotSize * 0.4)).toBe(3);
-  });
-
-  it('rend -1 quand le point est loin de la rangée de slots', () => {
-    expect(nearestSlotIndex(zone, 0, 0)).toBe(-1);
-    expect(nearestSlotIndex(zone, zone.slots[0].x, zone.slots[0].y - zone.slotSize * 5)).toBe(-1);
   });
 });
 

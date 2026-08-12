@@ -1,11 +1,16 @@
 {
-  "version": 2,
+  "version": 3,
+  "input": {
+    "tapMaxDistancePx": 12,
+    "tapMaxDurationMs": 600
+  },
   "battle": {
     "tickMs": 100,
     "maxTicksPerFrame": 5,
     "laneLength": 1000,
-    "slotCount": 8,
-    "queueSize": 3,
+    "slotCount": 5,
+    "deployCooldownMs": 3500,
+    "maxFieldUnits": 20,
     "baseHp": 100,
     "unitTypePattern": [
       "single",
@@ -19,61 +24,89 @@
       "slow",
       "single"
     ],
-    "unitBuff": {
-      "damage": 1.8,
-      "fireRateMs": 0.85,
-      "range": 1.1,
-      "effect": 1.3
-    },
     "maxSupportFireRateBonus": 0.6
   },
   "units": {
     "single": {
       "label": "Mono-cible",
       "role": "damage",
-      "damage": 8,
+      "hp": 30,
+      "speed": 70,
+      "damage": 9,
       "fireRateMs": 700,
-      "range": 220,
-      "tierScaling": { "damage": 1.55, "fireRateMs": 0.97, "range": 1.05, "effect": 1.12 }
+      "range": 180,
+      "tierScaling": { "hp": 2.3, "damage": 2.3, "fireRateMs": 0.97, "range": 1.04, "effect": 1.12 }
     },
     "aoe": {
       "label": "Zone",
       "role": "aoe",
-      "damage": 5,
+      "hp": 26,
+      "speed": 64,
+      "damage": 6,
       "fireRateMs": 1100,
-      "range": 200,
+      "range": 160,
       "splashRadius": 90,
-      "tierScaling": { "damage": 1.5, "fireRateMs": 0.98, "range": 1.04, "effect": 1.1 }
+      "tierScaling": { "hp": 2.25, "damage": 2.25, "fireRateMs": 0.98, "range": 1.04, "effect": 1.1 }
     },
     "slow": {
       "label": "Ralentisseur",
       "role": "slow",
-      "damage": 2,
+      "hp": 34,
+      "speed": 64,
+      "damage": 3,
       "fireRateMs": 900,
-      "range": 240,
+      "range": 200,
       "slowFactor": 0.55,
-      "slowDurationMs": 1200,
-      "tierScaling": { "damage": 1.4, "fireRateMs": 0.97, "range": 1.04, "effect": 1.14 }
+      "slowDurationMs": 1400,
+      "slowRadius": 90,
+      "tierScaling": { "hp": 2.25, "damage": 2.1, "fireRateMs": 0.97, "range": 1.04, "effect": 1.14 }
     },
     "support": {
       "label": "Soutien",
       "role": "support",
+      "hp": 42,
+      "speed": 76,
       "damage": 0,
       "fireRateMs": 0,
-      "range": 0,
+      "range": 130,
+      "auraRadius": 220,
       "buff": { "damage": 0.3, "fireRate": 0.18 },
-      "tierScaling": { "damage": 1, "fireRateMs": 1, "range": 1, "effect": 1.18 }
+      "tierScaling": { "hp": 2.3, "damage": 1, "fireRateMs": 1, "range": 1.03, "effect": 1.25 }
     }
   },
   "enemies": {
-    "basic": { "label": "Basique", "hp": 24, "speed": 55, "damageToBase": 6 },
-    "fast": { "label": "Rapide", "hp": 13, "speed": 115, "damageToBase": 4 },
-    "tank": { "label": "Tank", "hp": 95, "speed": 32, "damageToBase": 14 }
+    "basic": {
+      "label": "Basique",
+      "hp": 24,
+      "speed": 55,
+      "damageToBase": 6,
+      "damage": 18,
+      "attackRateMs": 800,
+      "attackRange": 40
+    },
+    "fast": {
+      "label": "Rapide",
+      "hp": 13,
+      "speed": 115,
+      "damageToBase": 4,
+      "damage": 10,
+      "attackRateMs": 500,
+      "attackRange": 34
+    },
+    "tank": {
+      "label": "Tank",
+      "hp": 95,
+      "speed": 32,
+      "damageToBase": 14,
+      "damage": 42,
+      "attackRateMs": 1200,
+      "attackRange": 50
+    }
   },
   "waves": {
-    "firstWaveDelayMs": 4000,
-    "interWavePauseMs": 2600,
-    "spawnGapMs": 900,
+    "firstWaveDelayMs": 6000,
+    "interWavePauseMs": 2200,
+    "spawnGapMs": 700,
     "scripted": [
       [{ "type": "basic", "count": 3 }],
       [{ "type": "basic", "count": 5 }],
@@ -105,9 +138,10 @@
       { "type": "tank", "count": 2 }
     ],
     "scaling": {
-      "hpPerWave": 1.16,
+      "hpPerWave": 1.21,
       "speedPerWave": 1.02,
-      "countPerWave": 1.12,
+      "damagePerWave": 1.2,
+      "countPerWave": 1.18,
       "spawnGapPerWave": 0.98,
       "minSpawnGapMs": 320,
       "maxCountPerEntry": 24
@@ -115,7 +149,7 @@
   },
   "itemSpawner": {
     "maxTier": 11,
-    "startingItems": 3,
+    "startingItems": 4,
     "firstSpawnDelayMs": 500,
     "intervalMs": 2400,
     "minIntervalMs": 900,
