@@ -20,7 +20,7 @@ Trois marques, et elles ne veulent pas dire la même chose :
 - [x] **Démarrage sans erreur console**, mobile (390×780) et desktop (1280×800), en anglais
       comme en français. Vérifié sur le build de production servi par `npm run preview`.
 - [x] **Deux gestes fonctionnels** : le tap envoie une unité en file, le glisser fusionne,
-      déplace ou échange. Vérifié par 654 tests unitaires et par une passe au pointeur sur
+      déplace ou échange. Vérifié par 661 tests unitaires et par une passe au pointeur sur
       le build.
 - [x] **Aide et crédits** : le « ? » ouvre l'aide par-dessus la partie gelée, le lien
       « Crédits » ouvre la page par-dessus l'aide, et la fermer revient **à l'aide** et non
@@ -45,7 +45,7 @@ Trois marques, et elles ne veulent pas dire la même chose :
 
 ## 3. Poids
 
-- [x] **Sous le budget.** Build actuel : **1,30 Mo** décompressé, **356 Ko** en archive.
+- [x] **Sous le budget.** Build actuel : **1,30 Mo** décompressé, **353 Ko** en archive.
       Cible 10 Mo, limite dure 20 Mo. Les assets pèsent aujourd'hui **0 o** : le poids est
       celui de Phaser (~1,35 Mo minifié, ~360 Ko gzip).
 - [x] **Le CI échoue au-delà de 20 Mo** et avertit au-delà de 10 Mo, sur le poids réel de
@@ -72,7 +72,7 @@ Trois marques, et elles ne veulent pas dire la même chose :
       la remplace sans toucher au code.
 - [x] **Le toggle son persiste** en `localStorage`, et survit à « rejouer » comme au
       rechargement.
-- [x] **La musique n'démarre pas avant un geste** — contrat du navigateur, et vérifié par
+- [x] **La musique ne démarre pas avant un geste** — contrat du navigateur, et vérifié par
       `tests/audioBank.test.js`.
 - [ ] **Écouter les 18 sons en contexte, au casque et au haut-parleur de téléphone.**
       *(Nathan, à la livraison des sons)* Le seul réglage à faire ensuite est
@@ -120,13 +120,16 @@ Trois marques, et elles ne veulent pas dire la même chose :
 
 ## 9. Objectifs chiffrés — inchangés
 
-Mesurés par `npm run sim` sur le `balance.json` livré :
+Mesurés par `npm run sim` (20 parties par politique, graine 1) sur le `balance.json` livré :
 
 | objectif | seuil | mesuré | verdict |
 | --- | --- | --- | --- |
-| première défaite | vagues 8-12 | **9,50** | ✔ |
-| durée de partie | 3:00-5:00 | **4:01** | ✔ |
-| « merger bat spammer » | ≥ ×1,4 | **×1,44** | ✔ |
+| première défaite | vagues 8-12 | **9,45** | ✔ |
+| durée de partie | 3:00-5:00 | **3:53** | ✔ |
+| « merger bat spammer » | ≥ ×1,4 | **×1,45** | ✔ |
 | « les pouvoirs se voient » | ≥ +0,5 vague | **+1,20** | ✔ |
 
-Le Lot 5 n'a touché **aucune** valeur de gameplay : ces quatre nombres sont ceux du Lot 4.5.
+Le Lot 5 n'a touché **aucune** valeur de gameplay, et ce n'est pas une affirmation mais une
+conséquence vérifiable : `balance.json` est **numériquement identique** au Lot 4.5 une fois
+les libellés retirés, et `juice.json` n'a fait que gagner des clés (quatre sons, deux volumes
+de catégorie) sans qu'aucune valeur existante ne bouge.

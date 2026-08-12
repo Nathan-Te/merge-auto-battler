@@ -1375,10 +1375,15 @@ scène impossible.
 
 | objectif | seuil | Lot 4.5 | Lot 5 |
 | --- | --- | --- | --- |
-| première défaite | vagues 8-12 | 9,50 | **9,50** |
-| durée de partie | 3:00-5:00 | 4:01 | **4:01** |
-| « merger bat spammer » | ≥ ×1,4 | ×1,44 | **×1,44** |
+| première défaite | vagues 8-12 | 9,45 | **9,45** |
+| durée de partie | 3:00-5:00 | 3:53 | **3:53** |
+| « merger bat spammer » | ≥ ×1,4 | ×1,45 | **×1,45** |
 | « les pouvoirs se voient » | ≥ +0,5 vague | +1,20 | **+1,20** |
+
+Mesures : `npm run sim` par défaut (20 parties par politique, graine 1). L'identité n'est pas
+une affirmation mais une conséquence vérifiable : `balance.json` est **numériquement
+identique** au Lot 4.5 une fois les libellés retirés, et `juice.json` n'a fait que gagner des
+clés (quatre sons, deux volumes de catégorie) sans qu'aucune valeur existante ne bouge.
 
 Aucune valeur de gameplay n'a été touchée, et les seuils tactiles (`input.tapMaxDistancePx`,
 `tapMaxDurationMs`, `overlayGraceMs`) sont identiques. L'habillage ne modifie ni les
