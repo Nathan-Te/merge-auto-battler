@@ -54,7 +54,7 @@
       "cols": 3, "rows": 4,
       "animations": {
         "idle": { "frames": [[0, 0]] },
-        "walk": { "frames": [[-1, 0], [0, 0], [1, 0], [0, 0]] }
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
       },
       "names": [null, null, null,
                 null, "enemy.fast", null,
@@ -74,7 +74,7 @@
       "cols": 3, "rows": 4,
       "animations": {
         "idle": { "frames": [[0, 0]] },
-        "walk": { "frames": [[-1, 0], [0, 0], [1, 0], [0, 0]] }
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
       },
       "names": [null, null, null,
                 null, "enemy.tank", null,
@@ -94,7 +94,7 @@
       "cols": 3, "rows": 4,
       "animations": {
         "idle": { "frames": [[0, 0]] },
-        "walk": { "frames": [[-1, 0], [0, 0], [1, 0], [0, 0]] }
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
       },
       "names": [null, null, null,
                 null, "enemy.basic", null,
@@ -114,7 +114,7 @@
       "cols": 24, "rows": 16,
       "animations": {
         "idle": { "frames": [[0, 0]] },
-        "walk": { "frames": [[-1, 0], [0, 0], [1, 0], [0, 0]] }
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
       },
       "names": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, "unit.single.3", null, null, null, null, null, "unit.slow.2", null, null, "unit.slow.1", null, null, null, null, null, "unit.support.2", null, null, null, null,
