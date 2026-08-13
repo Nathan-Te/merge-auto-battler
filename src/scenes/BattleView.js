@@ -6,6 +6,7 @@ import { powerColor } from '../render/powerShapes.js';
 import { enemySize, unitColor, enemyColor } from '../render/battleShapes.js';
 import { createVisual, repaintVisual, spriteNameFor } from '../render/visuals.js';
 import { SpriteAnimator } from '../render/spriteAnim.js';
+import { createDecor } from '../render/decor.js';
 import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { DEPTH, fighterDepth } from '../render/depths.js';
 import { laneOffsetLength, laneOffsetRatio } from '../systems/laneSpread.js';
@@ -141,6 +142,24 @@ export class BattleView {
     this.baseFill = scene.add.rectangle(0, 0, 10, 10, COLORS.baseFill).setDepth(DEPTH.cell + 1);
 
     /**
+     * Décor du champ : le sol, et les deux bouts du couloir.
+     *
+     * Le sol se **tuile** sur toute la longueur ; le château et le portail sont deux objets
+     * posés aux extrémités, aux progressions 1 et 0. Les trois se posent par-dessus les
+     * rectangles existants, qui restent le repli — et **sous** les combattants
+     * (`DEPTH.fighter` vaut 5), donc jamais devant ce qui compte.
+     *
+     * Le château est délibérément posé **au bout du couloir** et non dans le bloc de PV : la
+     * jauge verte reste une jauge, lisible du coin de l'œil, et le décor reste du décor. Les
+     * mettre au même endroit obligeait à choisir entre les deux.
+     */
+    this.decor = {
+      field: createDecor(scene, this.skin, 'decor.field', DEPTH.cell + 0.1),
+      portal: createDecor(scene, this.skin, 'decor.portal', DEPTH.cell + 0.2),
+      castle: createDecor(scene, this.skin, 'decor.castle', DEPTH.cell + 0.2),
+    };
+
+    /**
      * @type {Phaser.GameObjects.Rectangle[]} fonds des slots de déploiement.
      *
      * Créés à la demande : l'amélioration « File élargie » ajoute une place **en cours de
@@ -185,6 +204,34 @@ export class BattleView {
     for (const text of [this.hpText, this.queueText, this.banner, this.hint]) {
       text.setResolution(this.textResolution());
     }
+  }
+
+  /**
+   * Boîte de décor à l'un des deux bouts du couloir.
+   *
+   * Deux précautions, apprises en regardant un château se poser sur la jauge de PV :
+   *
+   * - **la taille se mesure en combattants**, pas en épaisseur de couloir. Un décor calé sur
+   *   l'épaisseur occupe toute la largeur sur un écran étroit et devient minuscule sur un
+   *   écran large ; calé sur la taille de référence des combattants, il garde le même rapport
+   *   au personnage partout, ce qui est la seule échelle que l'œil compare vraiment ;
+   * - **la boîte est poussée vers l'intérieur** d'une demi-longueur. Centrée sur l'extrémité,
+   *   la moitié du décor déborde du couloir — sur la jauge de PV d'un côté, hors panneau de
+   *   l'autre.
+   *
+   * @param {0|1} end 0 = l'entrée des ennemis, 1 = la face de la base
+   */
+  laneEndBox(end) {
+    const zone = this.zone;
+    const size = Math.min(
+      zone.enemyReference * this.juiceConfig.field.decor.endSize,
+      zone.laneThickness
+    );
+    const point = lanePoint(zone, end);
+    const inward = (end === 0 ? 1 : -1) * (size / 2);
+    const x = (zone.horizontal ? point.x + inward : point.x) - size / 2;
+    const y = (zone.horizontal ? point.y : point.y + inward) - size / 2;
+    return { x, y, width: size, height: size };
   }
 
   /** Complète la rangée de slots jusqu'à `count` vues. */
@@ -263,14 +310,22 @@ export class BattleView {
       .setPosition(laneCenter.x, laneCenter.y);
 
     /**
-     * Côté d'un pixel d'art pour un combattant, à la taille où le layout vient de le placer.
+     * Côté d'un pixel d'art à l'écran, en unités de jeu.
      *
-     * C'est l'unité dans laquelle on arrondit le décalage de répartition : un personnage
-     * posé à 3,5 pixels d'art de l'axe n'est pas « un peu plus bas », il est **hors trame**,
-     * et sa colonne de pixels ne s'aligne plus sur celle de son voisin. Recalculé à chaque
-     * layout, puisque l'échelle entière dépend de la place disponible.
+     * **C'est la trame de tout l'écran, calculée par `GameScene` sur la case de la grille**,
+     * et non une trame propre au champ de bataille : deux surfaces voisines dont les pixels
+     * n'ont pas la même grosseur cessent d'appartenir au même dessin, et ça se voit dès
+     * qu'une particule traverse de l'une à l'autre. Le repli local ne sert qu'aux bancs
+     * d'essai, où la vue tourne sans sa scène.
      */
-    this.spreadPixel = artPixelSize(zone.fieldUnitSize, this.skin?.nativeSize ?? DEFAULT_NATIVE_SIZE);
+    this.artPixel =
+      this.scene.artPixel ??
+      artPixelSize(zone.fieldUnitSize, this.skin?.nativeSize ?? DEFAULT_NATIVE_SIZE);
+
+    // Le sol couvre le couloir entier ; le portail et le château ferment ses deux bouts.
+    this.decor.field?.resize(zone.lane, this.artPixel);
+    this.decor.portal?.resize(this.laneEndBox(0), this.artPixel);
+    this.decor.castle?.resize(this.laneEndBox(1), this.artPixel);
 
     this.refreshBaseBar();
     this.refreshQueueViews({ immediate: true });
@@ -788,12 +843,12 @@ export class BattleView {
    * Le **rang** est figé à l'apparition (`spreadRatio`) et le **décalage** se recalcule ici :
    * l'épaisseur du couloir change à chaque `resize`, et une valeur figée en pixels sortirait
    * du couloir dès la première rotation de téléphone. L'arrondi sur la trame du dessin est ce
-   * qui garde les pixels alignés (cf. `spreadPixel`).
+   * qui garde les pixels alignés (cf. `artPixel`).
    */
   spreadOffset(view) {
     const spread = this.juiceConfig.field.spread;
     const raw = laneOffsetLength(view.getData('spreadRatio') ?? 0, this.zone.laneThickness, spread);
-    return snapToArtGrid(raw, this.spreadPixel ?? 1);
+    return snapToArtGrid(raw, this.artPixel ?? 1);
   }
 
   /**
@@ -1259,6 +1314,7 @@ export class BattleView {
   destroy() {
     for (const off of this.unsubscribes) off();
     this.unsubscribes = [];
+    for (const piece of Object.values(this.decor ?? {})) piece?.destroy();
     this.clearTelegraphs();
     for (const view of [
       ...this.enemyViews.values(),

@@ -140,6 +140,9 @@ valeur n'a d'effet que le jour où une planche en apporte plusieurs.
 
 ```jsonc
 "field": {
+  "decor": {
+    "endSize": 2.2       // château et portail, en multiples d'un combattant
+  },
   "spread": {
     "steps": 5,               // rangs distincts dans la bande
     "marginStart": 0.14,      // fraction de l'épaisseur du couloir laissée libre en haut
@@ -166,7 +169,14 @@ en dur y mangerait tantôt rien, tantôt toute la bande. Elles n'ont aucune rais
 égales — on en laisse plus en bas, où les barres de vie des uns passent devant la tête des
 autres.
 
-Le décalage est enfin **arrondi à la trame du dessin** : un personnage posé à 3,5 pixels
+**`decor.endSize` se compte en combattants, pas en pixels ni en épaisseur de couloir.** C'est
+la seule échelle que l'œil compare vraiment : un décor calé sur l'épaisseur occuperait toute la
+largeur sur un téléphone et deviendrait un timbre-poste sur un écran large, alors qu'un château
+« deux fois plus haut qu'un gobelin » reste deux fois plus haut qu'un gobelin partout. La
+valeur est bornée par l'épaisseur du couloir, et le décor est poussé vers l'intérieur pour ne
+jamais déborder sur la jauge de PV.
+
+Le décalage de répartition est enfin **arrondi à la trame du dessin** : un personnage posé à 3,5 pixels
 d'art de l'axe n'est pas « un peu plus bas », il est hors trame, et ses colonnes de pixels
 ne s'alignent plus sur celles de son voisin.
 

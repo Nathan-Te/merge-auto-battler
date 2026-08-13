@@ -97,6 +97,20 @@ quatre clés :
   exactement `cols × rows`. Une case vide, ratée ou en réserve prend `null` (ou `"-"`) : elle
   est ignorée.
 
+### Le raccourci « un fichier = un sprite »
+
+Une image entière qui **est** un seul sprite — un décor, une icône, un fond — n'a pas de
+grille à décrire. `sprite` remplace alors `cols`, `rows` et `names` d'un coup :
+
+```json
+{ "file": "sol.png", "category": "decor", "sprite": "decor.field" }
+```
+
+C'est l'écriture à utiliser dès qu'on ne découpe pas un pack, et donc la plus fréquente : les
+assets qui ne viennent pas d'un bundle arrivent fichier par fichier. Les deux écritures sont
+**exclusives** — mélanger « tout le fichier » et « une grille de cases » ne veut rien dire, et
+le manifest le refuse en disant laquelle des deux garder.
+
 Les noms attendus par le jeu sont listés dans la galerie, section « manquants ». Un nom que
 le jeu n'utilise pas y apparaît aussi, en « orphelin » — c'est presque toujours une faute de
 frappe.
@@ -151,6 +165,53 @@ Trois choses à savoir :
 Le jeu joue `walk` pendant le déplacement et `idle` à l'arrêt (une unité qui tire, une
 vignette qui attend dans un slot). Une planche qui ne déclare rien reste **statique**, comme
 avant, et rien ne casse — les orbes de la grille sont dans ce cas et doivent y rester.
+
+## Le décor — cinq emplacements, deux comportements
+
+Le jeu attend cinq images de fond. Chacune se dépose en une ligne de manifest, grâce au
+raccourci ci-dessus :
+
+```json
+{ "file": "ciel.png",     "category": "decor", "sprite": "decor.sky" },
+{ "file": "plateau.png",  "category": "decor", "sprite": "decor.table" },
+{ "file": "sol.png",      "category": "decor", "sprite": "decor.field" },
+{ "file": "chateau.png",  "category": "decor", "sprite": "decor.castle" },
+{ "file": "portail.png",  "category": "decor", "sprite": "decor.portal" }
+```
+
+**Tant qu'un fichier n'est pas déposé, rien ne change** : le rectangle de couleur qui tient la
+place depuis le Lot 1 reste affiché, et les quatre autres emplacements sont indépendants. On
+peut donc les livrer un par un.
+
+| Nom | Où ça se pose | Comportement |
+|---|---|---|
+| `decor.sky` | Derrière tout l'écran | **répété** |
+| `decor.table` | Sous la grille de merge | **répété** |
+| `decor.field` | Le sol du couloir de combat | **répété** |
+| `decor.castle` | Le bout du couloir côté base | posé |
+| `decor.portal` | Le bout du couloir côté entrée des ennemis | posé |
+
+**Un fond répété doit faire une puissance de deux** — 16, 32, 64 ou 128 pixels d'art, sur les
+**deux** côtés. Ce n'est pas une préférence : Phaser redessine toute image qui n'en est pas une
+**étirée** vers la taille supérieure avant de la répéter, donc un sol de 24 px arriverait à
+l'écran resampé en 32, c'est-à-dire flou et hors trame. Le pipeline le signale, planche par
+planche, avec la taille à viser.
+
+Deux conséquences qui découlent de là :
+
+- **`trim` vaut `false` par défaut pour un décor.** Rogner les bords transparents casserait la
+  puissance de deux en silence. Un décor est de toute façon une image pleine.
+- **Le motif doit être raccordable** : c'est la même image qui se répète, bord droit contre
+  bord gauche. Un dégradé ou un détail unique se verra se répéter.
+
+Les deux images **posées** (château, portail) n'ont aucune contrainte de taille : elles gardent
+leurs proportions et se mettent au plus grand multiple entier qui tient dans la place qu'on
+leur offre — dimensionnée en multiples d'un combattant, réglable dans `juice.json`
+(`field.decor.endSize`).
+
+Dernier point, et c'est le plus facile à rater : **un sol chargé rend le combat illisible.**
+Les combattants font 16 px et portent des barres de vie de deux pixels d'épaisseur. Un
+`decor.field` doit rester sombre et pauvre en contraste — c'est un sol, pas une illustration.
 
 ## Régler le détourage
 

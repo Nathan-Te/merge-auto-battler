@@ -15,6 +15,7 @@ import { isDebugEnabled, isScreenshotEnabled } from '../systems/debug.js';
 import { t } from '../i18n/index.js';
 import { Skin } from '../render/skin.js';
 import { createVisual, repaintVisual } from '../render/visuals.js';
+import { createDecor } from '../render/decor.js';
 import { FONTS, pixelFontSize } from '../render/fonts.js';
 import { submitScore } from '../systems/highScore.js';
 import { BattleView } from './BattleView.js';
@@ -154,6 +155,18 @@ export default class GameScene extends Phaser.Scene {
       .rectangle(0, 0, 10, 10, COLORS.gridPanel)
       .setOrigin(0, 0)
       .setDepth(DEPTH.panel);
+
+    /**
+     * Décor de l'écran : le ciel derrière tout, le plateau sous la grille.
+     *
+     * Ils se posent **par-dessus** les deux rectangles ci-dessus, qui restent en place et
+     * continuent de porter la couleur de la zone. C'est ça, le repli : rien à désactiver, et
+     * une planche livrée seule n'a aucun effet sur les autres.
+     */
+    this.decor = {
+      sky: createDecor(this, this.skin, 'decor.sky', DEPTH.background + 0.1),
+      table: createDecor(this, this.skin, 'decor.table', DEPTH.panel + 0.1),
+    };
 
     // Bordure séparée du panneau : c'est elle qui pulse quand la grille est pleine.
     this.gridBorder = this.add
@@ -371,6 +384,15 @@ export default class GameScene extends Phaser.Scene {
     const gridHeight = layout.grid.cell * layout.grid.rows;
     this.gridPanel.setPosition(layout.grid.x, layout.grid.y).setSize(gridWidth, gridHeight);
     this.gridBorder.setPosition(layout.grid.x, layout.grid.y).setSize(gridWidth, gridHeight);
+
+    // Le décor se relayoute comme tout le reste, et sur **la trame de pixels de l'écran** :
+    // deux surfaces voisines dont les pixels n'ont pas la même grosseur ne ressemblent plus
+    // au même dessin.
+    this.decor.sky?.resize({ x: 0, y: 0, width, height }, this.artPixel);
+    this.decor.table?.resize(
+      { x: layout.grid.x, y: layout.grid.y, width: gridWidth, height: gridHeight },
+      this.artPixel
+    );
 
     const cellSize = layout.grid.cell * 0.94;
     this.cellViews.forEach((cellView, index) => {
@@ -985,6 +1007,7 @@ export default class GameScene extends Phaser.Scene {
     this.time.timeScale = 1;
     this.tweens.timeScale = 1;
 
+    for (const piece of Object.values(this.decor ?? {})) piece?.destroy();
     this.debugPanel?.destroy();
     this.intelBar?.destroy();
     this.battleView?.destroy();

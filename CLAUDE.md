@@ -210,6 +210,22 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   frappe dans `names`). La boucle visée est opérable à 100 % au téléphone : upload d'une
   planche via l'interface web de GitHub → CI → galerie à jour → correction du manifest. Un
   sprite qui sort mal se corrige dans `assets-src/manifest.json`, pas dans une scène.
+- **Le décor se pose par-dessus le greybox, jamais à sa place.** Les cinq fonds du jeu
+  (`decor.sky`, `decor.table`, `decor.field`, `decor.castle`, `decor.portal`) se déclarent en
+  une ligne de manifest — `{ "file": …, "category": "decor", "sprite": "decor.field" }`, le
+  raccourci « un fichier = un sprite » — et se posent **au-dessus** du rectangle de couleur qui
+  tenait la place, lequel reste en place et continue de porter la couleur de la zone. Rien à
+  désactiver, aucune scène à modifier, et les cinq sont indépendants : on les livre un par un.
+  `DECOR_SLOTS` (`src/render/skinNames.js`) dit lequel se **répète** et lequel se **pose**, et
+  ce n'est pas un réglage — un ciel, un plateau et un sol couvrent une surface dont personne ne
+  connaît la taille à l'avance, un château et un portail sont des objets. Un fond répété **doit
+  faire une puissance de deux** : le `TileSprite` de Phaser redessine toute autre taille
+  **étirée** vers la supérieure avant de la répéter, ce qui produit exactement le flou que
+  toute la chaîne pixel art vient d'éviter — le pipeline le signale, et `trim` vaut `false` par
+  défaut pour un décor, un rognage cassant la puissance de deux en silence. Les deux décors
+  posés se dimensionnent en **multiples d'un combattant** (`juice.json`,
+  `field.decor.endSize`) et non en épaisseur de couloir : c'est la seule échelle que l'œil
+  compare, et la seule qui tienne du téléphone au grand écran.
 - **Un asset absent ne casse jamais rien.** `src/render/visuals.js` est le **seul** endroit
   qui tranche entre un sprite et une forme greybox ; toute vue s'y demande sous forme de
   description (`{ kind: 'unit', type, tier }`). Le repli n'est pas une précaution mais le mode
@@ -608,8 +624,8 @@ src/systems/      logique pure et testable (grille, file de déploiement, combat
                   pouvoirs actifs, draft et modificateurs, gestes, vagues, spawner, layout,
                   répartition sur le champ, juice, sons, rng, préférences)
 src/render/       greybox : formes d'items et de pouvoirs, couleurs, profondeurs,
-                  particules, icônes de draft, boîte à juice, skin et lecture des frames
-                  d'animation livrées par les packs
+                  particules, icônes de draft, boîte à juice, skin, décor de fond et lecture
+                  des frames d'animation livrées par les packs
 src/sim/          harness d'équilibrage headless (`npm run sim`) — politiques, bancs
                   d'essai, rapport, objectifs chiffrés
 src/i18n/         dictionnaires EN/FR + moteur de traduction (`format.js`, sans dictionnaire)

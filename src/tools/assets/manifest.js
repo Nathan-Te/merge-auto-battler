@@ -323,8 +323,39 @@ function parseSheet(raw, index, defaults) {
     fail(`${label} : category « ${category} » inconnue — au choix : ${CATEGORIES.join(', ')}`);
   }
 
-  const cols = positiveInt(raw.cols, `${label} : cols`);
-  const rows = positiveInt(raw.rows, `${label} : rows`);
+  /**
+   * **Raccourci « un fichier = un sprite ».**
+   *
+   * La forme longue d'une planche décrit une grille : `cols`, `rows`, et une liste de noms.
+   * C'est ce qu'il faut pour un pack de personnages, et c'est de la paperasse pour un décor,
+   * qui est une image entière et une seule. `"sprite": "decor.field"` remplace donc les trois
+   * clés d'un coup — et c'est la forme qu'on écrira le plus souvent, puisque tout ce qui
+   * n'est pas un pack arrive fichier par fichier.
+   *
+   * Les deux écritures sont exclusives : mélanger « toute l'image » et « une grille de
+   * cases » ne veut rien dire, et le silence sur ce point produirait un découpage surprise.
+   */
+  const shorthand = raw.sprite;
+  if (shorthand !== undefined) {
+    if (typeof shorthand !== 'string') {
+      fail(`${label} : sprite doit être un nom de sprite, par exemple "decor.field"`);
+    }
+    for (const key of ['cols', 'rows', 'names']) {
+      if (raw[key] !== undefined) {
+        fail(
+          `${label} : sprite et ${key} ne vont pas ensemble. « sprite » veut dire « tout le ` +
+            `fichier est ce sprite » ; pour découper une grille, retire "sprite" et garde ` +
+            `cols/rows/names.`
+        );
+      }
+    }
+    if (!parseCellName(shorthand, `${label} : sprite`)) {
+      fail(`${label} : sprite ne peut pas être vide ou marqué comme case à ignorer`);
+    }
+  }
+
+  const cols = shorthand !== undefined ? 1 : positiveInt(raw.cols, `${label} : cols`);
+  const rows = shorthand !== undefined ? 1 : positiveInt(raw.rows, `${label} : rows`);
   const margin = nonNegativeInt(raw.margin ?? 0, `${label} : margin`);
   const spacing = nonNegativeInt(raw.spacing ?? 0, `${label} : spacing`);
 
@@ -357,7 +388,7 @@ function parseSheet(raw, index, defaults) {
     );
   }
 
-  const names = raw.names;
+  const names = shorthand !== undefined ? [shorthand] : raw.names;
   if (!Array.isArray(names)) {
     fail(
       `${label} : names manquant — une liste de ${cols * rows} noms, ligne par ligne, ` +
@@ -416,8 +447,16 @@ function parseSheet(raw, index, defaults) {
      * « 4x » et sont toutes les deux en ×4.
      */
     scale: raw.scale === undefined ? null : positiveInt(raw.scale, `${label} : scale`),
-    /** Rogner les bords transparents après détourage. Coupé pour un décor plein cadre. */
-    trim: raw.trim ?? true,
+    /**
+     * Rogner les bords transparents après détourage.
+     *
+     * **Coupé par défaut pour un décor**, et pour une raison qui se paie cher autrement : un
+     * fond tuilable doit garder une taille en puissance de deux (cf. `DECOR_SLOTS` dans
+     * `src/render/skinNames.js`), et un rognage qui retire une colonne de pixels transparents
+     * la casse en silence — l'image arrive alors à l'écran étirée et floue, sans que rien ne
+     * l'ait annoncé. Un décor est de toute façon une image pleine : il n'y a rien à rogner.
+     */
+    trim: raw.trim ?? category !== 'decor',
     /**
      * Détourer le fond. Une planche de pack arrive déjà sur du transparent : lui appliquer
      * le détourage du blanc ne ferait que risquer de manger ses zones claires.

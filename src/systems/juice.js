@@ -68,6 +68,13 @@ const REQUIRED_NUMBERS = [
   'field.spread.steps',
   'field.spread.marginStart',
   'field.spread.marginEnd',
+  /**
+   * Décor des deux bouts du couloir (château, portail), en **multiples de la taille de
+   * référence d'un combattant**. C'est la seule échelle que l'œil compare : calée sur
+   * l'épaisseur du couloir, la même valeur donnerait un décor pleine largeur sur un écran
+   * étroit et un timbre-poste sur un écran large.
+   */
+  'field.decor.endSize',
   'combat.hitFlashMs',
   'combat.tracerMs',
   'combat.recoilPx',

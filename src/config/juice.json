@@ -59,6 +59,9 @@
     }
   },
   "field": {
+    "decor": {
+      "endSize": 2.2
+    },
     "spread": {
       "steps": 5,
       "marginStart": 0.14,
