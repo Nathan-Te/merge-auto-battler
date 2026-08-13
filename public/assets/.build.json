@@ -1,6 +1,6 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "72edb99d513a560a01d411a906f98b31d57789a7f5e00b85466a797c3092d0f2",
+  "inputHash": "83a529337aecc5f71f9c4df87995579423974304da749f935234a95db5fcfd8f",
   "pipelineVersion": 2,
   "outputs": [
     "public/assets/atlas-enemies.json",
@@ -20,14 +20,14 @@
     },
     {
       "name": "orbs",
-      "bytes": 1616,
+      "bytes": 1070,
       "width": 64,
       "height": 128,
       "count": 11
     }
   ],
   "extras": [],
-  "totalBytes": 2204,
+  "totalBytes": 1658,
   "budgetKb": {
     "target": 5120,
     "max": 20480
