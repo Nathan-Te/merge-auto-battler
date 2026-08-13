@@ -108,8 +108,14 @@
   "fonts": [],
   "frames": {
     "enemy.basic": "enemies",
+    "enemy.basic~walk0": "enemies",
+    "enemy.basic~walk2": "enemies",
     "enemy.fast": "enemies",
+    "enemy.fast~walk0": "enemies",
+    "enemy.fast~walk2": "enemies",
     "enemy.tank": "enemies",
+    "enemy.tank~walk0": "enemies",
+    "enemy.tank~walk2": "enemies",
     "orb.1": "orbs",
     "orb.10": "orbs",
     "orb.11": "orbs",
@@ -122,16 +128,297 @@
     "orb.8": "orbs",
     "orb.9": "orbs",
     "unit.aoe.1": "units",
+    "unit.aoe.1~walk0": "units",
+    "unit.aoe.1~walk2": "units",
     "unit.aoe.2": "units",
+    "unit.aoe.2~walk0": "units",
+    "unit.aoe.2~walk2": "units",
     "unit.aoe.3": "units",
+    "unit.aoe.3~walk0": "units",
+    "unit.aoe.3~walk2": "units",
     "unit.single.1": "units",
+    "unit.single.1~walk0": "units",
+    "unit.single.1~walk2": "units",
     "unit.single.2": "units",
+    "unit.single.2~walk0": "units",
+    "unit.single.2~walk2": "units",
     "unit.single.3": "units",
+    "unit.single.3~walk0": "units",
+    "unit.single.3~walk2": "units",
     "unit.slow.1": "units",
+    "unit.slow.1~walk0": "units",
+    "unit.slow.1~walk2": "units",
     "unit.slow.2": "units",
+    "unit.slow.2~walk0": "units",
+    "unit.slow.2~walk2": "units",
     "unit.slow.3": "units",
+    "unit.slow.3~walk0": "units",
+    "unit.slow.3~walk2": "units",
     "unit.support.1": "units",
+    "unit.support.1~walk0": "units",
+    "unit.support.1~walk2": "units",
     "unit.support.2": "units",
-    "unit.support.3": "units"
+    "unit.support.2~walk0": "units",
+    "unit.support.2~walk2": "units",
+    "unit.support.3": "units",
+    "unit.support.3~walk0": "units",
+    "unit.support.3~walk2": "units"
+  },
+  "animations": {
+    "enemy.basic": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "enemy.basic"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "enemy.basic~walk0",
+          "enemy.basic",
+          "enemy.basic~walk2",
+          "enemy.basic"
+        ]
+      }
+    },
+    "enemy.fast": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "enemy.fast"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "enemy.fast~walk0",
+          "enemy.fast",
+          "enemy.fast~walk2",
+          "enemy.fast"
+        ]
+      }
+    },
+    "enemy.tank": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "enemy.tank"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "enemy.tank~walk0",
+          "enemy.tank",
+          "enemy.tank~walk2",
+          "enemy.tank"
+        ]
+      }
+    },
+    "unit.aoe.1": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.aoe.1"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.aoe.1~walk0",
+          "unit.aoe.1",
+          "unit.aoe.1~walk2",
+          "unit.aoe.1"
+        ]
+      }
+    },
+    "unit.aoe.2": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.aoe.2"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.aoe.2~walk0",
+          "unit.aoe.2",
+          "unit.aoe.2~walk2",
+          "unit.aoe.2"
+        ]
+      }
+    },
+    "unit.aoe.3": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.aoe.3"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.aoe.3~walk0",
+          "unit.aoe.3",
+          "unit.aoe.3~walk2",
+          "unit.aoe.3"
+        ]
+      }
+    },
+    "unit.single.1": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.single.1"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.single.1~walk0",
+          "unit.single.1",
+          "unit.single.1~walk2",
+          "unit.single.1"
+        ]
+      }
+    },
+    "unit.single.2": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.single.2"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.single.2~walk0",
+          "unit.single.2",
+          "unit.single.2~walk2",
+          "unit.single.2"
+        ]
+      }
+    },
+    "unit.single.3": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.single.3"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.single.3~walk0",
+          "unit.single.3",
+          "unit.single.3~walk2",
+          "unit.single.3"
+        ]
+      }
+    },
+    "unit.slow.1": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.slow.1"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.slow.1~walk0",
+          "unit.slow.1",
+          "unit.slow.1~walk2",
+          "unit.slow.1"
+        ]
+      }
+    },
+    "unit.slow.2": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.slow.2"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.slow.2~walk0",
+          "unit.slow.2",
+          "unit.slow.2~walk2",
+          "unit.slow.2"
+        ]
+      }
+    },
+    "unit.slow.3": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.slow.3"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.slow.3~walk0",
+          "unit.slow.3",
+          "unit.slow.3~walk2",
+          "unit.slow.3"
+        ]
+      }
+    },
+    "unit.support.1": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.support.1"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.support.1~walk0",
+          "unit.support.1",
+          "unit.support.1~walk2",
+          "unit.support.1"
+        ]
+      }
+    },
+    "unit.support.2": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.support.2"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.support.2~walk0",
+          "unit.support.2",
+          "unit.support.2~walk2",
+          "unit.support.2"
+        ]
+      }
+    },
+    "unit.support.3": {
+      "idle": {
+        "fps": null,
+        "frames": [
+          "unit.support.3"
+        ]
+      },
+      "walk": {
+        "fps": null,
+        "frames": [
+          "unit.support.3~walk0",
+          "unit.support.3",
+          "unit.support.3~walk2",
+          "unit.support.3"
+        ]
+      }
+    }
   }
 }

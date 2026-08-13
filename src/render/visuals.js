@@ -124,18 +124,29 @@ export function repaintVisual(visual, skin, spec, size) {
 }
 
 /**
- * Oriente un sprite vers l'endroit où il regarde.
+ * Oriente un sprite vers l'endroit où il marche — **par retournement, jamais par rotation**.
  *
- * Les planches sont dessinées **tournées vers la droite**. Les ennemis marchent vers la base
- * et les unités vers les ennemis : sur un couloir horizontal, l'un des deux camps doit donc
- * être retourné, sinon les deux armées se battent en se tournant le dos. En portrait, le
- * couloir est vertical et la question ne se pose pas — un sprite pivoté à 90° serait pire
- * que pas de pivot du tout.
+ * Une rotation libre rééchantillonne le dessin et fabrique des pixels qui n'existent dans
+ * aucune planche ; un `flipX` échange des colonnes entières et ne coûte pas un pixel
+ * (cf. `CLAUDE.md`).
+ *
+ * Le sens de marche est une propriété du **camp**, pas de l'entité : dans ce jeu les ennemis
+ * entrent à la progression 0 et montent vers la base, les unités sortent de la base et
+ * descendent vers eux. Sur un couloir horizontal, la base est à droite : **les ennemis vont
+ * vers la droite, les unités vers la gauche**. Les planches du pack étant dessinées tournées
+ * vers la gauche, seuls les ennemis se retournent.
+ *
+ * En portrait le couloir est vertical et la question ne se pose pas : on garde alors
+ * l'orientation naturelle de la planche, un sprite pivoté à 90° étant bien pire que pas de
+ * pivot du tout.
  */
+const FACING_FLIP = { unit: false, enemy: true };
+
 function applyFacing(image, spec) {
   if (!image.setFlipX) return;
-  if (spec.kind === 'enemy') image.setFlipX(spec.horizontal ?? true);
-  else if (spec.kind === 'unit') image.setFlipX(false);
+  const flip = FACING_FLIP[spec.kind];
+  if (flip === undefined) return;
+  image.setFlipX(flip && (spec.horizontal ?? true));
 }
 
 /** Taille d'un ennemi — inchangée, sprite ou pas : c'est un choix de lisibilité. */

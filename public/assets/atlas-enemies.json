@@ -2,8 +2,48 @@
   "frames": {
     "enemy.basic": {
       "frame": {
-        "x": 49,
-        "y": 2,
+        "x": 40,
+        "y": 66,
+        "w": 12,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 12,
+        "h": 19
+      }
+    },
+    "enemy.basic~walk0": {
+      "frame": {
+        "x": 2,
+        "y": 87,
+        "w": 12,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 12,
+        "h": 19
+      }
+    },
+    "enemy.basic~walk2": {
+      "frame": {
+        "x": 16,
+        "y": 87,
         "w": 12,
         "h": 19
       },
@@ -22,9 +62,9 @@
     },
     "enemy.fast": {
       "frame": {
-        "x": 32,
-        "y": 2,
-        "w": 15,
+        "x": 33,
+        "y": 34,
+        "w": 17,
         "h": 19
       },
       "rotated": false,
@@ -32,11 +72,51 @@
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 15,
+        "w": 17,
         "h": 19
       },
       "sourceSize": {
-        "w": 15,
+        "w": 17,
+        "h": 19
+      }
+    },
+    "enemy.fast~walk0": {
+      "frame": {
+        "x": 2,
+        "y": 66,
+        "w": 17,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 17,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 17,
+        "h": 19
+      }
+    },
+    "enemy.fast~walk2": {
+      "frame": {
+        "x": 21,
+        "y": 66,
+        "w": 17,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 17,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 17,
         "h": 19
       }
     },
@@ -44,20 +124,60 @@
       "frame": {
         "x": 2,
         "y": 2,
-        "w": 28,
-        "h": 29
+        "w": 29,
+        "h": 30
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 28,
-        "h": 29
+        "w": 29,
+        "h": 30
       },
       "sourceSize": {
-        "w": 28,
-        "h": 29
+        "w": 29,
+        "h": 30
+      }
+    },
+    "enemy.tank~walk0": {
+      "frame": {
+        "x": 33,
+        "y": 2,
+        "w": 29,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 29,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 29,
+        "h": 30
+      }
+    },
+    "enemy.tank~walk2": {
+      "frame": {
+        "x": 2,
+        "y": 34,
+        "w": 29,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 29,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 29,
+        "h": 30
       }
     }
   },
@@ -68,7 +188,7 @@
     "format": "RGBA8888",
     "size": {
       "w": 64,
-      "h": 64
+      "h": 128
     },
     "scale": "1"
   }

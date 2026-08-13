@@ -93,6 +93,25 @@ export const DEFAULTS = {
 /** Modes de réduction d'une source non native. */
 const RESAMPLE_MODES = ['area', 'nearest'];
 
+/**
+ * Séparateur des frames d'animation dans un nom de sprite.
+ *
+ * `~` est **impossible** dans un nom écrit à la main : `parseCellName` n'accepte que des
+ * lettres, des chiffres et `. - _`. Une frame dérivée ne peut donc jamais entrer en collision
+ * avec un sprite du manifest, et le rendu sait au caractère près ce qu'il regarde.
+ */
+export const ANIM_SEPARATOR = '~';
+
+/** Nom de frame d'animation dérivé d'un nom d'ancre. */
+export function animFrameName(base, animation, index) {
+  return `${base}${ANIM_SEPARATOR}${animation}${index}`;
+}
+
+/** Vrai si ce nom est une frame d'animation produite par le pipeline, et non une ancre. */
+export function isAnimFrameName(name) {
+  return name.includes(ANIM_SEPARATOR);
+}
+
 /** Une cellule dont le nom vaut l'un de ces marqueurs est **ignorée** (case vide, ratée). */
 const SKIP_MARKERS = new Set(['', '-', '_', 'skip', 'null']);
 
@@ -172,6 +191,79 @@ function parseCellName(raw, path) {
     fail(`${path} : « ${name} » n'est pas un nom de sprite valide (lettres, chiffres, . - _)`);
   }
   return name;
+}
+
+/**
+ * Animations d'une planche : **où sont les autres frames du même personnage**.
+ *
+ * Les packs de personnages sont tous bâtis pareil — un bloc de cellules par personnage, les
+ * frames de marche côte à côte, les directions les unes sous les autres. Le manifest ne
+ * nomme qu'**une** cellule par personnage (l'ancre, celle qu'on voit à l'arrêt) ; les frames
+ * d'animation se décrivent alors comme des **décalages de cellule** par rapport à elle :
+ *
+ * ```json
+ * "animations": {
+ *   "walk": { "frames": [[-1, 0], [0, 0], [1, 0], [0, 0]] }
+ * }
+ * ```
+ *
+ * Un décalage vaut `[colonne, ligne]`, compté en cases de la grille de découpe. C'est la
+ * seule écriture qui reste juste quand on ajoute un personnage : on déplace l'ancre dans
+ * `names`, et toutes ses frames suivent — là où des indices absolus se réécriraient à la
+ * main, case par case, depuis un téléphone.
+ *
+ * `[0, 0]` désigne l'ancre elle-même : le pipeline **réutilise** alors son sprite au lieu
+ * d'en empiler une copie dans l'atlas.
+ *
+ * La **cadence** n'est pas ici : elle vit dans `juice.json` (`sprite.fps.<animation>`), avec
+ * le reste de ce qui se règle à l'œil. Une planche dont le rythme sort de l'ordinaire peut
+ * malgré tout poser un `"fps"` sur son animation, qui l'emporte alors sur la valeur globale.
+ */
+function parseAnimations(raw, label, { cols, rows }) {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    fail(
+      `${label} : animations doit être un objet { "walk": { "frames": [[-1, 0], [0, 0], [1, 0]] } }`
+    );
+  }
+
+  const animations = {};
+  for (const [name, entry] of Object.entries(raw)) {
+    const at = `${label} : animations.${name}`;
+    if (!/^[a-z][a-z0-9]*$/.test(name)) {
+      fail(`${at} : le nom d'une animation est en minuscules sans séparateur (walk, idle, hurt)`);
+    }
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      fail(`${at} doit être un objet { "frames": [...] }`);
+    }
+    const frames = entry.frames;
+    if (!Array.isArray(frames) || frames.length === 0) {
+      fail(`${at}.frames doit être une liste non vide de décalages [colonne, ligne]`);
+    }
+    const offsets = frames.map((offset, index) => {
+      if (!Array.isArray(offset) || offset.length !== 2 || offset.some((v) => !Number.isInteger(v))) {
+        fail(`${at}.frames[${index}] doit être une paire d'entiers [colonne, ligne], par exemple [-1, 0]`);
+      }
+      const [dcol, drow] = offset;
+      // Un décalage plus grand que la planche est forcément une faute de frappe : le dire
+      // ici évite de découvrir un sprite vide trois écrans plus loin.
+      if (Math.abs(dcol) >= cols || Math.abs(drow) >= rows) {
+        fail(
+          `${at}.frames[${index}] : le décalage [${dcol}, ${drow}] sort d'une planche de ` +
+            `${cols}×${rows} cases`
+        );
+      }
+      return [dcol, drow];
+    });
+
+    let fps = entry.fps ?? null;
+    if (fps !== null && (typeof fps !== 'number' || !Number.isFinite(fps) || fps < 0)) {
+      fail(`${at}.fps doit être un nombre ≥ 0 (ou absent, pour suivre juice.json)`);
+    }
+
+    animations[name] = { frames: offsets, fps };
+  }
+  return animations;
 }
 
 /**
@@ -285,7 +377,29 @@ function parseSheet(raw, index, defaults) {
     row: Math.floor(cell / cols),
   }));
 
+  const animations = parseAnimations(raw.animations, label, { cols, rows });
+
+  // Une frame d'animation qui tombe hors de la planche donnerait un sprite vide sans rien
+  // dire. On vérifie **chaque ancre contre chaque animation**, une seule fois, ici.
+  for (const cell of cells) {
+    if (!cell.name) continue;
+    for (const [animation, { frames }] of Object.entries(animations)) {
+      for (const [dcol, drow] of frames) {
+        const col = cell.col + dcol;
+        const row = cell.row + drow;
+        if (col < 0 || col >= cols || row < 0 || row >= rows) {
+          fail(
+            `${label} : la frame [${dcol}, ${drow}] de l'animation « ${animation} » sort de la ` +
+              `planche pour « ${cell.name} » (case colonne ${cell.col + 1}, ligne ${cell.row + 1}). ` +
+              `Déplace l'ancre dans names, ou corrige le décalage.`
+          );
+        }
+      }
+    }
+  }
+
   return {
+    animations,
     file,
     category,
     cols,

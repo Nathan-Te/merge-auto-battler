@@ -109,6 +109,67 @@ Ces deux trajets **sont la lisibilité du concept** : ils montrent en permanence
 grille apporte au combat. Les raccourcir gagne du rythme mais coûte de la compréhension —
 arbitrage à faire au playtest, pas au jugé.
 
+## `sprite` — cadence des animations de frames
+
+```jsonc
+"sprite": {
+  "fps": {
+    "default": 6,             // animation qu'un pack apporte et que le jeu n'attendait pas
+    "walk": 6,                // marche : personnages en déplacement sur le couloir
+    "idle": 4                 // arrêt : unités qui tirent, vignettes de la file
+  }
+}
+```
+
+**Le partage est net, et il faut le garder.** `assets-src/manifest.json` dit **quelles images
+existent** (les frames de marche d'un personnage, et où elles sont sur la planche) ;
+`juice.json` dit **à quelle vitesse on les regarde**. Une planche dont le rythme sort de
+l'ordinaire peut poser un `"fps"` sur son animation dans le manifest, qui l'emporte alors —
+c'est une dérogation, pas le chemin normal.
+
+**Ces valeurs sont volontairement basses**, et il faut résister à l'envie de les monter : 4 à
+8 images par seconde est le rythme du pixel art. Une marche à 24 fps ne devient pas plus
+fluide, elle devient **nerveuse** — trois dessins joués trois fois plus vite restent trois
+dessins, et l'œil se met à voir le cycle au lieu du personnage.
+
+`idle` est plus lent que `walk` par principe : un personnage à l'arrêt respire, il ne
+piétine pas. Sur les packs livrés, l'arrêt tient de toute façon en une seule frame, donc la
+valeur n'a d'effet que le jour où une planche en apporte plusieurs.
+
+## `field` — la répartition sur le champ de bataille
+
+```jsonc
+"field": {
+  "spread": {
+    "steps": 5,               // rangs distincts dans la bande
+    "marginStart": 0.14,      // fraction de l'épaisseur du couloir laissée libre en haut
+    "marginEnd": 0.2          // idem en bas
+  }
+}
+```
+
+**Purement cosmétique.** `BattleModel` reste strictement à une dimension : portées, ciblage,
+contacts et harness ne connaissent que `progress`, et rien ici n'y touche. Le décalage est
+calculé au rendu, à partir de l'**identifiant** de l'entité (`src/systems/laneSpread.js`) —
+surtout pas d'un tirage, qui consommerait le générateur seedé de la partie et déplacerait
+toutes les vagues suivantes.
+
+**`steps` est ce qui garantit qu'une vague ne s'empile pas.** Les identifiants d'une vague
+sont consécutifs et le rang est une **permutation**, donc `steps` entités successives
+occupent `steps` rangs différents — jamais deux fois le même. Le monter éparpille davantage
+mais rapproche les rangs voisins ; le descendre fait des lignes plus nettes et ramène des
+paires superposées dans les grosses vagues. En dessous de 3, la bande ne sert plus à rien.
+
+Les deux marges sont des **fractions de l'épaisseur du couloir**, pas des pixels : celui-ci
+n'a pas la même épaisseur sur un téléphone en portrait et sur un écran large, et une valeur
+en dur y mangerait tantôt rien, tantôt toute la bande. Elles n'ont aucune raison d'être
+égales — on en laisse plus en bas, où les barres de vie des uns passent devant la tête des
+autres.
+
+Le décalage est enfin **arrondi à la trame du dessin** : un personnage posé à 3,5 pixels
+d'art de l'axe n'est pas « un peu plus bas », il est hors trame, et ses colonnes de pixels
+ne s'alignent plus sur celles de son voisin.
+
 ## `combat` — la moitié droite
 
 ```jsonc
