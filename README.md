@@ -1798,3 +1798,65 @@ personnage au lieu d'une — et reste à trois ordres de grandeur sous la cible 
   lecture n'a rien de spécifique à `walk`.
 - Le reste des points ouverts du Lot 5.5 est inchangé (orbes à regénérer, licence des packs,
   police pixel, sprites manquants).
+
+### 3. Le décor est câblé — cinq emplacements, un fichier chacun
+
+Les cinq noms `decor.*` existaient depuis le Lot 5 dans `skinNames.js`, mais **aucune scène ne
+les demandait** : la galerie les annonçait comme manquants, et les livrer n'aurait rien changé
+à l'écran. Ils sont maintenant posés pour de bon.
+
+**Un fichier = un sprite.** Le manifest gagne un raccourci qui remplace `cols`, `rows` et
+`names` d'un coup — c'est l'écriture normale pour tout ce qui n'est pas un pack :
+
+```json
+{ "file": "sol.png", "category": "decor", "sprite": "decor.field" }
+```
+
+| Nom | Où | Comportement |
+|---|---|---|
+| `decor.sky` | derrière tout l'écran | répété |
+| `decor.table` | sous la grille de merge | répété |
+| `decor.field` | le sol du couloir | répété |
+| `decor.castle` | le bout du couloir côté base | posé |
+| `decor.portal` | le bout du couloir côté entrée | posé |
+
+**Le repli n'est pas une option, c'est le mode normal.** Le décor se pose **au-dessus** des
+rectangles de couleur du greybox, qui restent en place et continuent de porter la couleur de la
+zone. Rien à désactiver, aucune scène à modifier, et les cinq emplacements sont indépendants :
+on les livre un par un, et tant qu'un fichier manque l'écran est exactement celui d'avant.
+
+**Répété ou posé n'est pas un réglage** (`DECOR_SLOTS`, `src/render/skinNames.js`) : un ciel, un
+plateau et un sol sont des matières qui couvrent une surface dont personne ne connaît la taille
+à l'avance ; un château et un portail sont des objets, avec un haut et un bas. Étirer un fond
+pour couvrir un écran quelconque le sortirait de la trame de pixels — la répétition, elle,
+couvre exactement le rectangle avec un facteur d'échelle **entier**.
+
+**La contrainte qui n'est pas évidente : un fond répété doit faire une puissance de deux**
+(16, 32, 64, 128) sur les deux côtés. Le `TileSprite` de Phaser redessine toute autre taille
+**étirée** vers la supérieure avant de la répéter (`GetPowerOfTwo` puis `drawImage`, sans
+désactiver le lissage) : un sol de 24 px arriverait à l'écran resampé en 32, c'est-à-dire
+précisément le flou que toute la chaîne pixel art vient d'éviter. Le pipeline le signale
+planche par planche, et **`trim` vaut désormais `false` par défaut pour la catégorie `decor`**
+— un rognage de bord transparent casserait la puissance de deux en silence.
+
+**Deux corrections venues de l'essai à l'écran**, avec des images jetables :
+
+- le château et le portail étaient dimensionnés sur l'épaisseur du couloir, donc énormes ; ils
+  se mesurent maintenant en **multiples d'un combattant** (`juice.json`, `field.decor.endSize`,
+  2,2 par défaut). C'est la seule échelle que l'œil compare : un décor calé sur l'épaisseur
+  occupe toute la largeur sur un téléphone et devient un timbre-poste sur un écran large ;
+- ils étaient centrés sur l'extrémité du couloir, donc débordaient de moitié — sur la jauge de
+  PV d'un côté, hors panneau de l'autre. Ils sont maintenant **poussés vers l'intérieur** et
+  reçoivent une boîte dont ils ne peuvent pas sortir, quelle que soit la planche livrée.
+
+Le château est délibérément posé **au bout du couloir** et non dans le bloc de PV : la jauge
+verte reste une jauge lisible du coin de l'œil, et le décor reste du décor. Les mettre au même
+endroit obligeait à choisir entre les deux.
+
+Dernier point, à garder en tête au moment de chercher les images : **un sol chargé rend le
+combat illisible.** Les combattants font 16 px et portent des barres de vie de deux pixels.
+`decor.field` doit rester sombre et pauvre en contraste — c'est un sol, pas une illustration.
+
+**Ce qui reste non câblé** : les quatre `ui.*` (panneaux, carte, bouton) et les trois
+`projectile.*`. Les premiers demandent une brique **9-slice** que ni le pipeline ni le rendu
+n'ont aujourd'hui — c'est du code, pas seulement un asset.

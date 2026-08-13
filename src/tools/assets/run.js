@@ -50,7 +50,7 @@ import {
 import { parsePalette } from './palette.js';
 import { packFrames, toAtlasJson } from './pack.js';
 import { formatBytes, renderGallery } from './gallery.js';
-import { expectedSprites } from '../../render/skinNames.js';
+import { DECOR_MODE, expectedSprites } from '../../render/skinNames.js';
 
 /**
  * Version du pipeline : elle entre dans l'empreinte des entrées.
@@ -224,6 +224,11 @@ function toNativeScale(data, size, sheet, warnings) {
   if (scale === 1) return { data, size, scale };
   const target = { width: size.width / scale, height: size.height / scale };
   return { data: resampleNearest(data, size, target), size: target, scale };
+}
+
+/** Puissance de deux : la seule taille qu'un fond répété traverse sans être resamplé. */
+function isPowerOfTwo(value) {
+  return Number.isInteger(value) && value > 0 && (value & (value - 1)) === 0;
 }
 
 /**
@@ -557,6 +562,21 @@ async function main() {
   const sprites = [];
   for (const sheet of manifest.sheets) {
     sprites.push(...(await processSheet(sharp, sheet, { palette, pixel: manifest.pixel }, warnings)));
+  }
+
+  // Un fond tuilable dont le côté n'est pas une puissance de deux est **redessiné étiré** par
+  // le `TileSprite` de Phaser, avant d'être répété : il arrive à l'écran interpolé et hors
+  // trame, sans que rien ne l'annonce. C'est exactement le genre de panne qu'on ne
+  // diagnostique jamais depuis un téléphone, donc on la dit ici, avec la taille à viser.
+  for (const sprite of sprites) {
+    if (DECOR_MODE[sprite.name] !== 'tile') continue;
+    if (isPowerOfTwo(sprite.width) && isPowerOfTwo(sprite.height)) continue;
+    warnings.push(
+      `« ${sprite.name} » (${sprite.sheet}) fait ${sprite.width}×${sprite.height} pixels ` +
+        `d'art : un fond qui se répète doit avoir **deux côtés en puissance de deux** ` +
+        `(16, 32, 64, 128), sinon Phaser l'étire avant de le tuiler et il arrive flou. ` +
+        `Recadre la source, ou ajuste sizes.decor.`
+    );
   }
 
   // Une source native hors palette n'est pas corrigée (un pack ne se retouche pas) : elle

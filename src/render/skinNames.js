@@ -118,14 +118,48 @@ export const PROJECTILE_BY_ROLE = {
   support: 'projectile.arrow',
 };
 
-/** Sprites de décor : le champ, le château, le portail d'invocation, la table de guerre. */
-export const DECOR_SPRITES = [
-  'decor.field',
-  'decor.castle',
-  'decor.portal',
-  'decor.table',
-  'decor.sky',
+/**
+ * **Les cinq emplacements de décor du jeu**, et comment chacun se pose à l'écran.
+ *
+ * La table est ici et pas dans une scène parce qu'elle est lue par les **deux** bouts de la
+ * chaîne, comme le reste de ce fichier : le rendu s'en sert pour savoir s'il tuile ou s'il
+ * pose, et le pipeline pour vérifier qu'un fond tuilable a bien une taille utilisable (voir
+ * plus bas). Une table recopiée des deux côtés dériverait à la première correction.
+ *
+ * Deux modes, et ce n'est pas un réglage — c'est ce que la chose **est** :
+ *
+ * - **`tile`** — une matière qui couvre une surface de taille inconnue : le ciel, le plateau
+ *   de la grille, le sol du couloir. Elle se répète, à un facteur entier, et couvre donc
+ *   exactement son rectangle quelle que soit la taille de l'écran.
+ * - **`fit`** — un objet posé quelque part : le château au bout du couloir, le portail à
+ *   l'autre bout. Il garde ses proportions et se met au plus grand multiple entier qui tient.
+ *
+ * **Un fond `tile` doit faire une puissance de deux** (16, 32, 64, 128 pixels d'art). Ce
+ * n'est pas une coquetterie : le `TileSprite` de Phaser redessine toute frame non
+ * puissance-de-deux **étirée** vers la taille supérieure, en interpolant — un fond de 24 px
+ * arriverait à l'écran resampé en 32, c'est-à-dire flou et hors trame. Le pipeline le
+ * signale, planche par planche.
+ */
+export const DECOR_SLOTS = [
+  /** Le sol du couloir de combat, sous les deux armées. */
+  { name: 'decor.field', mode: 'tile' },
+  /** Le bout « base » du couloir : ce que les ennemis viennent attaquer. */
+  { name: 'decor.castle', mode: 'fit' },
+  /** Le bout « entrée » du couloir : ce d'où sortent les vagues. */
+  { name: 'decor.portal', mode: 'fit' },
+  /** Le plateau sur lequel repose la grille de merge — la « table de guerre ». */
+  { name: 'decor.table', mode: 'tile' },
+  /** Le fond de tout l'écran, derrière les deux panneaux. */
+  { name: 'decor.sky', mode: 'tile' },
 ];
+
+/** Nom → mode d'affichage, pour une lecture directe. */
+export const DECOR_MODE = Object.fromEntries(
+  DECOR_SLOTS.map((slot) => [slot.name, slot.mode])
+);
+
+/** Sprites de décor : le champ, le château, le portail d'invocation, la table de guerre. */
+export const DECOR_SPRITES = DECOR_SLOTS.map((slot) => slot.name);
 
 /** Sprites d'interface : panneaux 9-slice, carte de parchemin, bouton. */
 export const UI_SPRITES = ['ui.panel.wood', 'ui.panel.parchment', 'ui.card', 'ui.button'];
