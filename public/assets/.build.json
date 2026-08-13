@@ -1,8 +1,10 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "9d144cfdd5b567779d5246085fd1b32c0a7678ff4e3ca17c0b70a64903490e3b",
+  "inputHash": "f23a2e269bc86055585516f878ca23d379a18d1dec057ffe3f54666ced8fd9fc",
   "pipelineVersion": 3,
   "outputs": [
+    "public/assets/atlas-decor.json",
+    "public/assets/atlas-decor.webp",
     "public/assets/atlas-enemies.json",
     "public/assets/atlas-enemies.webp",
     "public/assets/atlas-orbs.json",
@@ -13,6 +15,13 @@
     "public/gallery/index.html"
   ],
   "atlases": [
+    {
+      "name": "decor",
+      "bytes": 1068,
+      "width": 256,
+      "height": 128,
+      "count": 1
+    },
     {
       "name": "enemies",
       "bytes": 1208,
@@ -36,7 +45,7 @@
     }
   ],
   "extras": [],
-  "totalBytes": 4922,
+  "totalBytes": 5990,
   "budgetKb": {
     "target": 5120,
     "max": 20480
@@ -51,7 +60,6 @@
     "projectile.arrow",
     "projectile.fireball",
     "projectile.frost",
-    "decor.field",
     "decor.castle",
     "decor.portal",
     "decor.table",

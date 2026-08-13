@@ -2,6 +2,11 @@
   "_generated": "npm run assets — ne pas éditer à la main",
   "atlases": [
     {
+      "key": "decor",
+      "image": "atlas-decor.webp",
+      "json": "atlas-decor.json"
+    },
+    {
       "key": "enemies",
       "image": "atlas-enemies.webp",
       "json": "atlas-enemies.json"
@@ -107,6 +112,7 @@
   "audio": [],
   "fonts": [],
   "frames": {
+    "decor.field": "decor",
     "enemy.basic": "enemies",
     "enemy.basic~walk0": "enemies",
     "enemy.basic~walk2": "enemies",
