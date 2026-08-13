@@ -1780,7 +1780,13 @@ n'est utilisée pour simuler la profondeur.
 - Relu à l'écran (Chromium, portrait et paysage) : la marche défile, les vagues se répartissent
   sur la hauteur, plus aucune superposition parfaite.
 - `PIPELINE_VERSION` passe à **3** : le rognage par groupe modifie les pixels produits, y
-  compris pour les ancres déjà découpées.
+  compris pour les ancres déjà découpées. Atlas régénérés et committés.
+
+### Poids
+
+**4,8 Ko d'atlas** contre 2,9 Ko avant (enemies 590 → 1224 o, units 1270 → 2640 o, orbs
+inchangé). La hausse est la contrepartie directe des frames de marche — trois images par
+personnage au lieu d'une — et reste à trois ordres de grandeur sous la cible de 5 Mo.
 
 ### Ce qui reste ouvert
 
