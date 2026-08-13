@@ -59,7 +59,7 @@
     },
     {
       "file": "Monsters_04_6.png",
-      "category": "enemy",
+      "category": "enemies",
       "native": true,
       "credit": {
         "author": "Gif",
@@ -75,7 +75,7 @@
     },
     {
       "file": "Monsters_05_2.png",
-      "category": "enemy",
+      "category": "enemies",
       "native": true,
       "credit": {
         "author": "Gif",
