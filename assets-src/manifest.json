@@ -53,8 +53,8 @@
       },
       "cols": 3, "rows": 4,
       "names": [null, null, null,
-                null, null, null,
                 null, "enemy.fast", null,
+                null, null, null,
                 null, null, null]
     },
     {
@@ -69,8 +69,8 @@
       },
       "cols": 3, "rows": 4,
       "names": [null, null, null,
-                null, null, null,
                 null, "enemy.tank", null,
+                null, null, null,
                 null, null, null]
     },
     {
@@ -85,8 +85,8 @@
       },
       "cols": 3, "rows": 4,
       "names": [null, null, null,
-                null, null, null,
                 null, "enemy.basic", null,
+                null, null, null,
                 null, null, null]
     }
   ]
