@@ -10,6 +10,11 @@
       "key": "orbs",
       "image": "atlas-orbs.webp",
       "json": "atlas-orbs.json"
+    },
+    {
+      "key": "units",
+      "image": "atlas-units.webp",
+      "json": "atlas-units.json"
     }
   ],
   "pixel": {
@@ -115,6 +120,18 @@
     "orb.6": "orbs",
     "orb.7": "orbs",
     "orb.8": "orbs",
-    "orb.9": "orbs"
+    "orb.9": "orbs",
+    "unit.aoe.1": "units",
+    "unit.aoe.2": "units",
+    "unit.aoe.3": "units",
+    "unit.single.1": "units",
+    "unit.single.2": "units",
+    "unit.single.3": "units",
+    "unit.slow.1": "units",
+    "unit.slow.2": "units",
+    "unit.slow.3": "units",
+    "unit.support.1": "units",
+    "unit.support.2": "units",
+    "unit.support.3": "units"
   }
 }

@@ -1,0 +1,255 @@
+{
+  "frames": {
+    "unit.aoe.1": {
+      "frame": {
+        "x": 2,
+        "y": 23,
+        "w": 15,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 15,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 15,
+        "h": 18
+      }
+    },
+    "unit.aoe.2": {
+      "frame": {
+        "x": 2,
+        "y": 2,
+        "w": 14,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 19
+      }
+    },
+    "unit.aoe.3": {
+      "frame": {
+        "x": 18,
+        "y": 2,
+        "w": 14,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 19
+      }
+    },
+    "unit.single.1": {
+      "frame": {
+        "x": 2,
+        "y": 63,
+        "w": 13,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 13,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 13,
+        "h": 18
+      }
+    },
+    "unit.single.2": {
+      "frame": {
+        "x": 19,
+        "y": 23,
+        "w": 14,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 18
+      }
+    },
+    "unit.single.3": {
+      "frame": {
+        "x": 35,
+        "y": 23,
+        "w": 14,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 18
+      }
+    },
+    "unit.slow.1": {
+      "frame": {
+        "x": 34,
+        "y": 2,
+        "w": 14,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 19
+      }
+    },
+    "unit.slow.2": {
+      "frame": {
+        "x": 17,
+        "y": 63,
+        "w": 13,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 13,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 13,
+        "h": 18
+      }
+    },
+    "unit.slow.3": {
+      "frame": {
+        "x": 32,
+        "y": 63,
+        "w": 13,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 13,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 13,
+        "h": 18
+      }
+    },
+    "unit.support.1": {
+      "frame": {
+        "x": 2,
+        "y": 43,
+        "w": 14,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 18
+      }
+    },
+    "unit.support.2": {
+      "frame": {
+        "x": 18,
+        "y": 43,
+        "w": 14,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 18
+      }
+    },
+    "unit.support.3": {
+      "frame": {
+        "x": 34,
+        "y": 43,
+        "w": 14,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 18
+      }
+    }
+  },
+  "meta": {
+    "app": "npm run assets",
+    "note": "Fichier généré — ne pas éditer. Source : assets-src/ + manifest.json",
+    "image": "atlas-units.webp",
+    "format": "RGBA8888",
+    "size": {
+      "w": 64,
+      "h": 128
+    },
+    "scale": "1"
+  }
+}

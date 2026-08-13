@@ -1,12 +1,14 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "0c51dc58df01490d2904c0d2150a6d67c0cfb72f3ea970ad37434d03f35623e5",
+  "inputHash": "7b8ebf1ec5b128a81cbd9025b349359195f1807e6d9aaf9ec74fbe0941adcf76",
   "pipelineVersion": 2,
   "outputs": [
     "public/assets/atlas-enemies.json",
     "public/assets/atlas-enemies.webp",
     "public/assets/atlas-orbs.json",
     "public/assets/atlas-orbs.webp",
+    "public/assets/atlas-units.json",
+    "public/assets/atlas-units.webp",
     "public/assets/index.json",
     "public/gallery/index.html"
   ],
@@ -24,10 +26,17 @@
       "width": 64,
       "height": 128,
       "count": 11
+    },
+    {
+      "name": "units",
+      "bytes": 1270,
+      "width": 64,
+      "height": 128,
+      "count": 12
     }
   ],
   "extras": [],
-  "totalBytes": 1660,
+  "totalBytes": 2930,
   "budgetKb": {
     "target": 5120,
     "max": 20480
@@ -39,18 +48,6 @@
     "power.meteor.1",
     "power.meteor.2",
     "power.meteor.3",
-    "unit.single.1",
-    "unit.single.2",
-    "unit.single.3",
-    "unit.aoe.1",
-    "unit.aoe.2",
-    "unit.aoe.3",
-    "unit.slow.1",
-    "unit.slow.2",
-    "unit.slow.3",
-    "unit.support.1",
-    "unit.support.2",
-    "unit.support.3",
     "projectile.arrow",
     "projectile.fireball",
     "projectile.frost",
