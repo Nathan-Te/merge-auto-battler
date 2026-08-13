@@ -5,7 +5,7 @@
 
   "palette": {
     "file": "palette.json",
-    "sources": ["Monsters_02_4.png", "Monsters_04_6.png", "Monsters_05_2.png", "atlas_frame16x20.png"],
+    "sources": ["Monsters_02_4.png", "Monsters_04_6.png", "Monsters_05_2.png"],
     "quantize": true
   },
 
