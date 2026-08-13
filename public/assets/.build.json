@@ -1,6 +1,6 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "de6f63d36d7f31e419d6ce162992459326857cf1831a74940dd83350aab8d5d4",
+  "inputHash": "c07afec36b37bc6d267e61ac5f1e193f3ed9d80d046d49627993ff7b7e6e9662",
   "pipelineVersion": 3,
   "outputs": [
     "public/assets/atlas-enemies.json",
@@ -15,7 +15,7 @@
   "atlases": [
     {
       "name": "enemies",
-      "bytes": 1224,
+      "bytes": 1208,
       "width": 64,
       "height": 128,
       "count": 9
@@ -29,14 +29,14 @@
     },
     {
       "name": "units",
-      "bytes": 2640,
+      "bytes": 2644,
       "width": 64,
       "height": 256,
       "count": 36
     }
   ],
   "extras": [],
-  "totalBytes": 4934,
+  "totalBytes": 4922,
   "budgetKb": {
     "target": 5120,
     "max": 20480
