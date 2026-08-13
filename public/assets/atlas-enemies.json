@@ -1,0 +1,75 @@
+{
+  "frames": {
+    "enemy.basic": {
+      "frame": {
+        "x": 49,
+        "y": 2,
+        "w": 12,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 12,
+        "h": 19
+      }
+    },
+    "enemy.fast": {
+      "frame": {
+        "x": 32,
+        "y": 2,
+        "w": 15,
+        "h": 19
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 15,
+        "h": 19
+      },
+      "sourceSize": {
+        "w": 15,
+        "h": 19
+      }
+    },
+    "enemy.tank": {
+      "frame": {
+        "x": 2,
+        "y": 2,
+        "w": 28,
+        "h": 29
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 28,
+        "h": 29
+      },
+      "sourceSize": {
+        "w": 28,
+        "h": 29
+      }
+    }
+  },
+  "meta": {
+    "app": "npm run assets",
+    "note": "Fichier généré — ne pas éditer. Source : assets-src/ + manifest.json",
+    "image": "atlas-enemies.webp",
+    "format": "RGBA8888",
+    "size": {
+      "w": 64,
+      "h": 64
+    },
+    "scale": "1"
+  }
+}

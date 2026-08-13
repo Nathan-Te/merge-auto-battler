@@ -2,6 +2,11 @@
   "_generated": "npm run assets — ne pas éditer à la main",
   "atlases": [
     {
+      "key": "enemies",
+      "image": "atlas-enemies.webp",
+      "json": "atlas-enemies.json"
+    },
+    {
       "key": "orbs",
       "image": "atlas-orbs.webp",
       "json": "atlas-orbs.json"
@@ -10,7 +15,14 @@
   "pixel": {
     "nativeSize": 16
   },
-  "credits": [],
+  "credits": [
+    {
+      "author": "Gif",
+      "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+      "license": "To Defined",
+      "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+    }
+  ],
   "tierBands": {
     "orb": [
       [
@@ -90,6 +102,9 @@
   "audio": [],
   "fonts": [],
   "frames": {
+    "enemy.basic": "enemies",
+    "enemy.fast": "enemies",
+    "enemy.tank": "enemies",
     "orb.1": "orbs",
     "orb.10": "orbs",
     "orb.11": "orbs",

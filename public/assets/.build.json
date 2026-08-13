@@ -1,14 +1,23 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "91aedba37078cbedd010a2f54210f87743bfb6fe1282a4cef3259b4eefc42cc5",
+  "inputHash": "84922bbcdc1f2b6706e0e943301d31e7b320b20816c6d77b6c0ca3e941e1a9a6",
   "pipelineVersion": 2,
   "outputs": [
+    "public/assets/atlas-enemies.json",
+    "public/assets/atlas-enemies.webp",
     "public/assets/atlas-orbs.json",
     "public/assets/atlas-orbs.webp",
     "public/assets/index.json",
     "public/gallery/index.html"
   ],
   "atlases": [
+    {
+      "name": "enemies",
+      "bytes": 588,
+      "width": 64,
+      "height": 64,
+      "count": 3
+    },
     {
       "name": "orbs",
       "bytes": 1616,
@@ -18,7 +27,7 @@
     }
   ],
   "extras": [],
-  "totalBytes": 1616,
+  "totalBytes": 2204,
   "budgetKb": {
     "target": 5120,
     "max": 20480
@@ -42,9 +51,6 @@
     "unit.support.1",
     "unit.support.2",
     "unit.support.3",
-    "enemy.basic",
-    "enemy.fast",
-    "enemy.tank",
     "projectile.arrow",
     "projectile.fireball",
     "projectile.frost",
