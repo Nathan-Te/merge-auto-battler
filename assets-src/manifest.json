@@ -40,6 +40,54 @@
         "orb.5", "orb.6", "orb.7", "orb.8",
         "orb.9", "orb.10", "orb.11", null
       ]
+    },
+    {
+      "file": "Monsters_02_4.png",
+      "category": "enemy",
+      "native": true,
+      "credit": {
+        "author": "Gif",
+        "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+        "license": "To Defined",
+        "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+      },
+      "cols": 3, "rows": 4,
+      "names": ["", "", "",
+                "", "", "",
+                "", "enemy.fast", ""
+                "", "", ""]
+    },
+    {
+      "file": "Monsters_04_6.png",
+      "category": "enemy",
+      "native": true,
+      "credit": {
+        "author": "Gif",
+        "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+        "license": "To Defined",
+        "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+      },
+      "cols": 3, "rows": 4,
+      "names": ["", "", "",
+                "", "", "",
+                "", "enemy.tank", ""
+                "", "", ""]
+    },
+    {
+      "file": "Monsters_05_2.png",
+      "category": "enemy",
+      "native": true,
+      "credit": {
+        "author": "Gif",
+        "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+        "license": "To Defined",
+        "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+      },
+      "cols": 3, "rows": 4,
+      "names": ["", "", "",
+                "", "", "",
+                "", "enemy.basic", ""
+                "", "", ""]
     }
   ]
 }
