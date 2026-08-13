@@ -4,9 +4,12 @@ import { cellCenterAt, lanePoint } from '../systems/layout.js';
 import { styleTierLabel, TIER_LABEL_COLOR } from '../render/tierShapes.js';
 import { powerColor } from '../render/powerShapes.js';
 import { enemySize, unitColor, enemyColor } from '../render/battleShapes.js';
-import { createVisual, repaintVisual } from '../render/visuals.js';
+import { createVisual, repaintVisual, spriteNameFor } from '../render/visuals.js';
+import { SpriteAnimator } from '../render/spriteAnim.js';
 import { FONTS, pixelFontSize } from '../render/fonts.js';
-import { DEPTH } from '../render/depths.js';
+import { DEPTH, fighterDepth } from '../render/depths.js';
+import { laneOffsetLength, laneOffsetRatio } from '../systems/laneSpread.js';
+import { DEFAULT_NATIVE_SIZE, artPixelSize, snapToArtGrid } from '../systems/pixelScale.js';
 import { sceneTextResolution } from '../render/hiDpi.js';
 import { compositionText, t, waveLabelText } from '../i18n/index.js';
 
@@ -53,6 +56,16 @@ const COLORS = {
 
 /** Durée du glissement d'une vignette d'un slot au suivant. Purement mécanique. */
 const SLOT_SHIFT_MS = 160;
+
+/**
+ * Décalage des identifiants dans la permutation de répartition verticale.
+ *
+ * Unités et ennemis ont des **compteurs séparés** dans `BattleModel`, tous deux partant de 1.
+ * Sans ce décalage, la première unité et le premier ennemi de la partie prendraient le même
+ * rang, puis les deux camps descendraient la bande au même rythme — ce qui se remarque
+ * exactement autant qu'un empilement.
+ */
+const SPREAD_SALT = { unit: 2, enemy: 0 };
 
 export class BattleView {
   /**
@@ -248,6 +261,16 @@ export class BattleView {
       .setFontSize(pixelFontSize(Phaser.Math.Clamp(Math.round(bannerFont * 0.55), 10, 18)))
       .setWordWrapWidth(Math.max(60, zone.lane.width))
       .setPosition(laneCenter.x, laneCenter.y);
+
+    /**
+     * Côté d'un pixel d'art pour un combattant, à la taille où le layout vient de le placer.
+     *
+     * C'est l'unité dans laquelle on arrondit le décalage de répartition : un personnage
+     * posé à 3,5 pixels d'art de l'axe n'est pas « un peu plus bas », il est **hors trame**,
+     * et sa colonne de pixels ne s'aligne plus sur celle de son voisin. Recalculé à chaque
+     * layout, puisque l'échelle entière dépend de la place disponible.
+     */
+    this.spreadPixel = artPixelSize(zone.fieldUnitSize, this.skin?.nativeSize ?? DEFAULT_NATIVE_SIZE);
 
     this.refreshBaseBar();
     this.refreshQueueViews({ immediate: true });
@@ -624,9 +647,41 @@ export class BattleView {
       .setVisible(false);
 
     const view = this.scene.add.container(0, 0, [shape, label, hpBg, hpFill]);
-    view.setData({ shape, label, hpBg, hpFill });
+    view.setData({ shape, label, hpBg, hpFill, animator: this.createAnimator() });
     this.resizeFighterView(view, size, type, tier);
     return view;
+  }
+
+  /**
+   * Animateur de frames d'un combattant.
+   *
+   * Il est créé pour **tout le monde**, sprite livré ou repli greybox : c'est lui qui rend
+   * `null` quand il n'y a rien à jouer, et c'est ce qui évite d'écrire un `if (le sprite
+   * existe)` dans la boucle de rendu — la même promesse que `visuals.js` tient pour les
+   * images (cf. `CLAUDE.md`).
+   */
+  createAnimator() {
+    return new SpriteAnimator(this.skin, this.juiceConfig.sprite?.fps);
+  }
+
+  /**
+   * Avance l'animation d'un combattant d'une frame de rendu.
+   *
+   * `walk` pendant le déplacement, `idle` à l'arrêt — et l'arrêt, c'est le modèle qui le dit :
+   * une unité qui tire, un ennemi au contact et une armée figée pendant une pause ont tous
+   * `progress === prevProgress`. Rien de plus n'est nécessaire, et surtout aucun état de
+   * mouvement n'a besoin d'exister dans `BattleModel`.
+   *
+   * @param {Phaser.GameObjects.Container} view
+   * @param {number} dtMs
+   * @param {string} [state] Animation forcée (les vignettes de la file attendent, donc `idle`)
+   */
+  animateFighter(view, dtMs, state) {
+    const animator = view.getData('animator');
+    if (!animator) return;
+    const wanted = state ?? (view.getData('moving') ? 'walk' : 'idle');
+    const frame = animator.update(view.getData('spriteName'), wanted, dtMs);
+    if (frame) this.skin.setFrameName(view.getData('shape'), frame);
   }
 
   resizeUnitView(view, size) {
@@ -634,8 +689,11 @@ export class BattleView {
   }
 
   resizeFighterView(view, size, type, tier) {
-    view.setData({ type, tier });
-    repaintVisual(view.getData('shape'), this.skin, { kind: 'unit', type, tier }, size);
+    const spec = { kind: 'unit', type, tier };
+    // Le nom d'ancre est relu à chaque habillage : c'est lui que l'animateur suit, et un
+    // changement de palier visuel doit emmener la marche avec lui.
+    view.setData({ type, tier, spriteName: this.skin ? spriteNameFor(spec, this.skin) : null });
+    repaintVisual(view.getData('shape'), this.skin, spec, size);
     // La taille est ramenée à la grille **avant** d'habiller le liseré : les deux doivent
     // parler de la même police, sinon le contour est calculé pour un corps qui n'existe pas.
     const fontSize = pixelFontSize(Math.max(8, Math.round(size * 0.42)));
@@ -649,14 +707,30 @@ export class BattleView {
     view.setData('barWidth', barWidth);
   }
 
+  /**
+   * Rang normalisé d'une entité dans la bande de répartition, figé pour toute sa vie.
+   *
+   * Il se **dérive de l'identifiant** et ne tire rien : consommer le générateur seedé de la
+   * partie déplacerait la composition des vagues et le tirage du draft, et le harness
+   * rendrait d'autres chiffres pour cause de décor (cf. `src/systems/laneSpread.js`).
+   */
+  spreadRatio(id, kind) {
+    return laneOffsetRatio(id, {
+      steps: this.juiceConfig.field.spread.steps,
+      salt: SPREAD_SALT[kind] ?? 0,
+    });
+  }
+
   /** Vue d'une unité **sur le champ de bataille** : elle marche, elle encaisse, elle meurt. */
   createUnitView(unit, origin) {
     const zone = this.zone;
     if (!zone) return null;
 
     const view = this.buildFighterView(unit.type, unit.tier, zone.fieldUnitSize);
-    view.setDepth(DEPTH.item);
+    view.setData('spreadRatio', this.spreadRatio(unit.id, 'unit'));
     this.unitViews.set(unit.id, view);
+    // La profondeur est posée par `positionFighterView` : elle dépend de l'ordonnée finale,
+    // décalage compris, donc elle ne peut se décider qu'une fois la vue placée.
     this.positionFighterView(view, unit, 1, COLORS.unitHpFill);
 
     // Sortie de file : l'unité reste cachée le temps que le vol slot → couloir la rejoigne
@@ -709,15 +783,48 @@ export class BattleView {
   }
 
   /**
+   * Décalage cosmétique d'un combattant hors de l'axe du couloir, en unités de jeu.
+   *
+   * Le **rang** est figé à l'apparition (`spreadRatio`) et le **décalage** se recalcule ici :
+   * l'épaisseur du couloir change à chaque `resize`, et une valeur figée en pixels sortirait
+   * du couloir dès la première rotation de téléphone. L'arrondi sur la trame du dessin est ce
+   * qui garde les pixels alignés (cf. `spreadPixel`).
+   */
+  spreadOffset(view) {
+    const spread = this.juiceConfig.field.spread;
+    const raw = laneOffsetLength(view.getData('spreadRatio') ?? 0, this.zone.laneThickness, spread);
+    return snapToArtGrid(raw, this.spreadPixel ?? 1);
+  }
+
+  /**
    * Place un combattant sur le couloir d'après sa progression interpolée, et met à jour
    * sa barre de vie. Unités et ennemis partagent exactement le même code : ils vivent
-   * sur le même axe.
+   * sur le même axe — **et sur la même bande de profondeur**, sans quoi un ennemi placé plus
+   * haut passerait devant l'unité qui le mord.
    */
   positionFighterView(view, fighter, alpha, fillColor) {
     const zone = this.zone;
     const progress = fighter.prevProgress + (fighter.progress - fighter.prevProgress) * alpha;
     const point = lanePoint(zone, progress / this.config.laneLength);
-    view.setPosition(point.x, point.y);
+
+    // Le décalage est perpendiculaire à la marche : en ordonnée sur un couloir horizontal,
+    // en abscisse sur la colonne du mode portrait.
+    const offset = this.spreadOffset(view);
+    const x = zone.horizontal ? point.x : point.x + offset;
+    const y = zone.horizontal ? point.y + offset : point.y;
+    view.setPosition(x, y);
+
+    // `walk` ou `idle` : le modèle a bougé, ou non. Lu par `animateFighter`, qui tourne juste
+    // après dans la même boucle.
+    view.setData('moving', fighter.progress !== fighter.prevProgress);
+
+    // **Y-sort.** Plus bas à l'écran = plus près du spectateur = dessiné devant. En portrait
+    // le couloir est vertical, et la même formule trie alors par avancement — ce qui est
+    // exactement ce qu'on veut voir de ce côté-là aussi.
+    const depth = fighterDepth((y - zone.lane.y) / Math.max(1, zone.lane.height));
+    if (view.getData('depthValue') !== depth) {
+      view.setDepth(depth).setData('depthValue', depth);
+    }
 
     const ratio = Phaser.Math.Clamp(fighter.hp / fighter.maxHp, 0, 1);
     const damaged = ratio < 1;
@@ -743,8 +850,8 @@ export class BattleView {
     const hpFill = this.scene.add.rectangle(0, 0, 10, 3, COLORS.enemyHpFill).setOrigin(0, 0.5);
 
     const view = this.scene.add.container(0, 0, [shape, hpBg, hpFill]);
-    view.setDepth(DEPTH.enemy);
-    view.setData({ shape, hpBg, hpFill });
+    view.setData({ shape, hpBg, hpFill, animator: this.createAnimator() });
+    view.setData('spreadRatio', this.spreadRatio(enemy.id, 'enemy'));
 
     this.enemyViews.set(enemy.id, view);
     this.resizeEnemyView(view, enemy);
@@ -763,12 +870,9 @@ export class BattleView {
   resizeEnemyView(view, enemy) {
     const zone = this.zone;
     const size = enemySize(enemy.type, zone.enemyReference);
-    repaintVisual(
-      view.getData('shape'),
-      this.skin,
-      { kind: 'enemy', type: enemy.type, horizontal: zone.horizontal },
-      size
-    );
+    const spec = { kind: 'enemy', type: enemy.type, horizontal: zone.horizontal };
+    view.setData('spriteName', this.skin ? spriteNameFor(spec, this.skin) : null);
+    repaintVisual(view.getData('shape'), this.skin, spec, size);
 
     const barWidth = size * 1.1;
     const barHeight = Math.max(2, size * 0.13);
@@ -845,13 +949,31 @@ export class BattleView {
 
   // ------------------------------------------------------------------ frappes
 
+  /**
+   * Point visuel d'un combattant : sa vue si elle existe, l'axe du couloir sinon.
+   *
+   * Le repli couvre le cas où la cible vient de mourir dans le même tick que le tir qui l'a
+   * tuée — sa vue est déjà partie, sa progression est encore là.
+   */
+  fighterPoint(view, progress) {
+    if (view?.active) return { x: view.x, y: view.y };
+    return lanePoint(this.zone, progress / this.config.laneLength);
+  }
+
   onUnitAttack({ from, target, hits, unit, splashRadius, role }) {
     const zone = this.zone;
     if (!zone) return;
 
+    // **Le trait part et arrive où les corps sont vraiment**, décalage de répartition compris.
+    // Depuis que les combattants ne marchent plus tous sur l'axe, un tracé calculé sur la
+    // seule progression rate visiblement sa cible — il traverse la vague sans toucher
+    // personne pendant qu'un ennemi meurt deux rangs plus bas.
+    const shooterView = this.unitViews.get(unit.id);
+    const targetView = this.enemyViews.get(target.id);
+
     this.tracers.push({
-      from: lanePoint(zone, from / this.config.laneLength),
-      to: lanePoint(zone, target.progress / this.config.laneLength),
+      from: this.fighterPoint(shooterView, from),
+      to: this.fighterPoint(targetView, target.progress),
       color: unitColor(unit.type),
       age: 0,
       splash:
@@ -1092,12 +1214,18 @@ export class BattleView {
     const alpha = this.model.alpha;
     for (const enemy of this.model.enemies) {
       const view = this.enemyViews.get(enemy.id);
-      if (view) this.positionFighterView(view, enemy, alpha, COLORS.enemyHpFill);
+      if (!view) continue;
+      this.positionFighterView(view, enemy, alpha, COLORS.enemyHpFill);
+      this.animateFighter(view, deltaMs);
     }
     for (const unit of this.model.units) {
       const view = this.unitViews.get(unit.id);
-      if (view) this.positionFighterView(view, unit, alpha, COLORS.unitHpFill);
+      if (!view) continue;
+      this.positionFighterView(view, unit, alpha, COLORS.unitHpFill);
+      this.animateFighter(view, deltaMs);
     }
+    // Les vignettes de la file **attendent** : elles jouent l'arrêt, jamais la marche.
+    for (const view of this.queueViews.values()) this.animateFighter(view, deltaMs, 'idle');
 
     this.drawTracers(deltaMs);
     this.refreshBaseBar();

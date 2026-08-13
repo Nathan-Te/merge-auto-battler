@@ -48,6 +48,26 @@ const REQUIRED_NUMBERS = [
   'flight.trail.everyMs',
   'flight.trail.lifeMs',
   'flight.trail.sizePx',
+  /**
+   * Cadence des animations de frames livrées par les packs, **par animation**. Volontairement
+   * basse : 4 à 8 images par seconde est le rythme du pixel art, et l'accélérer ne rend pas
+   * une marche plus fluide, elle la rend nerveuse. `default` sert aux animations qu'un pack
+   * apporte sans que le jeu les ait prévues.
+   */
+  'sprite.fps.default',
+  'sprite.fps.walk',
+  'sprite.fps.idle',
+  /**
+   * Répartition verticale sur le champ de bataille (`src/systems/laneSpread.js`) : purement
+   * cosmétique, aucune portée ni aucun ciblage n'en dépend. `steps` est le nombre de rangs
+   * dans la bande — c'est lui qui garantit que `steps` entités consécutives ne se superposent
+   * jamais ; les deux marges sont des **fractions de l'épaisseur du couloir** laissées libres
+   * en haut et en bas, plus généreuses en bas où les barres de vie des uns passent devant la
+   * tête des autres.
+   */
+  'field.spread.steps',
+  'field.spread.marginStart',
+  'field.spread.marginEnd',
   'combat.hitFlashMs',
   'combat.tracerMs',
   'combat.recoilPx',

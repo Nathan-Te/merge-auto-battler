@@ -51,6 +51,20 @@
       "sizePx": 4
     }
   },
+  "sprite": {
+    "fps": {
+      "default": 6,
+      "walk": 6,
+      "idle": 4
+    }
+  },
+  "field": {
+    "spread": {
+      "steps": 5,
+      "marginStart": 0.14,
+      "marginEnd": 0.2
+    }
+  },
   "combat": {
     "hitFlashMs": 95,
     "tracerMs": 140,

@@ -139,6 +139,23 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   respectée. Le prix (une demi-résolution de texte perdue sur les écrans en 1,5) est payé les
   yeux ouverts : la netteté du pixel art prime, `render.maxPixelRatio` reste le seul curseur.
   `pixelArt: true` + `roundPixels: true` dans `src/main.js` ferment la chaîne côté GPU.
+- **Frames des packs pour la locomotion, procédural pour les impacts, jamais de rotation.**
+  C'est la règle d'animation du projet, amendée après la première passe d'habillage : les
+  planches de personnages **contiennent** leurs cycles de marche, et s'en priver pour tout
+  animer à la main donnait des personnages qui glissent. Le partage est donc fonctionnel et
+  non stylistique — **locomotion et arrêt viennent des frames du pack** (`walk` pendant le
+  déplacement, `idle` à l'arrêt : une unité qui tire, une vignette qui attend dans un slot),
+  **impacts, morts, éclosions, reculs et flashs restent procéduraux**. Aucun pack ne garantit
+  une animation d'attaque, et le mélange frames + procédural est le standard du genre : un
+  recul se règle au millième dans `juice.json`, un cycle de marche ne se dessine pas au
+  tween. Les frames se déclarent dans `assets-src/manifest.json` (`animations`, en décalages
+  de cellule depuis l'ancre), la **cadence** dans `juice.json` (`sprite.fps.*`) et se tient
+  volontairement entre 4 et 8 images par seconde — au-delà, une marche de pixel art ne
+  devient pas plus fluide, elle devient nerveuse. La lecture vit dans
+  `src/render/spriteAnim.js` : un compteur de temps, et non le gestionnaire d'animations de
+  Phaser, qui est global au jeu et survivrait à la partie — exactement ce que
+  `GameSession.destroy()` rend impossible partout ailleurs. Le sens de marche se donne au
+  **flip horizontal**, et les items de la grille restent **statiques**.
 - **Aucune rotation continue sur un sprite.** Une rotation libre détruit la grille de pixels :
   elle rééchantillonne le dessin à chaque frame et fabrique des pixels qui n'existent dans
   aucune planche. Les effets de juice se font à l'**échelle entière**, en flips, en frames et
@@ -200,6 +217,20 @@ tranche là-bas, et rien hors de ce document n'entre en V1.
   sans repli la première livraison rendrait le jeu injouable jusqu'à la dernière. Ne jamais
   écrire un `if (le sprite existe)` dans une scène — les six écrans se désynchroniseraient à
   la première planche livrée à moitié.
+- **Le champ de bataille se répartit en hauteur, et ça ne coûte rien au modèle.** Chaque
+  combattant reçoit à son apparition un décalage **perpendiculaire** à sa marche, stable pour
+  toute sa vie, et les entités plus basses se dessinent devant (`fighterDepth()`, une seule
+  bande de profondeur partagée par les deux camps — deux bandes séparées feraient passer un
+  ennemi placé plus haut devant l'unité qui le mord). `BattleModel` reste strictement **à une
+  dimension** : portées, ciblage, contacts et harness ne connaissent que `progress`. Le
+  décalage est donc **dérivé de l'identifiant** de l'entité (`src/systems/laneSpread.js`),
+  jamais tiré — un tirage consommerait le générateur seedé de la partie et déplacerait la
+  composition des vagues, le draft et les items de la grille, pour cause de décor. Ce n'est
+  pas un hachage mais une **permutation** : les identifiants d'une vague sont consécutifs,
+  donc `spread.steps` entités successives occupent autant de rangs **différents**, là où un
+  hachage laisserait deux squelettes exactement superposés — le défaut qu'on vient corriger.
+  Corollaire à ne pas oublier en ajoutant un effet : projectiles, impacts et gerbes visent la
+  position **visuelle** de leur cible, décalage compris, et non l'axe du couloir.
 - **Aucun texte affiché en dur, nulle part** — ni dans une scène, ni dans `balance.json`.
   Tout passe par une clé de `src/i18n/` (`t('hud.baseHp', { current, max })`). Le jeu sort
   **en anglais**, en français si le navigateur l'est, `?lang=` force l'un ou l'autre.
@@ -575,9 +606,10 @@ src/scenes/       scènes Phaser + vues (jeu, champ de bataille, barre de décis
                   aide, game over, panneau debug)
 src/systems/      logique pure et testable (grille, file de déploiement, combat, session,
                   pouvoirs actifs, draft et modificateurs, gestes, vagues, spawner, layout,
-                  juice, sons, rng, préférences)
+                  répartition sur le champ, juice, sons, rng, préférences)
 src/render/       greybox : formes d'items et de pouvoirs, couleurs, profondeurs,
-                  particules, icônes de draft, boîte à juice
+                  particules, icônes de draft, boîte à juice, skin et lecture des frames
+                  d'animation livrées par les packs
 src/sim/          harness d'équilibrage headless (`npm run sim`) — politiques, bancs
                   d'essai, rapport, objectifs chiffrés
 src/i18n/         dictionnaires EN/FR + moteur de traduction (`format.js`, sans dictionnaire)

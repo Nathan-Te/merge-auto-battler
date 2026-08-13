@@ -37,7 +37,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseManifest } from './manifest.js';
+import { animFrameName, isAnimFrameName, parseManifest } from './manifest.js';
 import { keyOutBackground, sliceRects, trimBounds } from './imageOps.js';
 import {
   detectPixelScale,
@@ -61,8 +61,11 @@ import { expectedSprites } from '../../render/skinNames.js';
  *
  * 2 — bascule en pixel art : réduction à la résolution native, seuillage alpha,
  *     quantification vers la palette partagée, atlas WebP sans perte.
+ * 3 — frames d'animation : un personnage est découpé en **groupe** (ancre + frames), et
+ *     tout le groupe est rogné sur un **cadre commun**. Les pixels de l'ancre changent donc
+ *     dès qu'une animation est déclarée sur sa planche.
  */
-const PIPELINE_VERSION = 2;
+const PIPELINE_VERSION = 3;
 
 const ROOT = path.resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const SRC_DIR = path.join(ROOT, 'assets-src');
@@ -224,6 +227,67 @@ function toNativeScale(data, size, sheet, warnings) {
 }
 
 /**
+ * Plus petit rectangle contenant tous ceux qu'on lui donne, `null` si la liste est vide.
+ *
+ * C'est ce qui tient une animation **immobile**. Rogner chaque frame sur ses propres pixels
+ * recadre le personnage à chaque image : une frame de marche où le bras est tendu est plus
+ * large d'un pixel, donc son sprite est recentré d'un demi-pixel, et le personnage entier
+ * tremble à 6 images par seconde. Un cadre commun à tout le groupe supprime le tremblement
+ * sans rien perdre : on rogne toujours, simplement on rogne le groupe et non la frame.
+ */
+function unionBounds(list) {
+  const rects = list.filter(Boolean);
+  if (rects.length === 0) return null;
+  const x = Math.min(...rects.map((r) => r.x));
+  const y = Math.min(...rects.map((r) => r.y));
+  const right = Math.max(...rects.map((r) => r.x + r.width));
+  const bottom = Math.max(...rects.map((r) => r.y + r.height));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/**
+ * Groupes de frames d'une planche : une entrée par cellule **nommée**, avec toutes les
+ * frames d'animation que le manifest lui attache.
+ *
+ * Deux animations qui pointent la même cellule (l'ancre est presque toujours la frame du
+ * milieu de la marche) **partagent** le sprite : l'atlas ne porte jamais deux fois les mêmes
+ * pixels, et le rendu passe d'une animation à l'autre sans changer d'image quand elles se
+ * recouvrent.
+ *
+ * @returns {{name: string, cellIndex: number, frames: {name: string, cellIndex: number}[],
+ *            animations: Record<string, {fps: number|null, frames: string[]}>}[]}
+ */
+function spriteGroups(sheet) {
+  const cellAt = (col, row) => row * sheet.cols + col;
+  const groups = [];
+
+  for (let index = 0; index < sheet.cells.length; index += 1) {
+    const cell = sheet.cells[index];
+    if (!cell?.name) continue;
+
+    const frames = [{ name: cell.name, cellIndex: index }];
+    const nameByCell = new Map([[index, cell.name]]);
+    const animations = {};
+
+    for (const [animation, spec] of Object.entries(sheet.animations ?? {})) {
+      const names = spec.frames.map(([dcol, drow], position) => {
+        const target = cellAt(cell.col + dcol, cell.row + drow);
+        const existing = nameByCell.get(target);
+        if (existing) return existing;
+        const name = animFrameName(cell.name, animation, position);
+        nameByCell.set(target, name);
+        frames.push({ name, cellIndex: target });
+        return name;
+      });
+      animations[animation] = { fps: spec.fps, frames: names };
+    }
+
+    groups.push({ name: cell.name, cellIndex: index, frames, animations });
+  }
+  return groups;
+}
+
+/**
  * Découpe, détoure, rogne et **pixelise** toutes les cases d'une planche.
  *
  * Deux chemins, et c'est toute la bascule en pixel art :
@@ -278,80 +342,106 @@ async function processSheet(sharp, sheet, { palette, pixel }, warnings) {
   });
 
   const sprites = [];
-  for (let index = 0; index < rects.length; index += 1) {
-    const cell = sheet.cells[index];
-    if (!cell?.name) continue;
-    const rect = rects[index];
-
-    // Copie de la sous-image : un seul décodage pour toute la planche, puis de
+  for (const group of spriteGroups(sheet)) {
+    // Copie des sous-images du groupe : un seul décodage pour toute la planche, puis de
     // l'arithmétique. Extraire case par case avec sharp redécoderait le PNG à chaque fois.
-    let data = crop(sheetData, sheetSize, rect);
-    let size = { width: rect.width, height: rect.height };
+    const cellSize = {
+      width: rects[group.cellIndex].width,
+      height: rects[group.cellIndex].height,
+    };
+    const frames = group.frames.map((frame) => {
+      const rect = rects[frame.cellIndex];
+      const data = crop(sheetData, sheetSize, rect);
+      const size = { width: rect.width, height: rect.height };
+      if (sheet.keyOut) keyOutBackground(data, size, sheet.keying);
+      return { ...frame, data, size };
+    });
 
-    if (sheet.keyOut) keyOutBackground(data, size, sheet.keying);
-
-    const bounds = sheet.trim ? trimBounds(data, size) : { x: 0, y: 0, ...size };
+    // Rognage **du groupe**, pas de la frame : c'est ce qui empêche le personnage de
+    // trembler d'un pixel à chaque image de marche (cf. `unionBounds`).
+    const bounds = sheet.trim
+      ? unionBounds(frames.map((frame) => trimBounds(frame.data, frame.size)))
+      : { x: 0, y: 0, ...cellSize };
     if (!bounds) {
       warnings.push(
-        `« ${cell.name} » (${sheet.file}, case ${index + 1}) est entièrement transparente ` +
-          `après détourage — case vide, ou keying.tolerance trop haut`
+        `« ${group.name} » (${sheet.file}, case ${group.cellIndex + 1}) est entièrement ` +
+          `transparente après détourage — case vide, ou keying.tolerance trop haut`
       );
       continue;
     }
-    data = crop(data, size, bounds);
-    size = { width: bounds.width, height: bounds.height };
+    for (const frame of frames) {
+      frame.data = crop(frame.data, frame.size, bounds);
+      frame.size = { width: bounds.width, height: bounds.height };
+    }
 
     if (sheet.native) {
       // Un pack passe sans transformation. Le seuillage est le seul geste, et il ne change
       // rien à une planche conforme : le pixel art n'a pas de demi-transparence, donc
       // l'appliquer ne fait que vérifier que c'est bien le cas.
-      thresholdAlpha(data, pixel.alphaThreshold);
-      if (Math.max(size.width, size.height) > sheet.size) {
+      for (const frame of frames) thresholdAlpha(frame.data, pixel.alphaThreshold);
+      if (Math.max(bounds.width, bounds.height) > sheet.size) {
         warnings.push(
-          `« ${cell.name} » (${sheet.file}) fait ${size.width}×${size.height} pixels d'art, ` +
-            `au-delà des ${sheet.size} attendus pour la catégorie « ${sheet.category} ». ` +
-            `Une source native n'est jamais redimensionnée : ajuste sizes.${sheet.category}, ` +
-            `ou la découpe.`
+          `« ${group.name} » (${sheet.file}) fait ${bounds.width}×${bounds.height} pixels ` +
+            `d'art, au-delà des ${sheet.size} attendus pour la catégorie ` +
+            `« ${sheet.category} ». Une source native n'est jamais redimensionnée : ajuste ` +
+            `sizes.${sheet.category}, ou la découpe.`
         );
       }
     } else {
-      const result = pixelize({
-        data,
-        size,
-        target: fitNativeSize(size, sheet.size),
-        resample: sheet.resample,
-        palette: palette?.colors ?? null,
-        alphaThreshold: pixel.alphaThreshold,
-      });
-      data = result.data;
-      size = result.size;
+      // **Une seule cible pour tout le groupe.** Elle se calcule sur le cadre commun, donc
+      // toutes les frames sortent de la pixelisation à la même taille — condition pour que
+      // le rendu puisse échanger l'une contre l'autre sans recalculer une échelle.
+      const target = fitNativeSize(bounds, sheet.size);
+      for (const frame of frames) {
+        const result = pixelize({
+          data: frame.data,
+          size: frame.size,
+          target,
+          resample: sheet.resample,
+          palette: palette?.colors ?? null,
+          alphaThreshold: pixel.alphaThreshold,
+        });
+        frame.data = result.data;
+        frame.size = result.size;
+      }
 
       // Le seuillage peut vider une rangée de bord : on rogne une seconde fois pour que le
-      // sprite soit cadré sur ses pixels réels et non sur un halo qui n'existe plus.
-      const after = sheet.trim ? trimBounds(data, size, 1) : { x: 0, y: 0, ...size };
+      // sprite soit cadré sur ses pixels réels et non sur un halo qui n'existe plus. Sur le
+      // groupe entier, pour la même raison que le premier rognage.
+      const after = sheet.trim
+        ? unionBounds(frames.map((frame) => trimBounds(frame.data, frame.size, 1)))
+        : { x: 0, y: 0, ...frames[0].size };
       if (!after) {
         warnings.push(
-          `« ${cell.name} » (${sheet.file}) disparaît à la pixelisation — le dessin est trop ` +
+          `« ${group.name} » (${sheet.file}) disparaît à la pixelisation — le dessin est trop ` +
             `fin pour ${sheet.size} pixels d'art, ou pixel.alphaThreshold est trop haut.`
         );
         continue;
       }
-      data = crop(data, size, after);
-      size = { width: after.width, height: after.height };
+      for (const frame of frames) {
+        frame.data = crop(frame.data, frame.size, after);
+        frame.size = { width: after.width, height: after.height };
+      }
     }
 
-    sprites.push({
-      name: cell.name,
-      category: sheet.category,
-      width: size.width,
-      height: size.height,
-      data,
-      sheet: sheet.file,
-      native: sheet.native,
-      // Sur une source native on ne quantifie pas : la seule chose utile est de dire
-      // combien de teintes sortent de la palette partagée, et de le montrer en galerie.
-      offPalette: palette ? offPaletteColors(data, palette.colors).length : 0,
-    });
+    for (const frame of frames) {
+      sprites.push({
+        name: frame.name,
+        category: sheet.category,
+        width: frame.size.width,
+        height: frame.size.height,
+        data: frame.data,
+        sheet: sheet.file,
+        native: sheet.native,
+        /** Nom de l'ancre : c'est lui que le jeu demande, les autres frames le suivent. */
+        group: group.name,
+        /** Les animations sont portées par l'ancre, une seule fois pour tout le groupe. */
+        animations: frame.name === group.name ? group.animations : null,
+        // Sur une source native on ne quantifie pas : la seule chose utile est de dire
+        // combien de teintes sortent de la palette partagée, et de le montrer en galerie.
+        offPalette: palette ? offPaletteColors(frame.data, palette.colors).length : 0,
+      });
+    }
   }
 
   return sprites;
@@ -546,6 +636,10 @@ async function main() {
           height: frame.height,
           bytes: Math.round((buffer.length * frame.width * frame.height) / Math.max(1, totalArea)),
           native: spriteByName.get(frame.name)?.native ?? false,
+          // Une frame d'animation se relit **à côté de son ancre** (le tri par nom les met
+          // côte à côte) : c'est là qu'on voit qu'une marche décale le personnage d'un pixel
+          // ou qu'une frame a été prise dans la mauvaise direction.
+          animFrame: isAnimFrameName(frame.name),
           offPalette: spriteByName.get(frame.name)?.offPalette ?? 0,
         })),
     });
@@ -574,7 +668,12 @@ async function main() {
   // --- index d'exécution : ce que le jeu charge au démarrage
   const balance = JSON.parse(await readFile(path.join(ROOT, 'src/config/balance.json'), 'utf8'));
   const expected = expectedSprites({ balance, bands: manifest.tierBands });
-  const produced = new Set(sprites.map((sprite) => sprite.name));
+  // Les frames d'animation ne sont **ni attendues ni orphelines** : le jeu ne les demande
+  // jamais par leur nom, il demande l'ancre et suit ses animations. Les compter ferait
+  // clignoter la galerie en rouge à chaque planche animée, pour rien.
+  const produced = new Set(
+    sprites.filter((sprite) => !isAnimFrameName(sprite.name)).map((sprite) => sprite.name)
+  );
   const missing = expected.filter((entry) => !produced.has(entry.name)).map((entry) => entry.name);
   const expectedNames = new Set(expected.map((entry) => entry.name));
   const orphans = [...produced].filter((name) => !expectedNames.has(name)).sort();
@@ -609,6 +708,19 @@ async function main() {
       [...sprites]
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((sprite) => [sprite.name, sprite.category])
+    ),
+    /**
+     * Animations, par nom d'ancre : `{ "enemy.fast": { "walk": { fps, frames: [...] } } }`.
+     *
+     * `fps` vaut `null` quand la planche ne l'impose pas — c'est alors `juice.json`
+     * (`sprite.fps.<animation>`) qui tranche, comme pour toute autre valeur de feel. Le
+     * pipeline dit **quelles images existent**, jamais à quelle vitesse elles se regardent.
+     */
+    animations: Object.fromEntries(
+      [...sprites]
+        .filter((sprite) => sprite.animations && Object.keys(sprite.animations).length > 0)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((sprite) => [sprite.name, sprite.animations])
     ),
   };
   const indexFile = path.join(OUT_DIR, 'index.json');

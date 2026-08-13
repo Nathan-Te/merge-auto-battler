@@ -1,7 +1,7 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "7b8ebf1ec5b128a81cbd9025b349359195f1807e6d9aaf9ec74fbe0941adcf76",
-  "pipelineVersion": 2,
+  "inputHash": "de6f63d36d7f31e419d6ce162992459326857cf1831a74940dd83350aab8d5d4",
+  "pipelineVersion": 3,
   "outputs": [
     "public/assets/atlas-enemies.json",
     "public/assets/atlas-enemies.webp",
@@ -15,10 +15,10 @@
   "atlases": [
     {
       "name": "enemies",
-      "bytes": 590,
+      "bytes": 1224,
       "width": 64,
-      "height": 64,
-      "count": 3
+      "height": 128,
+      "count": 9
     },
     {
       "name": "orbs",
@@ -29,14 +29,14 @@
     },
     {
       "name": "units",
-      "bytes": 1270,
+      "bytes": 2640,
       "width": 64,
-      "height": 128,
-      "count": 12
+      "height": 256,
+      "count": 36
     }
   ],
   "extras": [],
-  "totalBytes": 2930,
+  "totalBytes": 4934,
   "budgetKb": {
     "target": 5120,
     "max": 20480

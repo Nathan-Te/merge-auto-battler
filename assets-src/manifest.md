@@ -101,6 +101,57 @@ Les noms attendus par le jeu sont listés dans la galerie, section « manquants 
 le jeu n'utilise pas y apparaît aussi, en « orphelin » — c'est presque toujours une faute de
 frappe.
 
+## Animer un personnage — `animations`
+
+Les packs de personnages sont tous bâtis pareil : un **bloc de cellules par personnage**, les
+frames de marche côte à côte sur une ligne, les directions les unes sous les autres. Dans
+`names`, on ne nomme qu'**une** cellule par personnage — celle où il est à l'arrêt, l'**ancre**.
+Les autres frames se décrivent alors comme des **décalages de cellule** par rapport à elle :
+
+```json
+{
+  "file": "monstres.png",
+  "category": "enemies",
+  "native": true,
+  "cols": 3, "rows": 4,
+  "animations": {
+    "idle": { "frames": [[0, 0]] },
+    "walk": { "frames": [[-1, 0], [0, 0], [1, 0], [0, 0]] }
+  },
+  "names": [null, null, null,
+            null, "enemy.basic", null,
+            null, null, null,
+            null, null, null]
+}
+```
+
+Un décalage vaut `[colonne, ligne]`, compté **en cases** de la grille de découpe. L'exemple
+ci-dessus dit : « la marche, ce sont la case de gauche, l'ancre, la case de droite, puis
+l'ancre » — un aller-retour, qui est le cycle de marche à trois images le plus courant.
+`[0, 0]` désigne l'ancre elle-même, et le pipeline **réutilise** alors son sprite plutôt que
+d'empiler une copie dans l'atlas.
+
+**Pourquoi des décalages et pas des numéros de case.** Parce qu'ils restent justes quand on
+ajoute un personnage : on déplace son nom dans `names`, et toutes ses frames suivent. Des
+indices absolus se réécriraient à la main, case par case, depuis un téléphone.
+
+Trois choses à savoir :
+
+- **Le jeu ne demande jamais ces frames par leur nom.** Il demande l'ancre (`enemy.basic`) et
+  suit ses animations. Elles apparaissent malgré tout dans la galerie, marquées « frame » et
+  **collées à leur ancre** (le tri par nom s'en charge) : c'est là qu'on voit qu'une frame a
+  été prise dans la mauvaise direction, ou qu'elle décale le personnage d'un pixel.
+- **Tout le groupe est rogné sur un cadre commun.** Rogner chaque frame sur ses propres pixels
+  recadrerait le personnage à chaque image — une frame où le bras est tendu est plus large,
+  donc recentrée — et le personnage entier tremblerait à six images par seconde.
+- **La cadence n'est pas ici.** Elle vit dans `src/config/juice.json` (`sprite.fps.walk`,
+  `sprite.fps.idle`), avec le reste de ce qui se règle à l'œil. Une planche au rythme
+  inhabituel peut ajouter `"fps": 10` à son animation, mais c'est une dérogation.
+
+Le jeu joue `walk` pendant le déplacement et `idle` à l'arrêt (une unité qui tire, une
+vignette qui attend dans un slot). Une planche qui ne déclare rien reste **statique**, comme
+avant, et rien ne casse — les orbes de la grille sont dans ce cas et doivent y rester.
+
 ## Régler le détourage
 
 Le fond blanc des planches est retiré **par propagation depuis les bords** : ce qui est

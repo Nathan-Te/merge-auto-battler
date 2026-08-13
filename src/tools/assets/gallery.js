@@ -153,6 +153,8 @@ figcaption { padding: .35rem .45rem .5rem; font-size: .68rem; line-height: 1.35;
 .tag { display: inline-block; margin-right: .25rem; padding: 0 .25rem; border-radius: 2px; font-size: .62rem; }
 .tag.pack { background: #22322a; color: #86c69a; }
 .tag.off { background: #3a2a22; color: var(--warn); }
+/* Frame d'animation : elle se relit collée à son ancre, que le tri par nom place juste avant. */
+.tag.anim { background: #232c3a; color: #8fa8d8; }
 .swatches { display: flex; flex-wrap: wrap; gap: 2px; margin-top: .5rem; }
 .swatches i { width: 13px; height: 13px; border-radius: 2px; display: block; }
 .missing { color: var(--warn); }
@@ -233,6 +235,7 @@ export function renderGallery(model) {
           const zoom = Math.max(1, Math.min(4, Math.floor(112 / longest)));
           const tags = [
             sprite.native ? '<span class="tag pack">pack</span>' : '',
+            sprite.animFrame ? '<span class="tag anim">frame</span>' : '',
             sprite.offPalette > 0
               ? `<span class="tag off">${sprite.offPalette} hors palette</span>`
               : '',

@@ -44,6 +44,15 @@ export class Skin {
     /** Nom de sprite → clé d'atlas, tel que le pipeline l'a écrit. */
     this.frames = new Map(Object.entries(index?.frames ?? {}));
     /**
+     * Nom d'ancre → animations livrées par sa planche (`{ walk: { fps, frames } }`).
+     *
+     * Toutes les frames d'un groupe sont dans **le même atlas** et à **la même taille** (le
+     * pipeline les rogne sur un cadre commun) : les échanger revient donc à changer de frame,
+     * sans retoucher ni l'échelle ni l'origine. C'est cette garantie du pipeline qui permet à
+     * `setFrameName` de tenir en une ligne.
+     */
+    this.animations = new Map(Object.entries(index?.animations ?? {}));
+    /**
      * Résolution native du projet, telle que le pipeline l'a inscrite dans l'index. Elle
      * n'est lue que pour l'affichage de debug : la mise à l'échelle, elle, se calcule sur la
      * taille réelle de chaque frame, ce qui reste juste même pour un décor qui n'a pas la
@@ -75,6 +84,38 @@ export class Skin {
     if (!category) return false;
     const key = atlasKey(category);
     return this.scene.textures.exists(key) && this.scene.textures.get(key).has(name);
+  }
+
+  /**
+   * Animations d'un sprite, ou `null` si sa planche n'en déclare pas.
+   *
+   * Comme `has`, la méthode exige que la texture soit **réellement chargée** : annoncer une
+   * marche dont l'atlas a échoué au chargement ferait poser des frames inexistantes sur un
+   * greybox. Une planche livrée sans animation (les orbes de la grille, une icône) rend
+   * `null`, et l'appelant n'a rien de particulier à écrire pour ça.
+   *
+   * @param {string} name Nom d'ancre
+   * @returns {Record<string, {fps: number|null, frames: string[]}>|null}
+   */
+  animationsFor(name) {
+    if (!this.has(name)) return null;
+    return this.animations.get(name) ?? null;
+  }
+
+  /**
+   * Échange la frame d'une image **au sein de son groupe d'animation**.
+   *
+   * Contrairement à `setFrame`, rien n'est recalculé : les frames d'un groupe sortent du
+   * pipeline avec un cadre commun, donc l'échelle entière déjà posée reste juste. C'est ce
+   * qui rend une animation gratuite — un `setFrame` par changement d'image, six fois par
+   * seconde, et rien du tout entre deux.
+   *
+   * @returns {boolean} true si la frame a changé
+   */
+  setFrameName(image, frameName) {
+    if (!image || typeof image.setFrame !== 'function' || !this.has(frameName)) return false;
+    image.setFrame(frameName);
+    return true;
   }
 
   /** Palier visuel d'un tier, dans la famille donnée (`orb`, `unit` ou `power`). */

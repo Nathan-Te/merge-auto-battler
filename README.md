@@ -1655,3 +1655,140 @@ passent à l'identique — c'est la vérification que le pivot n'a touché aucun
 - **Aucune police pixel livrée** : `pixelFontSize()` reste inerte jusque-là, et l'effet des
   tailles contraintes sur les layouts n'a donc pas encore été vu à l'écran.
 - **49 sprites manquants** — unités, ennemis, projectiles, décor, UI. Le greybox tient.
+
+## Lot 5.5 — deuxième passe d'habillage : animations & répartition
+
+Retours après la première intégration pixel art. Deux chantiers, **zéro changement de
+gameplay** : `balance.json` n'est pas touché, `BattleModel` non plus, et le harness rend des
+chiffres identiques au bit près (comparaison `npm run sim -- --json` avant / après).
+
+### 1. Les frames des packs, enfin utilisées
+
+Les planches importées **contiennent** les cycles de marche des personnages : jusqu'ici le
+manifest n'en découpait qu'une image par personnage, et tout le monde glissait.
+
+**Le manifest décrit maintenant les animations d'une planche, en décalages de cellule depuis
+l'ancre** (`assets-src/manifest.md`, section « Animer un personnage ») :
+
+```json
+"animations": {
+  "idle": { "frames": [[0, 0]] },
+  "walk": { "frames": [[-1, 0], [0, 0], [1, 0], [0, 0]] }
+}
+```
+
+Des **décalages** et non des numéros de case, parce qu'ils restent justes quand on ajoute un
+personnage : on déplace son nom dans `names`, ses frames suivent. Le pack livré est bâti
+comme un charset classique — blocs de 3 colonnes × 4 lignes, l'ancre au milieu de la ligne
+de marche — donc la même déclaration sert aux quatre planches, les 3 monstres comme les 12
+unités de `atlas_frame16x20.png`.
+
+Trois décisions du pipeline valent d'être notées :
+
+- **Rognage sur un cadre commun à tout le groupe** (ancre + frames). Rogner chaque frame sur
+  ses propres pixels recadre le personnage à chaque image — une frame où le bras est tendu est
+  plus large d'un pixel, donc recentrée d'un demi — et le personnage entier tremblerait à six
+  images par seconde. C'est aussi ce qui permet au rendu d'échanger une frame **sans
+  recalculer d'échelle** : toutes sortent à la même taille.
+- **Les frames dérivées portent un `~`**, caractère que `parseCellName` refuse : une collision
+  avec un sprite du manifest est donc impossible **par construction**. Elles ne comptent ni
+  dans les « manquants » ni dans les « orphelins » de la galerie — le jeu ne les demande
+  jamais par leur nom, il demande l'ancre.
+- **Une frame à `[0, 0]` réutilise l'ancre** au lieu d'empiler une copie dans l'atlas : un
+  aller-retour à quatre temps ne coûte que trois images.
+
+En jeu, `walk` pendant le déplacement et `idle` à l'arrêt — et l'arrêt, c'est le modèle qui le
+dit (`progress === prevProgress`), ce qui couvre d'un coup l'unité qui tire, l'ennemi au
+contact, la vignette qui attend dans un slot et l'armée figée pendant une pause. **Aucun état
+de mouvement n'a été ajouté à `BattleModel`.**
+
+**Cadence : 6 fps pour la marche, 4 pour l'arrêt** (`juice.json`, `sprite.fps`). Volontairement
+basse : c'est le rythme du pixel art, et l'accélérer ne rend pas une marche plus fluide, elle
+la rend nerveuse. Le partage est net et il faut le tenir — le **manifest dit quelles images
+existent**, `juice.json` dit **à quelle vitesse on les regarde** (une planche au rythme
+inhabituel peut déroger avec un `"fps"`, mais c'est une dérogation).
+
+La lecture est un compteur de temps de quinze lignes (`src/render/spriteAnim.js`) et **pas** le
+gestionnaire d'animations de Phaser, qui est global au jeu et survivrait à la partie —
+exactement ce que `GameSession.destroy()` rend impossible partout ailleurs. Il rend `null`
+quand la frame n'a pas changé : à 6 images par seconde sur un écran qui en affiche 60, neuf
+frames de rendu sur dix ne demandent aucun travail.
+
+Attaques, impacts, morts, reculs et flashs **restent procéduraux** : aucun pack ne garantit une
+animation d'attaque, et le mélange est le standard du genre. La règle de `CLAUDE.md` est
+amendée en conséquence — « frames des packs pour locomotion/idle, procédural pour impacts et
+juice, jamais de rotation continue ». Les orbes de la grille restent statiques.
+
+**Sens de marche : flips horizontaux, jamais de rotation.** Une précision au brief, qui avait
+la direction inversée : dans ce jeu les **ennemis** entrent à la progression 0 et montent vers
+la base — donc vers la **droite** sur un couloir horizontal — et les **unités** sortent de la
+base et descendent vers eux, donc vers la **gauche**. Les planches du pack étant dessinées
+tournées vers la gauche, seuls les ennemis se retournent. En portrait, le couloir est vertical
+et on garde l'orientation naturelle de la planche : un sprite pivoté à 90° serait bien pire
+que pas de pivot du tout.
+
+### 2. Répartition verticale sur le champ
+
+Fini les trois squelettes confondus en un. Chaque combattant reçoit à son apparition un
+décalage **perpendiculaire** à sa marche, stable pour toute sa vie.
+
+**Paramètres retenus** (`juice.json`, `field.spread`) : **5 rangs**, marges de **14 % en haut**
+et **20 % en bas** de l'épaisseur du couloir. Des fractions et non des pixels — le couloir n'a
+pas la même épaisseur sur un téléphone en portrait et sur un écran large. Les marges sont
+volontairement asymétriques : on laisse plus de place en bas, où les barres de vie des uns
+passent devant la tête des autres.
+
+**C'est une permutation, pas un hachage** (`src/systems/laneSpread.js`). Un hachage répartit
+*en moyenne*, ce qui autorise deux voisins à tomber exactement au même endroit — précisément
+le défaut qu'on corrige. Les identifiants d'une vague sont **consécutifs** : en multipliant par
+un pas premier avec le nombre de rangs, cinq entités successives occupent cinq rangs
+**différents**, jamais deux fois le même. Le pas est choisi près du nombre d'or pour que deux
+voisins de file ne soient pas non plus des voisins d'écran, sinon la vague descend en escalier
+bien rangé — ce qui se remarque autant qu'un empilement.
+
+**Le décalage est dérivé de l'identifiant, jamais tiré.** Un tirage dans `BattleModel`
+consommerait le générateur seedé de la partie et déplacerait tout ce qui vient après — la
+composition des vagues, le tirage du draft, les items de la grille. Le harness rendrait
+d'autres chiffres, les tests d'équilibrage tomberaient, et la cause serait un décor.
+
+**Y-sort sur une bande de profondeur unique** (`fighterDepth()`), partagée par les deux camps :
+deux bandes séparées feraient passer un ennemi placé plus haut devant l'unité qui le mord. La
+valeur est quantifiée au 1/128e et n'est réécrite que lorsqu'elle change, pour ne pas resalir
+la liste d'affichage à chaque frame. Les barres de vie sont enfants du conteneur : elles
+suivent leur entité sans une ligne de code.
+
+**Les effets visent la position visuelle.** Les tracés de tir partent et arrivent sur les
+**vues** du tireur et de la cible, décalage compris — depuis que les combattants ne marchent
+plus sur l'axe, un tracé calculé sur la seule progression traverse la vague sans toucher
+personne pendant qu'un ennemi meurt deux rangs plus bas. Les gerbes de mort et de soin
+partaient déjà des vues.
+
+**Contrainte pixel art tenue** : le décalage est arrondi à la trame du dessin
+(`snapToArtGrid`), donc à un multiple entier du pixel d'art, et aucune échelle fractionnaire
+n'est utilisée pour simuler la profondeur.
+
+### Vérifications
+
+- `npm test` : **744 tests, 33 fichiers, au vert** (706 avant, + 38 nouveaux).
+  `tests/spriteAnimations.test.js` couvre la déclaration d'animations dans le manifest, ses
+  refus, le compteur de frames et la couche `Skin` ; `tests/laneSpread.test.js` verrouille
+  l'absence de superposition, les bornes de la bande, l'arrondi sur la trame et le y-sort.
+- `npm run sim -- --json --games=30` : sortie **identique octet pour octet** avant et après le
+  lot. C'est la vérification qui compte — le harness est la preuve que rien de gameplay n'a
+  bougé.
+- `npm run assets -- --check` et `npm run docs -- --check` : au vert.
+- Relu à l'écran (Chromium, portrait et paysage) : la marche défile, les vagues se répartissent
+  sur la hauteur, plus aucune superposition parfaite.
+- `PIPELINE_VERSION` passe à **3** : le rognage par groupe modifie les pixels produits, y
+  compris pour les ancres déjà découpées.
+
+### Ce qui reste ouvert
+
+- **Les autres directions du pack ne sont pas exploitées** : seule la ligne « marche vers la
+  gauche » est découpée, et c'est suffisant pour un couloir. Les trois autres lignes attendent
+  dans les planches si un jour le champ cesse d'être une droite.
+- **Pas d'animation d'attaque** : les packs livrés n'en contiennent pas, et le procédural fait
+  le travail. Si une planche en apporte une, elle se déclare comme les autres — la couche de
+  lecture n'a rien de spécifique à `walk`.
+- Le reste des points ouverts du Lot 5.5 est inchangé (orbes à regénérer, licence des packs,
+  police pixel, sprites manquants).

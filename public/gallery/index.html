@@ -117,6 +117,8 @@ figcaption { padding: .35rem .45rem .5rem; font-size: .68rem; line-height: 1.35;
 .tag { display: inline-block; margin-right: .25rem; padding: 0 .25rem; border-radius: 2px; font-size: .62rem; }
 .tag.pack { background: #22322a; color: #86c69a; }
 .tag.off { background: #3a2a22; color: var(--warn); }
+/* Frame d'animation : elle se relit collée à son ancre, que le tri par nom place juste avant. */
+.tag.anim { background: #232c3a; color: #8fa8d8; }
 .swatches { display: flex; flex-wrap: wrap; gap: 2px; margin-top: .5rem; }
 .swatches i { width: 13px; height: 13px; border-radius: 2px; display: block; }
 .missing { color: var(--warn); }
@@ -134,49 +136,109 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
         ne pas éditer à la main.
       </p>
       <div class="budget">
-      <span class="pill ok">total 2.9 Ko — sous la cible</span>
+      <span class="pill ok">total 4.8 Ko — sous la cible</span>
       <span class="pill">cible 5.00 Mo</span>
       <span class="pill">limite 20.00 Mo</span>
       <span class="pill">natif 16×16 px</span>
       <span class="pill">palette 17 couleurs</span>
-      <span class="pill">enemies 590 o · 64×64</span>
+      <span class="pill">enemies 1.2 Ko · 64×128</span>
       <span class="pill">orbs 1.0 Ko · 64×128</span>
-      <span class="pill">units 1.2 Ko · 64×128</span>
+      <span class="pill">units 2.6 Ko · 64×256</span>
       </div>
       <ul class="notes">
         <li class="missing"><strong>34 sprite(s) attendus par le jeu et absents</strong> (le greybox vectoriel prend le relais) : power.heal.1, power.heal.2, power.heal.3, power.meteor.1, power.meteor.2, power.meteor.3, projectile.arrow, projectile.fireball, projectile.frost, decor.field, decor.castle, decor.portal, decor.table, decor.sky, ui.panel.wood, ui.panel.parchment, ui.card, ui.button, icon.sound.on, icon.sound.off, icon.help, icon.draft.rate, icon.draft.damage, icon.draft.range, icon.draft.shield, icon.draft.clock, icon.draft.slot, icon.draft.base, icon.draft.tier, icon.draft.grid, icon.draft.aura, icon.draft.skip, icon.draft.power, icon.draft.orb</li>
       </ul>
     </header>
-      <h2>enemies · 3</h2>
+      <h2>enemies · 9</h2>
       <div class="grid">
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-49px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-49px -2px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-40px -66px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-40px -66px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">enemy.basic</span>
-            <span class="meta"><span class="tag pack">pack</span>12×19 px d'art · ≈102 o</span>
+            <span class="meta"><span class="tag pack">pack</span>12×19 px d'art · ≈65 o</span>
           </figcaption>
         </figure>
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:15px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-32px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:15px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-32px -2px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -87px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -87px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">enemy.basic~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span>12×19 px d'art · ≈65 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-16px -87px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:12px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-16px -87px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">enemy.basic~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span>12×19 px d'art · ≈65 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:17px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-33px -34px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:17px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-33px -34px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">enemy.fast</span>
-            <span class="meta"><span class="tag pack">pack</span>15×19 px d'art · ≈127 o</span>
+            <span class="meta"><span class="tag pack">pack</span>17×19 px d'art · ≈93 o</span>
           </figcaption>
         </figure>
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:28px;height:29px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:28px;height:29px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -2px;transform:translate(-50%,-50%) scale(3)"></i><b>×3</b></div>
+            <div class="thumb x1"><i style="width:17px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -66px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:17px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -66px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">enemy.fast~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span>17×19 px d'art · ≈93 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:17px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-21px -66px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:17px;height:19px;background-image:url(../assets/atlas-enemies.webp);background-position:-21px -66px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">enemy.fast~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span>17×19 px d'art · ≈93 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:29px;height:30px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:29px;height:30px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -2px;transform:translate(-50%,-50%) scale(3)"></i><b>×3</b></div>
           </div>
           <figcaption>
             <span class="name">enemy.tank</span>
-            <span class="meta"><span class="tag pack">pack</span>28×29 px d'art · ≈362 o</span>
+            <span class="meta"><span class="tag pack">pack</span>29×30 px d'art · ≈250 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:29px;height:30px;background-image:url(../assets/atlas-enemies.webp);background-position:-33px -2px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:29px;height:30px;background-image:url(../assets/atlas-enemies.webp);background-position:-33px -2px;transform:translate(-50%,-50%) scale(3)"></i><b>×3</b></div>
+          </div>
+          <figcaption>
+            <span class="name">enemy.tank~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span>29×30 px d'art · ≈250 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:29px;height:30px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -34px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:29px;height:30px;background-image:url(../assets/atlas-enemies.webp);background-position:-2px -34px;transform:translate(-50%,-50%) scale(3)"></i><b>×3</b></div>
+          </div>
+          <figcaption>
+            <span class="name">enemy.tank~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span>29×30 px d'art · ≈250 o</span>
           </figcaption>
         </figure>
       </div>
@@ -293,16 +355,36 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
           </figcaption>
         </figure>
       </div>
-      <h2>units · 12</h2>
+      <h2>units · 36</h2>
       <div class="grid">
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -23px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -23px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -65px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -65px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">unit.aoe.1</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">9 hors palette</span>15×18 px d'art · ≈113 o</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">9 hors palette</span>15×18 px d'art · ≈77 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -65px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -65px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.aoe.1~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">9 hors palette</span>15×18 px d'art · ≈77 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-36px -65px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-36px -65px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.aoe.1~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">9 hors palette</span>15×18 px d'art · ≈77 o</span>
           </figcaption>
         </figure>
         <figure>
@@ -312,7 +394,7 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
           </div>
           <figcaption>
             <span class="name">unit.aoe.2</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">5 hors palette</span>14×19 px d'art · ≈111 o</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">5 hors palette</span>14×19 px d'art · ≈76 o</span>
           </figcaption>
         </figure>
         <figure>
@@ -321,38 +403,8 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
             <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-18px -2px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
-            <span class="name">unit.aoe.3</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>14×19 px d'art · ≈111 o</span>
-          </figcaption>
-        </figure>
-        <figure>
-          <div class="thumbs">
-            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -63px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -63px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
-          </div>
-          <figcaption>
-            <span class="name">unit.single.1</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">10 hors palette</span>13×18 px d'art · ≈98 o</span>
-          </figcaption>
-        </figure>
-        <figure>
-          <div class="thumbs">
-            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -23px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -23px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
-          </div>
-          <figcaption>
-            <span class="name">unit.single.2</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">11 hors palette</span>14×18 px d'art · ≈106 o</span>
-          </figcaption>
-        </figure>
-        <figure>
-          <div class="thumbs">
-            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-35px -23px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-35px -23px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
-          </div>
-          <figcaption>
-            <span class="name">unit.single.3</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">8 hors palette</span>14×18 px d'art · ≈106 o</span>
+            <span class="name">unit.aoe.2~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">5 hors palette</span>14×19 px d'art · ≈76 o</span>
           </figcaption>
         </figure>
         <figure>
@@ -361,58 +413,308 @@ footer { margin: 2rem 1rem 0; color: var(--dim); font-size: .75rem; }
             <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-34px -2px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
-            <span class="name">unit.slow.1</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">6 hors palette</span>14×19 px d'art · ≈111 o</span>
+            <span class="name">unit.aoe.2~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">5 hors palette</span>14×19 px d'art · ≈76 o</span>
           </figcaption>
         </figure>
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-17px -63px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-17px -63px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-2px -23px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-2px -23px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.aoe.3</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>14×19 px d'art · ≈76 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-18px -23px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-18px -23px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.aoe.3~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">7 hors palette</span>14×19 px d'art · ≈76 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-34px -23px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-34px -23px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.aoe.3~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">7 hors palette</span>14×19 px d'art · ≈76 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -185px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -185px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.1</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">10 hors palette</span>13×18 px d'art · ≈67 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-17px -185px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-17px -185px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.1~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">9 hors palette</span>13×18 px d'art · ≈67 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-32px -185px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-32px -185px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.1~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">11 hors palette</span>13×18 px d'art · ≈67 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -85px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -85px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">11 hors palette</span>15×18 px d'art · ≈77 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -85px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -85px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.2~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">11 hors palette</span>15×18 px d'art · ≈77 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-36px -85px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-36px -85px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.2~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">11 hors palette</span>15×18 px d'art · ≈77 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -125px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -125px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.3</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">8 hors palette</span>14×18 px d'art · ≈72 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -125px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -125px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.3~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">10 hors palette</span>14×18 px d'art · ≈72 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -125px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -125px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.single.3~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">9 hors palette</span>14×18 px d'art · ≈72 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-2px -44px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-2px -44px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.slow.1</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">6 hors palette</span>14×19 px d'art · ≈76 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-18px -44px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-18px -44px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.slow.1~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">6 hors palette</span>14×19 px d'art · ≈76 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-34px -44px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:19px;background-image:url(../assets/atlas-units.webp);background-position:-34px -44px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.slow.1~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">6 hors palette</span>14×19 px d'art · ≈76 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-47px -185px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-47px -185px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">unit.slow.2</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>13×18 px d'art · ≈98 o</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>13×18 px d'art · ≈67 o</span>
           </figcaption>
         </figure>
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-32px -63px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-32px -63px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -205px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -205px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.slow.2~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">7 hors palette</span>13×18 px d'art · ≈67 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-17px -205px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-17px -205px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.slow.2~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">7 hors palette</span>13×18 px d'art · ≈67 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-32px -205px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-32px -205px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">unit.slow.3</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">9 hors palette</span>13×18 px d'art · ≈98 o</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">9 hors palette</span>13×18 px d'art · ≈67 o</span>
           </figcaption>
         </figure>
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -43px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -43px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-47px -205px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-47px -205px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.slow.3~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">9 hors palette</span>13×18 px d'art · ≈67 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -225px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:13px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -225px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.slow.3~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">9 hors palette</span>13×18 px d'art · ≈67 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -145px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -145px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">unit.support.1</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>14×18 px d'art · ≈106 o</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>14×18 px d'art · ≈72 o</span>
           </figcaption>
         </figure>
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -43px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -43px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -145px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -145px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.support.1~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">6 hors palette</span>14×18 px d'art · ≈72 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -145px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -145px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.support.1~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">7 hors palette</span>14×18 px d'art · ≈72 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -105px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -105px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">unit.support.2</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">9 hors palette</span>14×18 px d'art · ≈106 o</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">9 hors palette</span>15×18 px d'art · ≈77 o</span>
           </figcaption>
         </figure>
         <figure>
           <div class="thumbs">
-            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -43px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
-            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -43px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -105px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-19px -105px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.support.2~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">10 hors palette</span>15×18 px d'art · ≈77 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-36px -105px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:15px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-36px -105px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.support.2~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">10 hors palette</span>15×18 px d'art · ≈77 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -165px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-2px -165px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
           </div>
           <figcaption>
             <span class="name">unit.support.3</span>
-            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>14×18 px d'art · ≈106 o</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag off">7 hors palette</span>14×18 px d'art · ≈72 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -165px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-18px -165px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.support.3~walk0</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">6 hors palette</span>14×18 px d'art · ≈72 o</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <div class="thumbs">
+            <div class="thumb x1"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -165px;transform:translate(-50%,-50%) scale(1)"></i><b>×1</b></div>
+            <div class="thumb zoom"><i style="width:14px;height:18px;background-image:url(../assets/atlas-units.webp);background-position:-34px -165px;transform:translate(-50%,-50%) scale(4)"></i><b>×4</b></div>
+          </div>
+          <figcaption>
+            <span class="name">unit.support.3~walk2</span>
+            <span class="meta"><span class="tag pack">pack</span><span class="tag anim">frame</span><span class="tag off">7 hors palette</span>14×18 px d'art · ≈72 o</span>
           </figcaption>
         </figure>
       </div>
