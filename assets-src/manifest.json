@@ -52,10 +52,10 @@
         "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
       },
       "cols": 3, "rows": 4,
-      "names": ["", "", "",
-                "", "", "",
-                "", "enemy.fast", ""
-                "", "", ""]
+      "names": [null, null, null,
+                null, null, null,
+                null, "enemy.fast", null,
+                null, null, null]
     },
     {
       "file": "Monsters_04_6.png",
@@ -68,10 +68,10 @@
         "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
       },
       "cols": 3, "rows": 4,
-      "names": ["", "", "",
-                "", "", "",
-                "", "enemy.tank", ""
-                "", "", ""]
+      "names": [null, null, null,
+                null, null, null,
+                null, "enemy.tank", null,
+                null, null, null]
     },
     {
       "file": "Monsters_05_2.png",
@@ -84,10 +84,10 @@
         "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
       },
       "cols": 3, "rows": 4,
-      "names": ["", "", "",
-                "", "", "",
-                "", "enemy.basic", ""
-                "", "", ""]
+      "names": [null, null, null,
+                null, null, null,
+                null, "enemy.basic", null,
+                null, null, null]
     }
   ]
 }
