@@ -30,7 +30,7 @@
   },
 
   "sheets": [
-    { "file": "PlainB.png", "category": "decor", "sprite": "decor.field" },
+    { "file": "PlainA.png", "category": "decor", "sprite": "decor.field" },
     {
       "file": "1786556420128.png",
       "category": "orbs",
