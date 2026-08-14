@@ -38,6 +38,28 @@ describe('parseManifest', () => {
     expect(parsed.trim).toBe(true);
     expect(parsed.size).toBe(DEFAULTS.sizes.orbs);
     expect(parsed.keying).toEqual(DEFAULTS.keying);
+    expect(parsed.crop).toBeNull();
+  });
+
+  it('lit un recadrage de source en pixels du fichier déposé', () => {
+    const [parsed] = parseManifest({
+      sheets: [sheet({ crop: { x: 245, y: 8, width: 64, height: 64 } })],
+    }).sheets;
+    expect(parsed.crop).toEqual({ x: 245, y: 8, width: 64, height: 64 });
+  });
+
+  it('accepte un recadrage sans origine — le coin haut-gauche est le défaut', () => {
+    const [parsed] = parseManifest({ sheets: [sheet({ crop: { width: 32, height: 32 } })] }).sheets;
+    expect(parsed.crop).toEqual({ x: 0, y: 0, width: 32, height: 32 });
+  });
+
+  it('refuse un recadrage sans dimensions, en disant quoi écrire', () => {
+    expect(() => parseManifest({ sheets: [sheet({ crop: { x: 4, y: 4 } })] })).toThrow(
+      /crop\.width doit être un entier/
+    );
+    expect(() => parseManifest({ sheets: [sheet({ crop: [0, 0, 16, 16] })] })).toThrow(
+      /"x".*"y".*"width".*"height"/s
+    );
   });
 
   it('range chaque case en ligne puis colonne, dans l’ordre de lecture', () => {

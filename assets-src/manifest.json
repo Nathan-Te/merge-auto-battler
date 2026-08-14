@@ -5,7 +5,7 @@
 
   "palette": {
     "file": "palette.json",
-    "sources": ["Monsters_02_4.png", "Monsters_04_6.png", "Monsters_05_2.png"],
+    "sources": ["Monsters_02_4.png", "Monsters_04_6.png", "Monsters_05_2.png", "Plain.png"],
     "quantize": true
   },
 
@@ -30,7 +30,13 @@
   },
 
   "sheets": [
-    { "file": "Plain.png", "category": "decor", "sprite": "decor.field" },
+    {
+      "file": "Plain.png",
+      "category": "decor",
+      "sprite": "decor.field",
+      "crop": { "x": 245, "y": 8, "width": 64, "height": 64 },
+      "keyOut": false
+    },
     {
       "file": "1786556420128.png",
       "category": "orbs",

@@ -155,6 +155,39 @@ function parseKeying(raw, parent, path) {
 }
 
 /**
+ * Normalise un **recadrage de source**, ou rend `null` si la planche n'en demande pas.
+ *
+ * Le recadrage répond à un besoin qu'aucune autre clé ne couvre : une planche livrée est une
+ * **image**, pas forcément un sprite. Un décor de plaine dessiné en perspective, un pack qui
+ * commence par une bande de titre, une capture qui traîne une bordure — dans les trois cas la
+ * seule chose à faire est de dire quelle région entre en jeu, et c'est une décision qui se
+ * relit dans le manifest bien mieux que dans un fichier retouché à la main.
+ *
+ * Le cas qui l'a rendu obligatoire est celui du **fond tuilable** : `DECOR_SLOTS`
+ * (`src/render/skinNames.js`) exige deux côtés en puissance de deux, et une planche entière
+ * n'en a essentiellement jamais. Sans recadrage il fallait soit la laisser redimensionner —
+ * donc la voir passer par une réduction non entière, c'est-à-dire perdre sa trame de pixels —
+ * soit retoucher la source, ce que personne ne peut refaire depuis un téléphone.
+ *
+ * Les coordonnées sont **en pixels du fichier déposé**, pas en pixels d'art : c'est ce qu'on
+ * lit dans n'importe quel éditeur d'image en survolant la zone, et c'est donc la seule
+ * convention qu'on puisse écrire sans calcul. Sur une planche `native` livrée agrandie, la
+ * réduction à ×1 passe **après** le recadrage.
+ */
+function parseCrop(raw, path) {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    fail(`${path} doit être un objet { "x": …, "y": …, "width": …, "height": … }, en pixels du fichier`);
+  }
+  return {
+    x: nonNegativeInt(raw.x ?? 0, `${path}.x`),
+    y: nonNegativeInt(raw.y ?? 0, `${path}.y`),
+    width: positiveInt(raw.width, `${path}.width`),
+    height: positiveInt(raw.height, `${path}.height`),
+  };
+}
+
+/**
  * Normalise les plages de paliers visuels.
  *
  * Elles ne changent aucune valeur de jeu : elles disent seulement quel tier porte quel
@@ -463,6 +496,11 @@ function parseSheet(raw, index, defaults) {
      */
     keyOut: raw.keyOut ?? !native,
     keying: parseKeying(raw.keying, defaults.keying, `${label} : keying`),
+    /**
+     * Région de la source qui entre en jeu, en pixels du fichier déposé. `null` = tout le
+     * fichier. Appliquée **avant** tout le reste — réduction native, découpe, détourage.
+     */
+    crop: parseCrop(raw.crop, `${label} : crop`),
     credit: parseCredit(raw.credit, `${label} : credit`, { required: native }),
     cells,
   };

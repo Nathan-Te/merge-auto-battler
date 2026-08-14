@@ -209,6 +209,36 @@ leurs proportions et se mettent au plus grand multiple entier qui tient dans la 
 leur offre — dimensionnée en multiples d'un combattant, réglable dans `juice.json`
 (`field.decor.endSize`).
 
+### Découper un fond dans une illustration — `crop`
+
+Une planche livrée est une **image**, rarement un motif : une plaine dessinée en perspective,
+avec un chemin, un ciel et des rochers, ne se répète pas — et ne fait jamais une puissance de
+deux. `crop` dit quelle **région** du fichier entre en jeu, en pixels du fichier déposé, ceux
+qu'on lit en survolant la zone dans n'importe quel éditeur d'image :
+
+```json
+{
+  "file": "Plain.png",
+  "category": "decor",
+  "sprite": "decor.field",
+  "crop": { "x": 245, "y": 8, "width": 64, "height": 64 },
+  "keyOut": false
+}
+```
+
+Le recadrage est la **première** étape du pipeline : avant la réduction d'un pack à ×1, avant
+la découpe en cases, avant le détourage. C'est ce qui permet de sortir un fond tuilable en
+puissance de deux **sans qu'aucun redimensionnement n'entre dans la chaîne** — donc en gardant
+les pixels exacts de la planche, ce qui est tout l'intérêt de recadrer plutôt que de laisser
+le pipeline réduire une image de 318 px vers 128.
+
+Deux réflexes qui vont avec, sur un décor :
+
+- **choisir une région qui se raccorde** — bord droit contre bord gauche, bas contre haut. Un
+  élément unique et voyant (un rocher, une souche) se verra se répéter à l'écran ;
+- **`"keyOut": false`** — un sol est plein. Le détourage du blanc n'a rien à y retirer, et un
+  seul pixel clair pris pour du fond ouvrirait un trou transparent dans la matière.
+
 Dernier point, et c'est le plus facile à rater : **un sol chargé rend le combat illisible.**
 Les combattants font 16 px et portent des barres de vie de deux pixels d'épaisseur. Un
 `decor.field` doit rester sombre et pauvre en contraste — c'est un sol, pas une illustration.
@@ -251,6 +281,7 @@ blanc d'un œil). Deux boutons, globaux ou planche par planche :
 | `tierBands` | quel tier porte quel palier visuel | la marche entre deux paliers tombe au mauvais endroit |
 | `margin` / `spacing` | marge extérieure et gouttière **de la planche** | les découpes sont décalées |
 | `trim` | rogner les bords transparents (`true` par défaut) | un décor plein cadre qu'il ne faut pas recadrer |
+| `crop` (par planche) | région de la source qui entre en jeu, en pixels du fichier | découper un motif tuilable dans une illustration, ou retirer une bordure |
 | `size` | déroge à `sizes.<catégorie>` pour cette planche | une seule planche a besoin de plus de détail |
 
 ## Paliers visuels

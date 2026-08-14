@@ -64,8 +64,10 @@ import { DECOR_MODE, expectedSprites } from '../../render/skinNames.js';
  * 3 — frames d'animation : un personnage est découpé en **groupe** (ancre + frames), et
  *     tout le groupe est rogné sur un **cadre commun**. Les pixels de l'ancre changent donc
  *     dès qu'une animation est déclarée sur sa planche.
+ * 4 — recadrage de source (`crop`) : une planche peut ne livrer qu'une région d'elle-même,
+ *     découpée avant tout le reste.
  */
-const PIPELINE_VERSION = 3;
+const PIPELINE_VERSION = 4;
 
 const ROOT = path.resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const SRC_DIR = path.join(ROOT, 'assets-src');
@@ -298,6 +300,7 @@ function spriteGroups(sheet) {
  * Deux chemins, et c'est toute la bascule en pixel art :
  *
  * ```
+ * (recadrage)     →
  * native (pack)   →  réduction à ×1  →  découpe  →  rognage  →  seuillage alpha
  * non native (IA) →  découpe  →  détourage  →  rognage  →  réduction à la résolution
  *                    native  →  seuillage alpha  →  quantification vers la palette
@@ -331,6 +334,23 @@ async function processSheet(sharp, sheet, { palette, pixel }, warnings) {
 
   let sheetData = raw;
   let sheetSize = { width: meta.width, height: meta.height };
+
+  // **Recadrage d'abord**, avant la réduction native comme avant la découpe : ses coordonnées
+  // sont celles du fichier déposé (cf. `parseCrop`), donc elles n'auraient plus de sens une
+  // fois la planche ramenée à ×1. C'est aussi ce qui permet à un fond tuilable de sortir en
+  // puissance de deux sans qu'aucun redimensionnement n'entre dans la chaîne.
+  if (sheet.crop) {
+    const rect = sheet.crop;
+    if (rect.x + rect.width > sheetSize.width || rect.y + rect.height > sheetSize.height) {
+      throw new Error(
+        `« ${sheet.file} » : le recadrage ${rect.width}×${rect.height} à (${rect.x}, ${rect.y}) ` +
+          `sort de la planche, qui fait ${sheetSize.width}×${sheetSize.height} px. Corrige crop.`
+      );
+    }
+    sheetData = crop(sheetData, sheetSize, rect);
+    sheetSize = { width: rect.width, height: rect.height };
+  }
+
   if (sheet.native) {
     const reduced = toNativeScale(sheetData, sheetSize, sheet, warnings);
     sheetData = reduced.data;
