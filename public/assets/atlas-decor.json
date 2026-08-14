@@ -4,20 +4,20 @@
       "frame": {
         "x": 2,
         "y": 2,
-        "w": 128,
-        "h": 43
+        "w": 64,
+        "h": 64
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 128,
-        "h": 43
+        "w": 64,
+        "h": 64
       },
       "sourceSize": {
-        "w": 128,
-        "h": 43
+        "w": 64,
+        "h": 64
       }
     }
   },
@@ -27,8 +27,8 @@
     "image": "atlas-decor.webp",
     "format": "RGBA8888",
     "size": {
-      "w": 256,
-      "h": 64
+      "w": 128,
+      "h": 128
     },
     "scale": "1"
   }

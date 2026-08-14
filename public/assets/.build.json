@@ -1,7 +1,7 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "f6842712d41c45cb90bee136dc7c6b04ec028f5b0fa655fa3b3bb07ccffd83ad",
-  "pipelineVersion": 3,
+  "inputHash": "aaf6c331573dae7de091793aee55e84d84f4be7e6a7a5fcb3ea4cc3eeeaaa5bb",
+  "pipelineVersion": 4,
   "outputs": [
     "public/assets/atlas-decor.json",
     "public/assets/atlas-decor.webp",
@@ -17,9 +17,9 @@
   "atlases": [
     {
       "name": "decor",
-      "bytes": 956,
-      "width": 256,
-      "height": 64,
+      "bytes": 474,
+      "width": 128,
+      "height": 128,
       "count": 1
     },
     {
@@ -31,7 +31,7 @@
     },
     {
       "name": "orbs",
-      "bytes": 1070,
+      "bytes": 1172,
       "width": 64,
       "height": 128,
       "count": 11
@@ -45,7 +45,7 @@
     }
   ],
   "extras": [],
-  "totalBytes": 5878,
+  "totalBytes": 5498,
   "budgetKb": {
     "target": 5120,
     "max": 20480
