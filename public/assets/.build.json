@@ -1,6 +1,6 @@
 {
   "_generated": "npm run assets — ne pas éditer à la main",
-  "inputHash": "cdbfedd933933fdefaab6e3c3243f2c4f80bb798225932c133f676fa9c98503e",
+  "inputHash": "cf8d3dc8c907fd777cb078f329e70f72d6cca7732ef6d0ecd7efa0d3e466b85a",
   "pipelineVersion": 3,
   "outputs": [
     "public/assets/atlas-decor.json",
@@ -17,9 +17,9 @@
   "atlases": [
     {
       "name": "decor",
-      "bytes": 1428,
+      "bytes": 962,
       "width": 256,
-      "height": 128,
+      "height": 64,
       "count": 1
     },
     {
@@ -45,7 +45,7 @@
     }
   ],
   "extras": [],
-  "totalBytes": 6350,
+  "totalBytes": 5884,
   "budgetKb": {
     "target": 5120,
     "max": 20480
