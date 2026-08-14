@@ -1,0 +1,40 @@
+{
+  "_generated": "npm run palette — ne pas éditer à la main",
+  "nativeSize": 16,
+  "sources": [
+    "Monsters_02_4.png",
+    "Monsters_04_6.png",
+    "Monsters_05_2.png",
+    "Plain.png"
+  ],
+  "count": 27,
+  "colors": [
+    "#000000",
+    "#28ccdf",
+    "#302c2e",
+    "#3978a8",
+    "#397b44",
+    "#3c5956",
+    "#472d3c",
+    "#5a5353",
+    "#5e3643",
+    "#71aa34",
+    "#7a444a",
+    "#7d7071",
+    "#8aebf1",
+    "#a05b53",
+    "#a0938e",
+    "#a93b3b",
+    "#ad6e22",
+    "#b6d53c",
+    "#bf7958",
+    "#cfc6b8",
+    "#dff6f5",
+    "#e39e2e",
+    "#e6482e",
+    "#eea160",
+    "#f47e1b",
+    "#f4cca1",
+    "#ffffff"
+  ]
+}

@@ -13,11 +13,76 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Le pipeline d'assets tourne **avant** le build, et recommitte ses sorties.
+  #
+  # C'est ce qui rend la boucle du Lot 5 opérable à 100 % depuis un téléphone : on dépose une
+  # planche via l'interface web de GitHub, le CI la découpe, publie les atlas et la galerie,
+  # et il n'y a rien à lancer en local. Voir `assets-src/README.md`.
+  #
+  # L'idempotence tient à l'empreinte des entrées calculée par le pipeline lui-même : à
+  # `assets-src/` inchangé, rien n'est réencodé, donc rien n'est committé, donc le commit ne
+  # redéclenche pas le workflow. Sans ça, ce job boucherait sur lui-même indéfiniment.
+  # ---------------------------------------------------------------------------
+  assets:
+    name: Assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.pipeline.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Le token par défaut suffit pour repousser sur la branche courante ; sur une PR
+          # venant d'un fork, l'étape de commit est sautée plus bas.
+          persist-credentials: true
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Découpe et publication des assets
+        id: pipeline
+        run: |
+          npm run assets
+          if [ -n "$(git status --porcelain public/assets public/gallery)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Aucun changement d'assets : rien à committer."
+          fi
+
+      # Sur une PR de fork, le token est en lecture seule : on ne committe pas, mais le
+      # rapport de poids ci-dessus a quand même été produit.
+      - name: Committer les sorties générées
+        if: >-
+          steps.pipeline.outputs.changed == 'true' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/assets public/gallery
+          git commit -m "Assets régénérés par le pipeline
+
+          Sorties de \`npm run assets\` : atlas, index et galerie. Fichiers générés —
+          ne pas les éditer à la main, tout passe par assets-src/."
+          git push origin HEAD:"${{ github.head_ref || github.ref_name }}"
+
   build:
     name: Test & build
+    needs: assets
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Récupère le commit d'assets que le job précédent vient éventuellement de pousser.
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - uses: actions/setup-node@v5
         with:
@@ -32,6 +97,24 @@ jobs:
       - name: Test
         run: npm test
 
+      # La référence générée doit être à jour dans le dépôt : c'est la règle de `CLAUDE.md`
+      # (« toute livraison qui touche balance.json régénère docs/reference.md »), appliquée
+      # par la CI plutôt que par la mémoire.
+      - name: Référence à jour
+        run: npm run docs -- --check
+
+      # La palette partagée doit correspondre au pack de référence. Elle n'est **pas**
+      # régénérée par le CI, à dessein : un changement de palette est une décision de
+      # direction artistique, il se prend et se relit dans un diff (cf. `assets-src/manifest.md`).
+      # Le CI se contente de refuser un pack de référence modifié sans que la palette suive.
+      - name: Palette à jour
+        run: npm run palette -- --check
+
+      # Les sorties du pipeline doivent être à jour elles aussi : une planche déposée sans
+      # que le pipeline ait tourné laisserait le jeu en greybox sans que personne ne le voie.
+      - name: Assets à jour
+        run: npm run assets -- --check
+
       - name: Build
         run: npm run build
 
@@ -40,13 +123,40 @@ jobs:
           echo "### Poids de dist/" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           du -sh dist | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '' | tee -a "$GITHUB_STEP_SUMMARY"
+          echo 'Détail :' | tee -a "$GITHUB_STEP_SUMMARY"
           du -ah dist | sort -rh | head -20 | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
           TOTAL_KB=$(du -sk dist | cut -f1)
-          echo "Total: ${TOTAL_KB} Ko (budget squelette : 2048 Ko ; budget jeu : 20 Mo)"
-          if [ "$TOTAL_KB" -gt 2048 ]; then
-            echo "::warning::dist/ pèse ${TOTAL_KB} Ko, au-dessus du budget de 2 Mo du squelette."
+          # Budget du seed doc : cible 10 Mo, limite dure 20 Mo. La cible est un avertissement,
+          # la limite un échec — au-delà, le jeu n'est pas soumettable en Basic Launch.
+          TARGET_KB=10240
+          LIMIT_KB=20480
+          echo "Total : ${TOTAL_KB} Ko (cible ${TARGET_KB} Ko, limite ${LIMIT_KB} Ko)"
+          if [ "$TOTAL_KB" -gt "$LIMIT_KB" ]; then
+            echo "::error::dist/ pèse ${TOTAL_KB} Ko, au-dessus de la limite dure de 20 Mo."
+            exit 1
           fi
+          if [ "$TOTAL_KB" -gt "$TARGET_KB" ]; then
+            echo "::warning::dist/ pèse ${TOTAL_KB} Ko, au-dessus de la cible de 10 Mo."
+          fi
+
+      # Le zip de soumission Crazy Games, déposé en artefact de build.
+      #
+      # C'est ce qui permet de le récupérer **depuis un téléphone**, sans machine de
+      # développement — même intention que la galerie d'assets. Il est produit à chaque
+      # build, y compris sur une PR : on peut donc vérifier le contenu de l'archive avant
+      # de fusionner, pas seulement après.
+      - name: Zip de soumission
+        run: npm run package
+
+      - name: Upload du zip de soumission
+        uses: actions/upload-artifact@v4
+        with:
+          name: merge-battler-submission
+          path: release/merge-battler.zip
+          if-no-files-found: error
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

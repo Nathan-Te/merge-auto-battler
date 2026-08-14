@@ -1,0 +1,144 @@
+{
+  "budgetKb": { "target": 5120, "max": 20480 },
+
+  "pixel": { "nativeSize": 16, "alphaThreshold": 128, "resample": "area" },
+
+  "palette": {
+    "file": "palette.json",
+    "sources": ["Monsters_02_4.png", "Monsters_04_6.png", "Monsters_05_2.png", "Plain.png"],
+    "quantize": true
+  },
+
+  "keying": { "color": [255, 255, 255], "tolerance": 40, "softness": 8 },
+
+  "atlas": { "maxSize": 2048, "padding": 2, "quality": 82, "lossless": true },
+
+  "sizes": {
+    "orbs": 16,
+    "powers": 16,
+    "units": 16,
+    "enemies": 16,
+    "projectiles": 8,
+    "decor": 128,
+    "ui": 32
+  },
+
+  "tierBands": {
+    "orb": [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]],
+    "unit": [[1, 4], [5, 8], [9, 11]],
+    "power": [[1, 2], [3, 4], [5, 6]]
+  },
+
+  "sheets": [
+    {
+      "file": "Plain.png",
+      "category": "decor",
+      "sprite": "decor.field",
+      "crop": { "x": 245, "y": 8, "width": 64, "height": 64 },
+      "keyOut": false
+    },
+    {
+      "file": "1786556420128.png",
+      "category": "orbs",
+      "cols": 4,
+      "rows": 3,
+      "names": [
+        "orb.1", "orb.2", "orb.3", "orb.4",
+        "orb.5", "orb.6", "orb.7", "orb.8",
+        "orb.9", "orb.10", "orb.11", null
+      ]
+    },
+    {
+      "file": "Monsters_02_4.png",
+      "category": "enemies",
+      "native": true,
+      "credit": {
+        "author": "Gif",
+        "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+        "license": "To Defined",
+        "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+      },
+      "cols": 3, "rows": 4,
+      "animations": {
+        "idle": { "frames": [[0, 0]] },
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
+      },
+      "names": [null, null, null,
+                null, "enemy.fast", null,
+                null, null, null,
+                null, null, null]
+    },
+    {
+      "file": "Monsters_04_6.png",
+      "category": "enemies",
+      "native": true,
+      "credit": {
+        "author": "Gif",
+        "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+        "license": "To Defined",
+        "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+      },
+      "cols": 3, "rows": 4,
+      "animations": {
+        "idle": { "frames": [[0, 0]] },
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
+      },
+      "names": [null, null, null,
+                null, "enemy.tank", null,
+                null, null, null,
+                null, null, null]
+    },
+    {
+      "file": "Monsters_05_2.png",
+      "category": "enemies",
+      "native": true,
+      "credit": {
+        "author": "Gif",
+        "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+        "license": "To Defined",
+        "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+      },
+      "cols": 3, "rows": 4,
+      "animations": {
+        "idle": { "frames": [[0, 0]] },
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
+      },
+      "names": [null, null, null,
+                null, "enemy.basic", null,
+                null, null, null,
+                null, null, null]
+    },
+    {
+      "file": "atlas_frame16x20.png",
+      "category": "units",
+      "native": true,
+      "credit": {
+        "author": "Gif",
+        "pack": "2D Cozy RPG - Farming - Tilesets - Characters - Pixelart MAIN BUNDLE",
+        "license": "To Defined",
+        "url": "https://assetstore.unity.com/packages/2d/environments/2d-cozy-rpg-farming-tilesets-characters-pixelart-main-bundle-212921"
+      },
+      "cols": 24, "rows": 16,
+      "animations": {
+        "idle": { "frames": [[0, 0]] },
+        "walk": { "frames": [[1, 0], [0, 0], [-1, 0], [0, 0]] }
+      },
+      "names": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, "unit.single.3", null, null, null, null, null, "unit.slow.2", null, null, "unit.slow.1", null, null, null, null, null, "unit.support.2", null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, "unit.support.3", null, null, null, null, null, null, null, null, "unit.aoe.2", null, null, null, null, null, "unit.single.1", null, null, null, null, null, "unit.single.2", null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, "unit.slow.3", null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, "unit.support.1", null, null, null, null, null, "unit.aoe.1", null, null, "unit.aoe.3", null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+    }
+  ]
+}

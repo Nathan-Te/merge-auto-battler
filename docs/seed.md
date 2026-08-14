@@ -37,8 +37,18 @@ Un merge en grille alimente un auto-battler sur une bande de combat.
   toggle son.
 - **Session cible** : 3-5 minutes.
 
-**HORS PÉRIMÈTRE V1** : pouvoirs actifs, méta-progression, boutique, thèmes multiples,
-leaderboard en ligne. (Candidats pour le jeu 02 si les métriques sont bonnes.)
+- **2 pouvoirs actifs** (*ajout Lot 4*) : une seconde famille d'items sur la grille, qui se
+  fusionne entre elle et se consomme d'un tap — potion de soin, météorite.
+
+**HORS PÉRIMÈTRE V1** : méta-progression, boutique, thèmes multiples, leaderboard en ligne.
+(Candidats pour le jeu 02 si les métriques sont bonnes.)
+
+> **Amendement du Lot 4.** Les pouvoirs actifs étaient hors périmètre dans la version
+> initiale de ce document. Ils y sont entrés sur décision explicite, comme **dernière**
+> mécanique de la V1 : les playtests des Lots 3 et 3.5 avaient laissé le jeu sans moment
+> fort — rien qui permette au joueur de renverser une vague par une décision ponctuelle. Le
+> périmètre gameplay est **clos** avec ce lot ; toute idée ultérieure va dans
+> `docs/v1-1-ideas.md`, et le Lot 5 ne contient qu'assets et publication.
 
 ## Direction & feel
 
@@ -84,6 +94,10 @@ leaderboard en ligne. (Candidats pour le jeu 02 si les métriques sont bonnes.)
   si le cœur n'est pas fun en greybox à la fin de ce lot, on n'ajoute pas de contenu pour
   le sauver.
 - **Lot 3** — Équilibrage & feel (passes sur `balance.json` + juice).
-- **Lot 4** — Assets IA (sprites, sons, musique), vignette, soumission Basic Launch.
+- **Lot 3.5** — Rythme, décisions & rejouabilité (annonce de vague, file de types active,
+  draft roguelite).
+- **Lot 4** — Pouvoirs actifs. **Dernier lot de gameplay** : après lui, plus aucune
+  mécanique n'entre en V1.
+- **Lot 5** — Assets IA (sprites, sons, musique), vignette, soumission Basic Launch.
 - **J+14 après publication** — Relevé des métriques (plays, playtime moyen, conversion,
   rétention) dans le journal du labo, décision : SDK/Full Launch, jeu 02, ou pivot.

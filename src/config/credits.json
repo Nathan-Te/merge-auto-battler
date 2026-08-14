@@ -1,0 +1,16 @@
+{
+  "engine": "Phaser 3 · Vite",
+
+  "icons": {
+    "source": "game-icons.net",
+    "license": "CC BY 3.0",
+    "url": "https://game-icons.net",
+    "authors": []
+  },
+
+  "fonts": [],
+
+  "audio": [],
+
+  "art": []
+}

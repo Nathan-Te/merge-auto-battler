@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "sound": {
+    "enabled": true,
+    "masterVolume": 0.32,
+    "categories": {
+      "sfx": 1.0,
+      "music": 0.45
+    }
+  },
+  "render": {
+    "maxPixelRatio": 2
+  },
+  "particles": {
+    "poolSize": 200,
+    "gravityPx": 260,
+    "dragPerSecond": 1.6
+  },
+  "grid": {
+    "spawnPopMs": 210,
+    "moveMs": 130,
+    "returnMs": 175,
+    "sendMs": 130,
+    "dragScale": 1.18,
+    "dragScaleMs": 110,
+    "mergeAbsorbMs": 105,
+    "mergePopMs": 230,
+    "mergeSquash": {
+      "scaleX": 1.36,
+      "scaleY": 0.66,
+      "durationMs": 105
+    },
+    "mergeBurst": {
+      "count": 12,
+      "speedPx": 190,
+      "lifeMs": 420,
+      "sizePx": 5
+    },
+    "reject": {
+      "offsetPx": 9,
+      "durationMs": 58,
+      "repeat": 2
+    }
+  },
+  "flight": {
+    "toSlotMs": 300,
+    "toFieldMs": 260,
+    "trail": {
+      "everyMs": 28,
+      "lifeMs": 260,
+      "sizePx": 4
+    }
+  },
+  "sprite": {
+    "fps": {
+      "default": 6,
+      "walk": 6,
+      "idle": 4
+    }
+  },
+  "field": {
+    "decor": {
+      "endSize": 2.2
+    },
+    "spread": {
+      "steps": 5,
+      "marginStart": 0.14,
+      "marginEnd": 0.2
+    }
+  },
+  "combat": {
+    "hitFlashMs": 95,
+    "tracerMs": 140,
+    "recoilPx": 5,
+    "recoilMs": 85,
+    "unitPopMs": 200,
+    "enemyPopMs": 165,
+    "deathMs": 200,
+    "deathSquash": {
+      "scaleX": 1.3,
+      "scaleY": 0.12
+    },
+    "deathBurst": {
+      "count": 8,
+      "speedPx": 145,
+      "lifeMs": 340,
+      "sizePx": 4
+    }
+  },
+  "power": {
+    "castMs": 240,
+    "ringWidthPx": 3,
+    "ringPulseMs": 220,
+    "impactRingMs": 260,
+    "impactRingScale": 1.35,
+    "castBurst": {
+      "count": 14,
+      "speedPx": 170,
+      "lifeMs": 380,
+      "sizePx": 5
+    },
+    "blastBurst": {
+      "count": 26,
+      "speedPx": 260,
+      "lifeMs": 520,
+      "sizePx": 6
+    },
+    "healBurst": {
+      "count": 6,
+      "speedPx": 90,
+      "lifeMs": 420,
+      "sizePx": 4
+    }
+  },
+  "base": {
+    "flashMs": 230,
+    "vignetteAlpha": 0.45,
+    "vignetteFadeMs": 420
+  },
+  "shake": {
+    "minIntervalMs": 200,
+    "baseDamage": {
+      "intensity": 0.007,
+      "durationMs": 230
+    },
+    "tankDeath": {
+      "intensity": 0.0035,
+      "durationMs": 150
+    },
+    "gameOver": {
+      "intensity": 0.011,
+      "durationMs": 430
+    }
+  },
+  "ui": {
+    "bannerInMs": 220,
+    "bannerOutMs": 260,
+    "hintMs": 1100,
+    "gaugePulseMs": 260,
+    "scoreCountMs": 900
+  },
+  "draft": {
+    "cardInMs": 260,
+    "cardStaggerMs": 90,
+    "pickMs": 300,
+    "dismissMs": 190,
+    "chipPopMs": 220,
+    "disabledAlpha": 0.45,
+    "armFadeMs": 180,
+    "pickBurst": {
+      "count": 22,
+      "speedPx": 230,
+      "lifeMs": 520,
+      "sizePx": 6
+    }
+  },
+  "sfx": {
+    "merge": {
+      "wave": "square",
+      "freqStart": 380,
+      "freqEnd": 760,
+      "durationMs": 140,
+      "attackMs": 5,
+      "volume": 0.55,
+      "minIntervalMs": 40
+    },
+    "tap": {
+      "wave": "square",
+      "freqStart": 620,
+      "freqEnd": 880,
+      "durationMs": 80,
+      "attackMs": 3,
+      "volume": 0.34,
+      "minIntervalMs": 40
+    },
+    "reject": {
+      "wave": "saw",
+      "freqStart": 260,
+      "freqEnd": 120,
+      "durationMs": 160,
+      "attackMs": 4,
+      "volume": 0.4,
+      "minIntervalMs": 160
+    },
+    "deploy": {
+      "wave": "triangle",
+      "freqStart": 300,
+      "freqEnd": 620,
+      "durationMs": 190,
+      "attackMs": 8,
+      "volume": 0.45,
+      "minIntervalMs": 60
+    },
+    "shot": {
+      "wave": "square",
+      "freqStart": 900,
+      "freqEnd": 420,
+      "durationMs": 60,
+      "attackMs": 2,
+      "volume": 0.16,
+      "minIntervalMs": 55
+    },
+    "death": {
+      "wave": "noise",
+      "freqStart": 520,
+      "freqEnd": 90,
+      "durationMs": 180,
+      "attackMs": 3,
+      "volume": 0.3,
+      "minIntervalMs": 45
+    },
+    "baseHit": {
+      "wave": "saw",
+      "freqStart": 200,
+      "freqEnd": 60,
+      "durationMs": 300,
+      "attackMs": 6,
+      "volume": 0.55,
+      "minIntervalMs": 120
+    },
+    "powerCast": {
+      "wave": "sine",
+      "freqStart": 240,
+      "freqEnd": 1180,
+      "durationMs": 260,
+      "attackMs": 6,
+      "volume": 0.5,
+      "minIntervalMs": 90
+    },
+    "powerBlast": {
+      "wave": "noise",
+      "freqStart": 900,
+      "freqEnd": 60,
+      "durationMs": 460,
+      "attackMs": 4,
+      "volume": 0.6,
+      "minIntervalMs": 120
+    },
+    "powerHeal": {
+      "wave": "sine",
+      "freqStart": 520,
+      "freqEnd": 1040,
+      "durationMs": 420,
+      "attackMs": 30,
+      "volume": 0.42,
+      "minIntervalMs": 120
+    },
+    "wave": {
+      "wave": "triangle",
+      "freqStart": 220,
+      "freqEnd": 440,
+      "durationMs": 260,
+      "attackMs": 12,
+      "volume": 0.4,
+      "minIntervalMs": 300
+    },
+    "gameOver": {
+      "wave": "saw",
+      "freqStart": 420,
+      "freqEnd": 55,
+      "durationMs": 900,
+      "attackMs": 10,
+      "volume": 0.6,
+      "minIntervalMs": 1000
+    },
+    "slow": {
+      "wave": "sine",
+      "freqStart": 880,
+      "freqEnd": 340,
+      "durationMs": 180,
+      "attackMs": 6,
+      "volume": 0.22,
+      "minIntervalMs": 200
+    },
+    "draftOpen": {
+      "wave": "triangle",
+      "freqStart": 300,
+      "freqEnd": 900,
+      "durationMs": 320,
+      "attackMs": 12,
+      "volume": 0.5,
+      "minIntervalMs": 200
+    },
+    "draftPick": {
+      "wave": "square",
+      "freqStart": 520,
+      "freqEnd": 1040,
+      "durationMs": 220,
+      "attackMs": 4,
+      "volume": 0.5,
+      "minIntervalMs": 120
+    },
+    "button": {
+      "wave": "square",
+      "freqStart": 520,
+      "freqEnd": 700,
+      "durationMs": 70,
+      "attackMs": 3,
+      "volume": 0.3,
+      "minIntervalMs": 60
+    }
+  }
+}

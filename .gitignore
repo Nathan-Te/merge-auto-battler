@@ -17,3 +17,12 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Archive de soumission, régénérée par `npm run package`.
+release/
+
+# Scripts jetables de vérification au navigateur (`*.tmp.mjs`) et captures d'écran de
+# travail : ils servent le temps d'une session et n'ont rien à faire dans le dépôt.
+*.tmp.mjs
+shot-*.png
+qa-*.png

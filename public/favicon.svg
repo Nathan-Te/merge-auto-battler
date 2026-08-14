@@ -1,5 +1,19 @@
+<!--
+  Favicon — un orbe d'invocation devant les créneaux du château.
+
+  Les deux moitiés du jeu en une image de 16 px : ce qu'on fusionne, et ce qu'on défend.
+  Dessiné en SVG plutôt qu'exporté d'une planche parce qu'un favicon se lit d'abord à la
+  taille d'un onglet : à cette échelle, une illustration détaillée devient une tache, alors
+  que deux formes contrastées restent reconnaissables.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#12141c"/>
-  <circle cx="24" cy="26" r="12" fill="#4d96ff"/>
-  <circle cx="42" cy="38" r="12" fill="#ffd93d"/>
+  <rect width="64" height="64" rx="12" fill="#12141c" />
+
+  <!-- Créneaux, en retrait : ils situent la scène sans concurrencer l'orbe. -->
+  <path d="M12 56V36h5v-5h6v5h6v-5h6v5h6v-5h6v5h5v20z" fill="#2c3350" />
+
+  <!-- L'orbe, au premier plan : c'est le geste du jeu. -->
+  <circle cx="32" cy="26" r="14" fill="#4d96ff" />
+  <circle cx="32" cy="26" r="14" fill="none" stroke="#eef1f8" stroke-width="2" opacity="0.55" />
+  <circle cx="27" cy="21" r="4.5" fill="#eef1f8" opacity="0.45" />
 </svg>

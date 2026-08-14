@@ -1,7 +1,451 @@
 {
-  "version": 0,
-  "units": {},
-  "enemies": {},
-  "waves": {},
-  "itemSpawner": {}
+  "version": 9,
+  "input": {
+    "tapMaxDistancePx": 12,
+    "tapMaxDurationMs": 600,
+    "overlayGraceMs": 400
+  },
+  "battle": {
+    "tickMs": 100,
+    "maxTicksPerFrame": 5,
+    "laneLength": 1000,
+    "slotCount": 5,
+    "deployCooldownMs": 3500,
+    "skipCooldownMs": 10000,
+    "maxFieldUnits": 20,
+    "baseHp": 100,
+    "unitTypePattern": [
+      "single",
+      "aoe",
+      "single",
+      "slow",
+      "single",
+      "support",
+      "aoe",
+      "single",
+      "slow",
+      "aoe"
+    ],
+    "maxSupportFireRateBonus": 0.6
+  },
+  "units": {
+    "single": {
+      "role": "damage",
+      "hp": 30,
+      "speed": 70,
+      "damage": 9,
+      "fireRateMs": 700,
+      "range": 180,
+      "tierScaling": {
+        "hp": 2.3,
+        "damage": 2.3,
+        "fireRateMs": 0.97,
+        "range": 1.04,
+        "effect": 1.12
+      }
+    },
+    "aoe": {
+      "role": "aoe",
+      "hp": 26,
+      "speed": 64,
+      "damage": 6,
+      "fireRateMs": 1100,
+      "range": 160,
+      "splashRadius": 112,
+      "tierScaling": {
+        "hp": 2.25,
+        "damage": 2.25,
+        "fireRateMs": 0.98,
+        "range": 1.04,
+        "effect": 1.1
+      }
+    },
+    "slow": {
+      "role": "slow",
+      "hp": 34,
+      "speed": 64,
+      "damage": 6,
+      "fireRateMs": 900,
+      "range": 250,
+      "slowFactor": 0.38,
+      "slowDurationMs": 1600,
+      "slowRadius": 140,
+      "tierScaling": {
+        "hp": 2.25,
+        "damage": 2.1,
+        "fireRateMs": 0.97,
+        "range": 1.04,
+        "effect": 1.14
+      }
+    },
+    "support": {
+      "role": "support",
+      "hp": 42,
+      "speed": 76,
+      "damage": 0,
+      "fireRateMs": 0,
+      "range": 130,
+      "auraRadius": 250,
+      "buff": {
+        "damage": 0.58,
+        "fireRate": 0.3
+      },
+      "tierScaling": {
+        "hp": 2.3,
+        "damage": 1,
+        "fireRateMs": 1,
+        "range": 1.03,
+        "effect": 1.25
+      }
+    }
+  },
+  "powers": {
+    "maxTier": 6,
+    "spawnChance": 0.2,
+    "types": {
+      "heal": {
+        "kind": "heal",
+        "weight": 50,
+        "amount": 80,
+        "radius": 0,
+        "telegraphMs": 0,
+        "tierScaling": {
+          "amount": 3.1,
+          "radius": 1
+        }
+      },
+      "meteor": {
+        "kind": "blast",
+        "weight": 50,
+        "amount": 260,
+        "radius": 120,
+        "telegraphMs": 400,
+        "tierScaling": {
+          "amount": 3.5,
+          "radius": 1.09
+        }
+      }
+    }
+  },
+  "enemies": {
+    "basic": {
+      "hp": 24,
+      "speed": 44,
+      "damageToBase": 6,
+      "damage": 18,
+      "attackRateMs": 800,
+      "attackRange": 40
+    },
+    "fast": {
+      "hp": 13,
+      "speed": 106,
+      "damageToBase": 5,
+      "damage": 10,
+      "attackRateMs": 500,
+      "attackRange": 34
+    },
+    "tank": {
+      "hp": 95,
+      "speed": 26,
+      "damageToBase": 14,
+      "damage": 42,
+      "attackRateMs": 1200,
+      "attackRange": 50
+    }
+  },
+  "waves": {
+    "firstWaveDelayMs": 9000,
+    "interWavePauseMs": 7000,
+    "spawnGapMs": 820,
+    "scripted": [
+      {
+        "labelId": "discovery",
+        "spawnGapMs": 900,
+        "composition": [
+          {
+            "type": "basic",
+            "count": 3
+          }
+        ]
+      },
+      {
+        "labelId": "discovery",
+        "spawnGapMs": 820,
+        "composition": [
+          {
+            "type": "basic",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "labelId": "firstFast",
+        "spawnGapMs": 760,
+        "composition": [
+          {
+            "type": "basic",
+            "count": 5
+          },
+          {
+            "type": "fast",
+            "count": 4
+          }
+        ]
+      },
+      {
+        "labelId": "rush",
+        "spawnGapMs": 220,
+        "composition": [
+          {
+            "type": "fast",
+            "count": 14
+          }
+        ]
+      },
+      {
+        "labelId": "tankWall",
+        "spawnGapMs": 1100,
+        "composition": [
+          {
+            "type": "tank",
+            "count": 4
+          },
+          {
+            "type": "basic",
+            "count": 6
+          }
+        ]
+      },
+      {
+        "labelId": "mixedTide",
+        "spawnGapMs": 520,
+        "composition": [
+          {
+            "type": "basic",
+            "count": 12
+          },
+          {
+            "type": "fast",
+            "count": 9
+          }
+        ]
+      },
+      {
+        "labelId": "armoredRush",
+        "spawnGapMs": 200,
+        "composition": [
+          {
+            "type": "fast",
+            "count": 20
+          },
+          {
+            "type": "tank",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "labelId": "plainTide",
+        "spawnGapMs": 480,
+        "composition": [
+          {
+            "type": "basic",
+            "count": 16
+          },
+          {
+            "type": "fast",
+            "count": 12
+          }
+        ]
+      },
+      {
+        "labelId": "thickWall",
+        "spawnGapMs": 1000,
+        "composition": [
+          {
+            "type": "tank",
+            "count": 8
+          },
+          {
+            "type": "basic",
+            "count": 12
+          }
+        ]
+      },
+      {
+        "labelId": "everything",
+        "spawnGapMs": 200,
+        "composition": [
+          {
+            "type": "fast",
+            "count": 26
+          },
+          {
+            "type": "basic",
+            "count": 12
+          },
+          {
+            "type": "tank",
+            "count": 5
+          }
+        ]
+      }
+    ],
+    "infinite": [
+      {
+        "type": "basic",
+        "count": 12
+      },
+      {
+        "type": "fast",
+        "count": 14
+      },
+      {
+        "type": "tank",
+        "count": 6
+      }
+    ],
+    "scaling": {
+      "hpPerWave": 1.66,
+      "speedPerWave": 1.02,
+      "damagePerWave": 1.28,
+      "countPerWave": 1.24,
+      "spawnGapPerWave": 0.98,
+      "minSpawnGapMs": 320,
+      "maxCountPerEntry": 24
+    }
+  },
+  "draft": {
+    "everyWaves": 3,
+    "cardsPerOffer": 3,
+    "upgrades": [
+      {
+        "id": "fireRate",
+        "icon": "rate",
+        "maxLevel": 3,
+        "effect": {
+          "unitFireRate": 0.88
+        }
+      },
+      {
+        "id": "power",
+        "icon": "damage",
+        "maxLevel": 3,
+        "effect": {
+          "unitDamage": 1.18
+        }
+      },
+      {
+        "id": "reach",
+        "icon": "range",
+        "maxLevel": 2,
+        "effect": {
+          "unitRange": 1.14
+        }
+      },
+      {
+        "id": "plating",
+        "icon": "shield",
+        "maxLevel": 2,
+        "effect": {
+          "unitHp": 1.22
+        }
+      },
+      {
+        "id": "deploy",
+        "icon": "clock",
+        "maxLevel": 3,
+        "effect": {
+          "deployCooldown": 0.88
+        }
+      },
+      {
+        "id": "slot",
+        "icon": "slot",
+        "maxLevel": 2,
+        "effect": {
+          "slotBonus": 1
+        }
+      },
+      {
+        "id": "fortify",
+        "icon": "base",
+        "maxLevel": 3,
+        "effect": {
+          "baseHpBonus": 22
+        }
+      },
+      {
+        "id": "richVein",
+        "icon": "tier",
+        "maxLevel": 2,
+        "effect": {
+          "spawnTierBonus": 1
+        }
+      },
+      {
+        "id": "extraction",
+        "icon": "grid",
+        "maxLevel": 3,
+        "effect": {
+          "spawnInterval": 0.86
+        }
+      },
+      {
+        "id": "banner",
+        "icon": "aura",
+        "maxLevel": 2,
+        "effect": {
+          "byType": {
+            "support": {
+              "effect": 1.35,
+              "range": 1.2
+            }
+          }
+        }
+      },
+      {
+        "id": "reflex",
+        "icon": "skip",
+        "maxLevel": 2,
+        "effect": {
+          "skipCooldown": 0.65
+        }
+      },
+      {
+        "id": "arcane",
+        "icon": "power",
+        "maxLevel": 3,
+        "effect": {
+          "powerAmount": 1.3
+        }
+      },
+      {
+        "id": "resonance",
+        "icon": "orb",
+        "maxLevel": 2,
+        "effect": {
+          "powerChance": 1.45
+        }
+      }
+    ]
+  },
+  "itemSpawner": {
+    "maxTier": 11,
+    "startingItems": 8,
+    "firstSpawnDelayMs": 500,
+    "intervalMs": 1900,
+    "minIntervalMs": 880,
+    "intervalDecay": 0.99,
+    "fillPressure": {
+      "startFill": 0.36,
+      "stopFill": 0.8,
+      "maxFactor": 14,
+      "exponent": 2
+    },
+    "spawnTierWeights": {
+      "1": 85,
+      "2": 15
+    }
+  }
 }

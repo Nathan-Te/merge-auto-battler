@@ -1,0 +1,181 @@
+{
+  "game": {
+    "title": "Merge Battler",
+    "tagline": "Merge orbs, summon your army, hold the castle."
+  },
+  "hud": {
+    "baseHp": "HP {current}/{max}",
+    "queue": "Queue {current}/{max}",
+    "queueFull": "Queue full — the next one leaves in a moment",
+    "wave": "Wave {wave}",
+    "waveNamed": "Wave {wave} · {label}",
+    "seconds": "{seconds}s",
+    "countdown": "in {seconds}s",
+    "remaining": "{count} left",
+    "skip": "skip"
+  },
+  "waves": {
+    "labels": {
+      "discovery": "First contact",
+      "firstFast": "First runners",
+      "rush": "Rush",
+      "tankWall": "Wall of ogres",
+      "mixedTide": "Mixed tide",
+      "armoredRush": "Armoured rush",
+      "tide": "{enemy} tide",
+      "thickWall": "Thick wall",
+      "everything": "All at once",
+      "plainTide": "Tide",
+      "mixed": "Mixed wave"
+    }
+  },
+  "units": {
+    "single": {
+      "label": "Archer",
+      "blurb": "Hits one target at a time. The all-rounder: never the best, never bad."
+    },
+    "aoe": {
+      "label": "Pyromancer",
+      "blurb": "Also hits enemies around its target. Devastating against tight packs."
+    },
+    "slow": {
+      "label": "Frost mage",
+      "blurb": "Hits one target and chills the whole area around it. It buys you time."
+    },
+    "support": {
+      "label": "Bannerman",
+      "blurb": "Never strikes: he raises the damage and rate of fire of nearby allies."
+    }
+  },
+  "enemies": {
+    "basic": {
+      "label": "Goblin",
+      "plural": "Goblins"
+    },
+    "fast": {
+      "label": "Wolf",
+      "plural": "Wolves"
+    },
+    "tank": {
+      "label": "Ogre",
+      "plural": "Ogres"
+    }
+  },
+  "powers": {
+    "heal": {
+      "label": "Healing potion",
+      "blurb": "Heals every living unit. Save it for the moment the line bends."
+    },
+    "meteor": {
+      "label": "Meteor",
+      "blurb": "Strikes the most threatening pack of enemies. Rushes do not get through."
+    }
+  },
+  "draft": {
+    "title": "Reinforcement",
+    "subtitle": "Wave {wave} held — choose an upgrade",
+    "level": "Level {level}/{max}",
+    "upgrades": {
+      "fireRate": {
+        "label": "Rate of fire",
+        "description": "Every unit strikes 12% faster."
+      },
+      "power": {
+        "label": "Might",
+        "description": "+18% damage for every unit."
+      },
+      "reach": {
+        "label": "Reach",
+        "description": "+14% range: your units engage sooner."
+      },
+      "plating": {
+        "label": "Plating",
+        "description": "+22% HP for units yet to come."
+      },
+      "deploy": {
+        "label": "Swift muster",
+        "description": "−12% on the summoning cooldown."
+      },
+      "slot": {
+        "label": "Wider circle",
+        "description": "+1 slot in the summoning queue."
+      },
+      "fortify": {
+        "label": "Fortifications",
+        "description": "+22 castle HP, and as much healed right away."
+      },
+      "richVein": {
+        "label": "Rich vein",
+        "description": "Orbs appear one tier higher."
+      },
+      "extraction": {
+        "label": "Extraction",
+        "description": "−14% on the orb spawn interval."
+      },
+      "banner": {
+        "label": "Banner",
+        "description": "Bannerman aura and bonus +35%."
+      },
+      "reflex": {
+        "label": "Reflex",
+        "description": "−35% on the skip button cooldown."
+      },
+      "arcane": {
+        "label": "Arcane charge",
+        "description": "+30% power strength (healing and damage)."
+      },
+      "resonance": {
+        "label": "Resonance",
+        "description": "+45% chance an orb is a power."
+      }
+    }
+  },
+  "help": {
+    "title": "How to play",
+    "gestures": "Tap an orb → it goes to battle, as the unit at the head of the queue.\nDrag onto an orb of the same kind and tier → they merge.\nOtherwise the two orbs swap places: keep your table tidy.",
+    "unitsTitle": "The four units",
+    "powersTitle": "Powers",
+    "powersRule": "Round = power. Tap to use it at once: no queue, no wait.\nA power only merges with the same power — never with a summoning orb.",
+    "rhythm": "The queue at the top shows the next 3 unit types; “skip” discards one ({seconds}s).\nEvery pause announces the coming wave. Every {waves} waves, an upgrade of your choice.",
+    "row": "{label} — {role}",
+    "close": "Resume",
+    "credits": "Credits"
+  },
+  "credits": {
+    "title": "Credits",
+    "close": "Back",
+    "made": "Built with",
+    "iconsTitle": "Icons",
+    "icons": "Interface icons, used under their original licence:",
+    "artTitle": "Art",
+    "art": "Sprites generated with AI assistance, then cut and processed by the project's own asset pipeline.",
+    "audioTitle": "Audio",
+    "audio": "Sound effects and music: see the list below.",
+    "fontsTitle": "Fonts",
+    "fonts": "Self-hosted web fonts — the game makes no external request.",
+    "noneYet": "—"
+  },
+  "gameOver": {
+    "title": "Game over",
+    "score": {
+      "one": "{count} wave survived",
+      "other": "{count} waves survived"
+    },
+    "best": "Best: {best}",
+    "newRecord": "New record!",
+    "replay": "Play again",
+    "build": "Build: {build}",
+    "noUpgrades": "no upgrade taken",
+    "upgradeLevel": "{label} ×{level}",
+    "damageShare": "{unit} dealt {share}% of the damage",
+    "noDamage": "no damage dealt",
+    "summary": "{sent} summons · {merges} merges · best tier {tier}",
+    "powers": " · {count} powers",
+    "powersFavourite": " · {count} powers (mostly {label})"
+  },
+  "debug": {
+    "speed": "×{speed}",
+    "nextWave": "wave +",
+    "invincible": "base ∞"
+  }
+}

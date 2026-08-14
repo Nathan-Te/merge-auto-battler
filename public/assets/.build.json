@@ -1,0 +1,89 @@
+{
+  "_generated": "npm run assets — ne pas éditer à la main",
+  "inputHash": "aaf6c331573dae7de091793aee55e84d84f4be7e6a7a5fcb3ea4cc3eeeaaa5bb",
+  "pipelineVersion": 4,
+  "outputs": [
+    "public/assets/atlas-decor.json",
+    "public/assets/atlas-decor.webp",
+    "public/assets/atlas-enemies.json",
+    "public/assets/atlas-enemies.webp",
+    "public/assets/atlas-orbs.json",
+    "public/assets/atlas-orbs.webp",
+    "public/assets/atlas-units.json",
+    "public/assets/atlas-units.webp",
+    "public/assets/index.json",
+    "public/gallery/index.html"
+  ],
+  "atlases": [
+    {
+      "name": "decor",
+      "bytes": 474,
+      "width": 128,
+      "height": 128,
+      "count": 1
+    },
+    {
+      "name": "enemies",
+      "bytes": 1208,
+      "width": 64,
+      "height": 128,
+      "count": 9
+    },
+    {
+      "name": "orbs",
+      "bytes": 1172,
+      "width": 64,
+      "height": 128,
+      "count": 11
+    },
+    {
+      "name": "units",
+      "bytes": 2644,
+      "width": 64,
+      "height": 256,
+      "count": 36
+    }
+  ],
+  "extras": [],
+  "totalBytes": 5498,
+  "budgetKb": {
+    "target": 5120,
+    "max": 20480
+  },
+  "missing": [
+    "power.heal.1",
+    "power.heal.2",
+    "power.heal.3",
+    "power.meteor.1",
+    "power.meteor.2",
+    "power.meteor.3",
+    "projectile.arrow",
+    "projectile.fireball",
+    "projectile.frost",
+    "decor.castle",
+    "decor.portal",
+    "decor.table",
+    "decor.sky",
+    "ui.panel.wood",
+    "ui.panel.parchment",
+    "ui.card",
+    "ui.button",
+    "icon.sound.on",
+    "icon.sound.off",
+    "icon.help",
+    "icon.draft.rate",
+    "icon.draft.damage",
+    "icon.draft.range",
+    "icon.draft.shield",
+    "icon.draft.clock",
+    "icon.draft.slot",
+    "icon.draft.base",
+    "icon.draft.tier",
+    "icon.draft.grid",
+    "icon.draft.aura",
+    "icon.draft.skip",
+    "icon.draft.power",
+    "icon.draft.orb"
+  ],
+  "orphans": []
+}
